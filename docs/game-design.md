@@ -1,6 +1,6 @@
 # Documento de diseño — Misión a Marte
 
-Estado: **borrador v2 para validar** antes de programar (ver el historial al final). Cada número indica su tipo:
+Estado: **borrador v3 para validar** antes de programar (ver el historial al final). Cada número indica su tipo:
 
 - **[dato]**: medido o publicado por la NASA u otra agencia, con su fuente.
 - **[norma]**: requisito de NASA-STD-3001 o valor de diseño del BVAD.
@@ -11,28 +11,32 @@ Estado: **borrador v2 para validar** antes de programar (ver el historial al fin
 
 ## 1. Visión
 
-> Llevá a tu tripulación de la Tierra a Marte y de vuelta a casa sana, juntando toda la ciencia que puedas,
+> Llevá a tu tripulación de la Tierra a Marte y de vuelta a casa sana, con las muestras de Marte a bordo,
 > mientras el clima espacial **real** pone a prueba cada decisión.
 
 Pilares, sacados del desafío *Junior Astronaut Mission Trainer*:
 
-1. **Ninguna decisión es gratis.** Toda elección se paga en energía, aire y agua, o salud.
-2. **Datos reales visibles.** El jugador ve qué dato de la NASA causó cada evento, con su fecha y su fuente.
-3. **Pocos sistemas.** Tres medidores, no seis.
+1. **Ninguna decisión es gratis.** Toda elección se paga en energía, soporte vital o salud.
+2. **Datos reales visibles.** El jugador ve qué dato de la NASA causó cada evento, con su fecha y su fuente (ver 3.8).
+3. **Pocos sistemas.** Tres medidores, no seis. Además, la complejidad crece de partida en partida (ver 6).
 4. **Fallar enseña.** No hay "Game Over" humillante. Cuando un sistema cae, el juego no termina: obliga a **sacrificar otro** para resistir (ver 3.5). El informe final compara tus decisiones con lo que pasó de verdad.
-5. **Rejugable.** Distintas fechas reales, cargas, fallas y objetivos.
+5. **Rejugable.** Distintas fechas reales, cargas, fallas, objetivos y desbloqueos.
 6. **Mecánica antes que gráficos.** Un juego simple que enseña una restricción real vale más que uno bonito que no.
 
-Público: 7–12 años (objetivo principal: 10). Español sencillo; cada término técnico se explica en contexto la primera vez que aparece.
+Público: 7–12 años (objetivo principal: 10). Bilingüe **español e inglés** desde el inicio (ver 8).
+Plataforma: **PC con teclado y mouse**.
 
 ## 2. Arco de la misión
 
 | Fase | Amenaza principal | Lo que se aprende | Dataset principal |
 |---|---|---|---|
 | 1. Preparación y despegue | Carga limitada; cinturones de Van Allen | Todo lo que llevás pesa; la Tierra nos protege | RadLab: Artemis I (EAD/HERA) |
-| 2. Viaje | **Radiación** (sin atmósfera ni campo magnético) | Tormentas solares, refugio, ejercicio, aislamiento | RadLab: BioSentinel, TGO en crucero; DONKI |
-| 3. Aterrizaje | Los "7 minutos de terror" | Estamos solos: la señal tarda más que el aterrizaje | Secuencia EDL de Curiosity/Perseverance |
+| 2. Viaje de ida | **Radiación** (sin atmósfera ni campo magnético) | Tormentas solares, refugio, ejercicio, aislamiento | RadLab: BioSentinel, TGO en crucero; DONKI |
+| 3. Aterrizaje en Marte | Los "7 minutos de terror" | Estamos solos: la señal tarda más que el aterrizaje | Secuencia EDL de Curiosity/Perseverance |
 | 4. Estancia en Marte | **Polvo y frío** | La atmósfera protege de la radiación pero tapa el sol | REMS y RAD de Curiosity (cráter Gale) |
+| 5. Despegue de Marte | Masa: muestras contra suministros | Lo que te llevás a casa también pesa | Reglas de carga (4.5) |
+| 6. Viaje de vuelta | Radiación con una nave y una tripulación gastadas | Las decisiones de la ida se pagan en la vuelta | RadLab: BioSentinel; DONKI |
+| 7. Reentrada a la Tierra | Calor y precisión | Volver también es difícil | Secuencia de reentrada de cápsulas tripuladas [verificar cifras] |
 
 El contraste entre fases es medible: durante la tormenta de mayo de 2024, el espacio profundo registró
 **653 μGy/h** (BioSentinel) y la superficie de Marte **304 μGy/h** (Curiosity) [dato, RadLab]. Son instrumentos
@@ -45,15 +49,23 @@ distintos, así que la comparación es orientativa.
 | **Campaña "Historia real 2024"** | Un calendario real único (ver 2.2) | Credibilidad: todo pasó de verdad, en orden |
 | **Modo libre** | Cada fase toma un período real distinto; la pantalla siempre muestra la fecha del dato | Rejugabilidad |
 
-Duración elegible:
+Duración elegible (con guardado en cualquier momento, ver 3.9):
 
-| | Despegue | Viaje (jornadas jugables) | Aterrizaje | Marte (soles) | Total aprox. |
-|---|---|---|---|---|---|
-| **Corta** | ~4 min | 4 | ~2 min | 10 | ~25 min |
-| **Larga** | ~6 min | 8 | ~2 min | 30 (campaña: 19) | ~60 min |
+| | Despegue | Ida (jornadas) | Aterrizaje | Marte (soles jugados) | Despegue de Marte | Vuelta (jornadas) | Reentrada | Total aprox. |
+|---|---|---|---|---|---|---|---|---|
+| **Corta** | ~4 min | 4 | ~2 min | 10 | ~2 min | 2 | ~2 min | ~35 min |
+| **Larga** | ~6 min | 8 | ~2 min | 19–30 | ~3 min | 4 | ~2 min | ~75 min |
 
-El tiempo entre jornadas de viaje **sí transcurre**, en avance rápido (ver 3.1), con los consumos y la dosis
-reales de esos días. Una misión corta juega menos jornadas, pero no hace el viaje más corto.
+- La **vuelta es más corta en jornadas jugables** que la ida, pero la nave y la tripulación llegan gastadas (ver 4.6).
+- El tiempo entre jornadas y entre soles **sí transcurre**, en avance rápido (3.1), con los consumos y la dosis
+  reales de esos días. Una misión corta juega menos jornadas, pero no acorta el viaje.
+- **Cada tramo dura 4 meses** en los dos modos [regla]. Con viajes reales de 7 meses, el fondo de radiación de ida
+  y vuelta sumaría ~770 mSv (1,84 mSv/día, Zeitlin 2013), más que el límite de carrera de 600 mSv, sin que el jugador
+  pudiera hacer nada. Con 4 meses por tramo suma ~440 mSv: el límite queda cerca y las tormentas y el blindaje deciden
+  [dato + regla]. El juego lo explica como "viaje acelerado". En el informe, se cuenta que una misión real de 7 meses
+  por tramo superaría el límite actual: es un problema abierto de la NASA.
+- Una estancia corta (semanas) con viajes de 4 meses no corresponde a una trayectoria real de mínima energía (que
+  espera ~500 días en Marte). Se presenta como simplificación [regla].
 
 ### 2.2 Calendario de la campaña 2024
 
@@ -62,53 +74,54 @@ Restricción de datos: RAD de Curiosity llega hasta el **03/06/2024** en RadLab,
 | Fase | Fechas reales | Eventos reales que entran |
 |---|---|---|
 | Despegue | 15/01/2024 | Cruce de Van Allen: perfil de Artemis I (16/11/2022), indicado como "medido por Artemis I" |
-| Viaje | 15/01 → 14/05/2024 | Tormenta solar del 8–14 de mayo (llamaradas X, SEP) en espacio profundo |
+| Viaje de ida | 15/01 → 14/05/2024 | Tormenta solar del 8–14 de mayo (llamaradas X, SEP) en espacio profundo |
 | Aterrizaje | 15/05/2024 | Clima real de Gale ese día |
-| Marte | 15/05 → 03/06/2024 (19 soles) | **Evento SEP del 20/05/2024** en superficie: la región solar activa sigue amenazando |
+| Marte | 15/05 → 03/06/2024 (19 soles) | **Evento SEP del 20/05/2024** en superficie |
+| Despegue de Marte | 04/06/2024 | — |
+| Viaje de vuelta | 04/06 → 10/10/2024 | Período muy activo: 19 llamaradas X, entre ellas **X9.0 del 03/10/2024**, la mayor de 2024; eventos SEP el 08/06, el 09/09 y el **09/10/2024** [dato, DONKI] |
+| Reentrada | 10/10/2024 | La tormenta de octubre como clímax final |
 
-El viaje real dura ~7 meses (Curiosity: 254 días) [dato]. La campaña lo **acelera a 4 meses** para que
-coincida con los datos, y lo dice en pantalla ("viaje acelerado").
-
-En el modo libre, el viaje usa ventanas de BioSentinel (2022-11 → 2025-11) o de TGO en crucero
+En el modo libre, los viajes usan ventanas de BioSentinel (2022-11 → 2025-11) o de TGO en crucero
 (04 → 09/2016), y la estancia usa ventanas de Curiosity (2015 → 06/2024) donde RAD y REMS coinciden.
 
 ## 3. Sistemas compartidos
 
 ### 3.1 Tiempo
 
-- **Estancia:** un sol ≈ 90 s reales. La mañana es una pausa de planificación sin reloj.
-- **Viaje:** una jornada ≈ 2 min. Entre jornadas el calendario corre en **avance rápido interactivo**, no con un salto:
+- **Viaje (ida y vuelta):** una jornada jugada ≈ 2 min.
+- **Marte:** un sol jugado ≈ 90 s.
+- **Entre jornadas y entre soles**, el calendario corre en **avance rápido interactivo**, no con un salto:
   - Los medidores se animan día a día; nunca saltan de golpe del día 10 al 47.
-  - La tripulación sigue sus rutinas solas.
-  - El jugador puede **detener el avance** cuando quiera para actuar.
+  - La tripulación sigue sus rutinas sola.
+  - El jugador puede **detener el avance** cuando quiera. Al detenerlo aparece la **pantalla de planificación**
+    (rutinas y tablero de energía), en pausa.
 - **El avance se frena solo** ante cada aviso del planificador de incidentes (3.4), en tres niveles:
 
   | Nivel | Disparador | Velocidad | Señales para el jugador |
   |---|---|---|---|
   | Calma | Sin avisos | Rápida (~1 día cada 2 s) [regla] | Interfaz normal |
-  | **Alerta** | Detección real en DONKI: CME, llamarada M/X o una alerta de `notifications` | Lenta | Interfaz teñida de amarillo; el texto de la alerta adaptado; el **monitor de partículas** (clics tipo contador Geiger) acelera; ligeras fluctuaciones de los paneles |
-  | **Impacto** | Inicio real del pico de dosis en RadLab | Tiempo normal, con el reloj de la jornada | Alarma y orden de refugio |
+  | **Alerta** | En el viaje: detección real en DONKI (CME, llamarada M/X, alerta de `notifications`). En Marte: el UV de REMS empieza a bajar (polvo), se anuncia una noche extrema o hay un aviso de radiación | Lenta | Interfaz teñida de amarillo; texto de la alerta adaptado; el **monitor de partículas** (clics tipo contador Geiger) acelera; ligeras fluctuaciones de los paneles |
+  | **Impacto** | Inicio real del pico de dosis en RadLab, o el sol de polvo o frío | Tiempo normal | Alarma y orden de refugio o de reparto de energía |
 
-- **Antelación del aviso:** el aviso se da con la **diferencia real** entre la detección en DONKI y el pico en RadLab
-  para ese evento. Si no hay evento detectado que lo preceda, se usan **48 h simuladas** [regla].
-  El jugador ve venir el golpe y decide antes. La crisis se siente anticipada, no como una ventana de error.
+- **Antelación del aviso:** se da con la **diferencia real** entre la detección en DONKI y el pico en RadLab para
+  ese evento. Si no hay evento detectado que lo preceda, se usan **48 h simuladas** [regla].
 - El reloj de simulación avanza en **horas de misión reales**. Los datos se consultan por fecha, así que
   la compresión cambia la velocidad de juego, nunca los valores.
 
 > Nota de rigor: los avisos de DONKI se refieren al entorno de la Tierra. La nave está en otra posición, así que
-> la antelación medida es una aproximación y se presenta como "pronóstico", con incertidumbre (3.6).
+> la antelación medida es una aproximación y se presenta como "pronóstico" (3.6).
 > Por eso el indicador es un **monitor de partículas** y no estática de radio: las llamaradas cortan la radio
 > terrestre de onda corta, pero no la Red de Espacio Profundo (DSN) que usan las naves.
 
 ### 3.2 Los tres medidores
 
-Viajan entre fases: lo que pasa en el despegue se arrastra hasta Marte.
+Viajan entre las siete fases. Todos los consumos se calculan para **4 tripulantes**.
 
 #### Energía
 
 ```
 generación = P_paneles × (1 / r²) × f_polvo × f_luz
-consumo    = soporte_vital + calefacción + sistemas asignados (blindaje, MOXIE, invernadero, radio)
+consumo    = soporte vital + calefacción + sistemas asignados (blindaje, MOXIE, invernadero, radio)
 batería   += (generación − consumo) × Δt, con tope de capacidad
 ```
 
@@ -116,9 +129,9 @@ batería   += (generación − consumo) × Δt, con tope de capacidad
 - `f_polvo` (en Marte), a partir del índice UV de REMS como indicador de polvo:
   Very_High/High → 1,0; Moderate → 0,85; Low → 0,45 [regla]. La tormenta de 2018 dejó el UV en "Low" ~60 soles [dato, REMS].
 - `calefacción = k × (T_interior − T_mín_REMS)` [regla para `k`; la temperatura es dato].
-- Tablero de energía: pocos "enchufes" compartidos entre sistemas. Los chicos arrastran fichas, sin números.
+- **Tablero de energía:** pocos "enchufes" compartidos entre sistemas. Se arrastran fichas con el mouse, sin números.
 
-#### Aire y agua
+#### Soporte vital (aire y agua)
 
 | Variable | Valor | Tipo |
 |---|---|---|
@@ -130,9 +143,9 @@ batería   += (generación − consumo) × Δt, con tope de capacidad
 
 Si el depurador se descuida, el CO2 sube a una tasa fija [regla]. Por encima de 3 mmHg se disparan los dolores de cabeza.
 
-#### Salud de la tripulación (por tripulante)
+#### Salud (por tripulante)
 
-Combina **dosis**, **condición física** y **cansancio**. Se muestra como una sola barra con tres íconos.
+Combina **dosis**, **condición física**, **nutrición** y **cansancio**. Se muestra como una barra con cuatro íconos.
 
 **Dosis:**
 
@@ -147,24 +160,29 @@ dosis_mSv += tasa_real_μGy/h(fecha, lugar) × f_blindaje(ubicación) × Q(fase)
 | `f_blindaje` | Exterior/EVA 1,0 · Hábitat o nave 0,6 · Refugio: de **0,2** con el escudo de agua lleno a **0,6** vacío, interpolado según el agua del escudo | [regla] |
 
 Para niños: la dosis se muestra en **radiografías de tórax** (0,1 mSv) [dato] y como porcentaje del límite de carrera de **600 mSv** [norma].
+La parte inevitable del viaje se muestra separada de la parte que el jugador controla (2.1).
 
-Dato para el informe: un viaje de 7 meses suma ~390 mSv solo por el fondo (1,84 mSv/día, Zeitlin 2013) [dato].
-Una misión real a Marte se acerca al límite actual de la NASA. Esa parte inevitable se muestra separada de la
-parte que el jugador puede controlar.
+**Nutrición (sin medidor propio):** la comida es un **stock del inventario**, no un medidor.
+- Cada tripulante necesita **3035 kcal por día** [norma, NASA-STD-3001 V2 7003], unos 1,8 kg de comida envasada [norma, BVAD].
+- El stock viene de la carga inicial y, en Marte, del invernadero.
+- **Comer menos** (racionar) baja la condición física y el ánimo [regla]. Racionar es un sacrificio posible de la falla en cascada (3.5).
 
-**Condición física:** baja cada jornada sin ejercicio. Al llegar a Marte (0,38 g [dato]) trabajás más lento [regla]. Base: estudios OSDR de hueso y músculo.
+**Condición física:** baja cada jornada sin ejercicio. Al llegar a Marte (0,38 g [dato]) y de vuelta a la Tierra (1 g) trabajás más lento [regla]. Base: estudios OSDR de hueso y músculo.
 
-**Cansancio:** sube con el trabajo y el CO2 alto; baja durmiendo. Ánimo: sube al hablar con la Tierra (estudio de aislamiento Mars-500, OSDR).
+**Cansancio y ánimo:** el cansancio sube con el trabajo y el CO2 alto y baja durmiendo. El ánimo sube al hablar con la Tierra (estudio de aislamiento Mars-500, OSDR).
 
 ### 3.3 Tripulación
 
-Tres tripulantes; el jugador cambia con **Tab**:
+Cuatro tripulantes. El jugador empieza como la **comandante** y cambia de tripulante con **Tab**:
 
-| Rol | Bonificación | Tareas preferidas |
+| Rol | Velocidad de trabajo | Tareas preferidas |
 |---|---|---|
-| Ingeniera | Repara ×1,5 | Energía, depurador, fugas, corrección de trayectoria |
-| Botánico | Invernadero ×1,5 | Comida, agua, plagas |
-| Geóloga-médica | EVA y salud ×1,5 | Muestras, ejercicio, tratar el cansancio |
+| **Comandante** | ×1,0 en **todas** las tareas | Cualquiera; cubre lo que falte |
+| Ingeniera | ×1,5 en lo suyo, ×1,0 en el resto | Energía, depurador, fugas, corrección de trayectoria |
+| Botánico | ×1,5 en lo suyo | Comida, invernadero, agua, plagas |
+| Geóloga-médica | ×1,5 en lo suyo | Muestras, ejercicio, enfermería |
+
+La velocidad base se multiplica por la eficiencia de cada uno.
 
 **Tripulantes automáticos.** La torpeza es un **síntoma de la gestión**, no una regla fija: una tripulación bien
 cuidada rinde igual que el jugador.
@@ -179,17 +197,19 @@ cuidada rinde igual que el jugador.
   ruta       = óptima si eficiencia ≥ 0,8; si no, la más corta a ciegas (puede ser peor)
   ```
 
-  Los pesos son [regla]. Todos los términos están entre 0 y 1 y vienen de la condición física, el cansancio,
-  el CO2 y el ánimo (3.2).
+  Los pesos son [regla]. Todos los términos están entre 0 y 1 y vienen de la salud (3.2) y del CO2.
 - **Ejemplos:** con CO2 bajo, sueño completo y llamadas a casa, una alarma recibe respuesta en ~1 s por la mejor ruta.
   Si sacrificaste el sueño para reparar algo, la misma alarma tarda hasta 6 s. Si la geóloga-médica no hizo ejercicio
   en el viaje, en Marte trabaja más lento.
 - **La misma fórmula se aplica al personaje del jugador** en velocidad de trabajo y de movimiento, no en decisiones.
-  Es justo: el jugador siente en su propio personaje lo que causó.
-- **Base real:** el CO2 alto causa dolor de cabeza y fatiga (OCHMO-TB-004) [dato]. En el estudio de aislamiento
-  Mars-500 se registraron cambios en el sueño y la actividad de la tripulación [verificar: Basner et al. 2013, PNAS].
-- **La interfaz siempre muestra por qué** un tripulante está lento ("Ana está cansada: durmió 4 h"), para que la
-  causa se vea y la frustración apunte a la decisión, no al juego.
+- **Base real:** el CO2 alto causa dolor de cabeza y fatiga (OCHMO-TB-004) [dato]. En el estudio Mars-500 se
+  registraron cambios en el sueño y la actividad de la tripulación [verificar: Basner et al. 2013, PNAS].
+- **La interfaz siempre muestra por qué** un tripulante está lento ("Ana está cansada: durmió 4 h").
+
+**Modo ayuda (opcional, se activa en el menú)** [regla]:
+- Los automáticos **reaccionan solos a las crisis**: van al refugio con la alarma, aunque no estuviera en su rutina.
+- El Control de Misión ofrece **pistas sin que se las pidas**, sin demora.
+- No cambia los datos ni los costes de las decisiones: solo reduce la carga de gestión.
 
 ### 3.4 Incidentes
 
@@ -198,65 +218,108 @@ Hay dos fuentes, que pasan por un mismo planificador de eventos:
 1. **Línea de tiempo real:** eventos del dataset en la fecha simulada. Son fijos para una fecha dada.
 2. **Rango seguro:** cada variable tiene un rango (norma o regla). Salir de él dispara un incidente. Más fallas aleatorias con semilla.
 
-Formato de cada incidente (de él salen los datos y los tests):
+Qué incidentes pueden aparecer depende del **nivel de desbloqueo** del jugador (6).
+
+Formato de cada incidente (de él salen los datos, los textos traducibles y los tests):
 
 ```
-id, fase, disparador, aviso_previo, efecto, respuesta_del_jugador, coste_de_cada_respuesta,
-fuente (dataset + fecha | norma), explicación_para_niños (1 frase)
+id, fase, nivel_desbloqueo, disparador, aviso_previo, efecto, respuesta_del_jugador, coste_de_cada_respuesta,
+fuente (dataset + fecha | norma), clave_texto_niños (traducible)
 ```
 
 ### 3.5 Falla en cascada: supervivencia extrema
 
 Un medidor en cero **no termina la misión**. La base o la nave entra en un **modo de emergencia** que obliga a
-canibalizar otro sistema. Así se ganan unas jornadas o soles para recuperarse, como en el Apolo 13: el juego no
-castiga, te hace elegir qué sacrificar.
+canibalizar otro sistema. Así se ganan unas jornadas o soles para recuperarse, como en el Apolo 13.
 
 | Medidor en cero | Modo de emergencia (automático) | Sacrificios que puede elegir el jugador | Coste del sacrificio |
 |---|---|---|---|
 | **Energía** | **Soporte vital mínimo:** sin ciencia, calefacción reducida, luces del invernadero apagadas. La salud baja cada hora | Mandar a alguien a **limpiar los paneles** (EVA con polvo y dosis) · Apagar MOXIE · Desconectar el refugio | Dosis y cansancio · Baja el O2 · El refugio pierde eficacia |
-| **Aire y agua** | Racionamiento: cansancio acelerado | **Beber el escudo de agua** del refugio · Usar energía extra en MOXIE o el reciclador | El refugio pasa de 0,2 a 0,6 (3.2): **mucha más dosis en la próxima tormenta** · Menos energía |
-| **Salud** (de un tripulante) | Queda **en reposo** en la enfermería: no trabaja | La geóloga-médica lo atiende (deja su tarea) · Reducir rutinas de los demás | Menos ciencia · Más cansancio para el resto |
+| **Soporte vital** | Racionamiento de aire y agua: cansancio acelerado | **Beber el escudo de agua** del refugio · Usar energía extra en MOXIE o el reciclador | El refugio pasa de 0,2 a 0,6 (3.2): **mucha más dosis en la próxima tormenta** · Menos energía |
+| **Salud** (de un tripulante) | Queda **en reposo** en la enfermería: no trabaja | La geóloga-médica lo atiende (deja su tarea) · Reducir rutinas de los demás · Darle raciones extra | Menos ciencia · Más cansancio para el resto · Menos comida |
+| (Comida agotada, del inventario) | Raciones mínimas: baja la condición física de todos | En Marte: priorizar el invernadero · En la vuelta: **dejar muestras para llevar más comida** (decisión de 4.5) | Energía · Ciencia |
 
-- Cada emergencia se anuncia con una explicación de una frase y muestra **el contador de tiempo de margen** antes de
-  que empeore ("energía de emergencia: 2 soles").
+- Cada emergencia se anuncia con una explicación de una frase y muestra **cuánto margen queda** ("energía de emergencia: 2 soles").
 - Datos reales de apoyo:
   - Los paneles de Spirit y Opportunity se limpiaban con ráfagas de viento ("eventos de limpieza"), y el polvo de 2018 apagó a Opportunity [dato].
   - El agua como blindaje es un concepto real de diseño de naves [dato].
   - El Apolo 13 sobrevivió reutilizando sistemas del módulo lunar [dato].
 
-**Punto de no retorno.** Solo si **toda** la tripulación queda en reposo a la vez, o si dos medidores llevan
-agotados más tiempo que su margen, el Control de Misión declara la emergencia final. La misión termina con el informe,
-que muestra **qué cadena de decisiones** llevó hasta ahí. Ningún tripulante muere: el lenguaje es "misión suspendida,
+**Punto de no retorno.** Solo si **toda** la tripulación queda en reposo a la vez, o si dos medidores llevan agotados
+más tiempo que su margen, el Control de Misión declara la emergencia final. La misión termina con el informe, que
+muestra **qué cadena de decisiones** llevó hasta ahí. Ningún tripulante muere: el lenguaje es "misión suspendida,
 la tripulación está a salvo en el refugio esperando rescate" [regla, pensada para el público de 7–12 años].
 
 ### 3.6 Cómo se comunica el riesgo
 
-- **Semáforo y "dados de riesgo"** (de 1 a 3 dados) en lugar de porcentajes.
+- **Semáforo** (verde, amarillo, rojo) en cada opción y cada pronóstico. Sin porcentajes en pantalla.
 - **Pronósticos con incertidumbre:** "la tormenta llega entre mañana y pasado". Las predicciones reales de llegada
   de CME tienen errores de horas [verificar: magnitud típica en el CME Scoreboard de CCMC].
 - **Regla fija:** cada opción muestra su coste antes de elegirla. Ninguna es gratis.
 
+### 3.7 Control de Misión
+
+Ofrece tres cosas, y todo lo que se le pide llega con la **demora real por distancia** de la fecha simulada:
+de segundos al principio del viaje a ~20 min en Marte, mostrada con una cuenta regresiva.
+
+| Tipo | Cómo funciona | Coste |
+|---|---|---|
+| **Mensajes** | Pronósticos con datos reales, ánimo, noticias de casa. Llegan solos | Ninguno |
+| **Consejos** | Preguntás qué hacer ante una falla; la respuesta llega después de la demora. Enseña por qué hay que decidir solos | Ninguno, solo el tiempo de espera |
+| **Diagnóstico remoto** | Acelera una reparación en curso (×1,5) [regla] cuando llega | Energía de la radio |
+
+- Durante la **conjunción solar** (cuando el Sol queda entre la Tierra y Marte) no hay Control de Misión, solo mensajes guardados [verificar fechas].
+- El **comandante** es quien pide consejos y diagnósticos, desde la consola de comunicaciones.
+
+### 3.8 Los datos reales, a la vista
+
+1. **Tarjetas "Esto pasó de verdad"**: cada evento real abre una tarjeta breve, en pausa:
+   - Fecha.
+   - Instrumento y misión ("Curiosity/RAD, NASA").
+   - El valor traducido ("304 μGy/h: 64 veces lo normal").
+   - Una frase de explicación.
+   - Enlace a la fuente (por ejemplo el `link` del evento en DONKI).
+2. **Panel de datos**: una pantalla en la nave y en la base que se puede consultar en cualquier momento. Muestra las
+   gráficas de los datos reales de la fecha actual (dosis, UV, temperatura, eventos de DONKI), con la posición del
+   jugador marcada en el tiempo.
+3. **Informe de misión** al final (5).
+
+### 3.9 Guardado
+
+- **Guardar y salir en cualquier momento** (Esc → Guardar), y autoguardado al cambiar de fase.
+- El estado se guarda completo: fecha simulada, medidores, tripulación, inventario, incidentes activos, nivel de
+  desbloqueo y **el estado del generador aleatorio con semilla**, para que la partida siga siendo reproducible.
+
 ## 4. Fases en detalle
 
-### Fase 1 — Preparación y despegue
+### 4.0 Maniobras: checklist más acciones en el momento justo
 
-1. **Carga (simplificada).** Se elige uno de tres perfiles [regla]:
+Las cuatro maniobras (ascenso, aterrizaje, despegue de Marte, reentrada) comparten un formato:
 
-   | Perfil | Agua (bebida + blindaje) | Repuestos | Efecto |
-   |---|---|---|---|
-   | Escudo de agua | +++ | + | Menos dosis en el viaje; las reparaciones se complican |
-   | Taller | + | +++ | Más dosis; las fallas se arreglan rápido |
-   | Equilibrado | ++ | ++ | Sin extremos |
+1. **Checklist Go / No-Go:** recorrer la nave confirmando cada estación. Un sistema en mal estado aparece en amarillo
+   y se puede arreglar antes o arriesgarse.
+2. **Etapas con acción en el momento justo:** una barra por etapa; se aprieta **Espacio** en la zona correcta.
+   Un sistema en amarillo achica la zona [regla].
+3. Un error nunca termina la partida: cuesta combustible, precisión o una corrección extra.
 
-   El agua como blindaje es un concepto real de diseño de naves [dato: estudios de blindaje con agua de la NASA].
+### 4.1 Fase 1 — Preparación y despegue
 
-2. **Cuenta regresiva Go / No-Go.** Se recorre la nave y se confirma cada estación. Funciona como tutorial de movimiento y de la tripulación.
-3. **Ascenso.** Acciones en el momento justo: separación de etapas y apagado de motores. Un error cuesta un poco de combustible y obliga a una corrección extra en el viaje; no termina la partida.
-4. **Cinturones de Van Allen.** Primera dosis, con la curva de Artemis I: pico de **14 393 μGy/h** el 16/11/2022 (EAD) [dato, RadLab]. Sirve de tutorial del medidor de salud.
+1. **Carga de ida (simplificada).** Se elige uno de tres perfiles [regla]:
 
-### Fase 2 — Viaje
+   | Perfil | Agua (bebida + blindaje) | Repuestos | Comida | Efecto |
+   |---|---|---|---|---|
+   | Escudo de agua | +++ | + | ++ | Menos dosis en el viaje; las reparaciones se complican |
+   | Taller | + | +++ | ++ | Más dosis; las fallas se arreglan rápido |
+   | Equilibrado | ++ | ++ | ++ | Sin extremos |
 
-Mapa top-down de la nave: módulo de mando, ejercicio, depurador, reciclador, refugio de agua y radio.
+   El agua como blindaje es un concepto real de diseño de naves [dato].
+
+2. **Maniobra de ascenso (4.0).** Etapas: encendido, separación de propulsores, separación de etapa, apagado de motores.
+3. **Cinturones de Van Allen.** Primera dosis, con la curva de Artemis I: pico de **14 393 μGy/h** el 16/11/2022 (EAD) [dato, RadLab]. Sirve de tutorial del medidor de salud.
+
+### 4.2 Fase 2 — Viaje de ida
+
+Mapa top-down de la nave: módulo de mando, ejercicio, depurador, reciclador, refugio de agua, radio y despensa.
 
 | Tarea | Si no se hace | Base |
 |---|---|---|
@@ -264,21 +327,24 @@ Mapa top-down de la nave: módulo de mando, ejercicio, depurador, reciclador, re
 | Depurador de CO2 | CO2 > 3 mmHg → cansancio | [norma] |
 | Reciclador de agua | Se gastan agua y blindaje | [dato] ISS |
 | Corrección de trayectoria (minijuego de puntería) | Aterrizaje más difícil | [dato] Curiosity y Perseverance hicieron varias |
-| Llamada a casa | Baja el ánimo | Demora real según la distancia Tierra–Marte de la fecha (de segundos a ~20 min) |
+| Llamada a casa | Baja el ánimo | Demora real según la distancia (3.7) |
 
 **Incidentes del viaje:**
 
 | Incidente | Disparador | Respuesta | Fuente |
 |---|---|---|---|
 | Aviso de tormenta solar | CME o llamarada X en DONKI en la fecha | Preparar el refugio y cargar baterías | [dato] DONKI |
-| **Tormenta de radiación** | SEP en la fecha, o pico en BioSentinel | Todos al refugio de agua; la tripulación descansada llega en ~1 s, la agotada tarda más (3.3) | [dato] DONKI + RadLab |
+| **Tormenta de radiación** | SEP en la fecha, o pico en BioSentinel | Todos al refugio de agua. La tripulación descansada llega en ~1 s, la agotada tarda más (3.3) | [dato] DONKI + RadLab |
 | Micrometeorito | Aleatorio con semilla | Encontrar y tapar la fuga | [regla] |
 | Depurador averiado | Rango seguro o falla aleatoria | Repararlo (la ingeniera es más rápida) | [norma] |
 | Aislamiento | Muchas jornadas sin llamada | Llamada a casa | [dato] Mars-500 |
 
-### Fase 3 — Aterrizaje (básico)
+En el viaje no se junta ciencia: la recompensa es llegar con la tripulación en forma y con la carga que va a hacer
+falta en Marte.
 
-Cuatro etapas con un control simple cada una:
+### 4.3 Fase 3 — Aterrizaje en Marte (básico)
+
+Maniobra (4.0) con cuatro etapas:
 1. Entrada a la atmósfera (escudo térmico a ~2000 °C).
 2. Paracaídas a ~Mach 1,7.
 3. Separación del escudo.
@@ -290,15 +356,22 @@ Son los valores de Curiosity y Perseverance [verificar las cifras exactas].
 - **Resultado:** la distancia a la base. Más distancia → más salidas al exterior → más polvo y dosis. Nunca hay "choque" ni muerte.
 - **Momento educativo:** "La señal del aterrizaje tarda X minutos en llegar a la Tierra. Cuando se enteren, ya habrás aterrizado."
 
-### Fase 4 — Estancia en Marte
+### 4.4 Fase 4 — Estancia en Marte
 
 Base en el cráter Gale. Curiosity es el vecino robot que reporta el dato real de cada día.
 
+**Ciencia: muestras en el mapa.**
+- Puntos de muestreo en el exterior, ubicados por semilla en cada partida. Cada EVA trae muestras.
+- Algunas muestras están más lejos (más dosis y polvo) y valen más.
+- Cada muestra tiene **masa**, que pesa en el despegue de Marte (4.5).
+
 | Ciclo del sol | Qué pasa |
 |---|---|
-| Mañana (en pausa) | Pronóstico real (UV/polvo, temperatura), rutinas y tablero de energía |
+| Planificación (en pausa, al detener el avance o tras un aviso) | Pronóstico real (UV/polvo, temperatura), rutinas y tablero de energía |
 | Día | Tareas, EVA a puntos de muestreo, cambio de tripulante |
-| Noche | Frío real de REMS → calefacción; resumen |
+| Noche | Frío real de REMS → calefacción |
+
+Los soles tranquilos pasan en avance rápido (3.1), y se juegan a mano los que traen avisos o los que el jugador detiene.
 
 | Incidente | Disparador | Respuesta | Fuente |
 |---|---|---|---|
@@ -310,66 +383,151 @@ Base en el cráter Gale. Curiosity es el vecino robot que reporta el dato real d
 | Plaga en el invernadero | Poco cuidado | Botánico | [dato] OSD-177 |
 | Polvo en los sellos | Muchas EVA | Mantenimiento de la esclusa | [regla] |
 
+### 4.5 Fase 5 — Despegue de Marte
+
+1. **Carga de vuelta:** la decisión que cierra la estancia. Hay un límite de masa para muestras y suministros [regla].
+   - Muchas muestras → más ciencia, pero menos comida, agua y repuestos para la vuelta.
+   - Pocas muestras → vuelta más segura, menos estrellas.
+   - El agua de la vuelta vuelve a ser **bebida y blindaje**: la tormenta de octubre está esperando en la campaña.
+2. **Maniobra (4.0):** checklist de la nave de ascenso y etapas de despegue. La precisión define cuánto combustible
+   queda para correcciones en la vuelta.
+
+### 4.6 Fase 6 — Viaje de vuelta
+
+Mismo mapa y tareas que la ida, con tres diferencias para que no se repita:
+
+- **Nave gastada:** más fallas por desgaste (depurador, reciclador) y **solo los repuestos que sobraron** de la ida y de Marte [regla].
+- **Tripulación que arrastra su estado:** la condición física de 0,38 g, la dosis acumulada y el cansancio pesan.
+- **Clima espacial más agitado en la campaña:** junio–octubre de 2024 fue de los períodos más activos del ciclo solar (2.2) [dato].
+- **Preparación para 1 g:** el ejercicio de la vuelta cuenta doble para el estado al aterrizar en la Tierra [regla].
+
+### 4.7 Fase 7 — Reentrada a la Tierra
+
+Maniobra (4.0) con tres etapas: orientar el escudo térmico, reentrada (zona de calor y apagón de comunicaciones),
+paracaídas y amerizaje [verificar cifras de cápsulas tripuladas: Orion/Artemis I]. Cierra con la tripulación
+caminando o en camilla según su condición física, y da paso al informe de misión.
+
 ## 5. Objetivos, puntuación y final
 
-- **Objetivos:** volver con la tripulación sana, más **ciencia** (muestras en el mapa, experimentos en el viaje).
-- **3 estrellas:** tripulación sana · dosis controlable baja · ciencia mínima.
-- **Logros:** por ejemplo "Refugio a tiempo", "Como Opportunity: sobreviviste al polvo", "Cero radiografías extra".
-- **Informe de misión:** tus decisiones superpuestas a las gráficas reales ("tu tripulación recibió X; Curiosity midió esto el mismo día"), con enlaces a cada fuente.
+- **Objetivo:** volver con la tripulación sana **y con las muestras de Marte a bordo**. Las muestras cuentan al **volver**, no al recogerlas.
+- **3 estrellas:** tripulación sana · dosis controlable baja · muestras traídas a la Tierra.
+- **Logros:** por ejemplo "Refugio a tiempo", "Como Opportunity: sobreviviste al polvo", "Cero radiografías extra", "Sobreviviste a la X9.0".
+- **Informe de misión:** tus decisiones superpuestas a las gráficas reales ("tu tripulación recibió X; Curiosity midió esto el mismo día"), con enlaces a cada fuente y las tarjetas de datos vividas.
 - **Sin final temprano por un medidor en cero:** se entra en falla en cascada (3.5). La misión solo se suspende en el punto de no retorno, y el informe muestra la cadena de decisiones que llevó hasta ahí.
 
-## 6. Datasets por mecánica
+## 6. Progresión entre partidas
+
+La **primera misión** presenta un conjunto reducido de tareas e incidentes; cada misión completada **suma más** [regla].
+Así se aprende un sistema por vez y el juego cambia al rejugar.
+
+| Nivel | Se desbloquea al | Tareas nuevas | Incidentes nuevos | Otros desbloqueos |
+|---|---|---|---|---|
+| 1 | — (primera partida) | Ejercicio, depurador, refugio, muestras, tablero de energía | Tormenta de radiación, tormenta de polvo | Campaña 2024 en modo corto |
+| 2 | Terminar 1 misión | Reciclador de agua, invernadero, llamada a casa | Depurador averiado, plaga, aislamiento | Perfil de carga "Taller" |
+| 3 | Terminar 2 misiones | MOXIE, corrección de trayectoria, diagnóstico remoto | Micrometeorito, noche extrema, CO2 alto | Modo libre, modo largo |
+| 4 | Terminar 3 misiones | Mantenimiento de la esclusa | Polvo en los sellos, conjunción solar | Perfil "Escudo de agua", escenarios especiales |
+
+- La progresión se guarda en el navegador, junto con los récords y los logros.
+- Un docente puede **desbloquear todo** desde el menú, para usarlo en clase.
+
+## 7. Datasets por mecánica
 
 | Mecánica | Archivo |
 |---|---|
 | Van Allen | `datasets/raw/radlab/daily/moon-orbit-lro-crater.csv` (instrumentos `Artemis-I-*`) |
-| Dosis en el viaje | `raw/radlab/daily/deep-space-biosentinel.csv`, `mars-cruise-orbit-tgo-liulin.csv` |
-| Tormenta en el viaje | `raw/radlab/events/2024-05-gannon-storm_heliocentric.csv`, `raw/donki/sep.json`, `flr.json`, `cme.json` |
-| Textos del Control de Misión | `raw/donki/notifications.json` (adaptados) |
+| Dosis en los viajes | `raw/radlab/daily/deep-space-biosentinel.csv`, `mars-cruise-orbit-tgo-liulin.csv` |
+| Tormentas en los viajes | `raw/radlab/events/2024-05-gannon-storm_heliocentric.csv`, `raw/donki/sep.json`, `flr.json`, `cme.json` |
+| Textos del Control de Misión | `raw/donki/notifications.json` (adaptados y traducidos) |
 | Dosis en Marte | `raw/radlab/daily/mars-surface-curiosity-rad.csv`, `raw/radlab/events/2024-05-20-mars-sep_curiosity.csv` |
 | Polvo y frío | `raw/mars-weather/curiosity-rems.json` |
 | Consumos y límites | `raw/references/*.pdf`, `curated/life-support-bvad.json`, `curated/radiation-dose.json` |
 | "¿Sabías que…?" | `raw/osdr/*.json` → `curated/osdr-facts.json` |
 
-## 7. Cambios respecto al prototipo actual
+## 8. Idiomas y controles
 
-- El prototipo usa una **base lunar** y el **apagón de radio** por llamaradas. En Marte la comunicación pasa por la Red de Espacio Profundo (DSN), que no se ve afectada como la radio terrestre. En la campaña, la restricción de comunicación sale de la **demora por distancia** y de la **conjunción solar**.
-- Los 4 recursos más la dosis del prototipo pasan a **3 medidores**.
-- Las decisiones con las teclas 1/2/3 se pasan al mouse, porque Tab y los números se usan para la tripulación.
+- **Español e inglés** con selector en el menú inicial. Todos los textos (interfaz, incidentes, tarjetas, Control de
+  Misión) viven en archivos de traducción por clave, nunca escritos en el código. Los datos curados con texto
+  (por ejemplo `osdr-facts.json`) tienen los dos idiomas.
+- Las alertas de DONKI están en inglés en su origen: en inglés se muestra el texto original adaptado y en español,
+  la traducción adaptada.
+- **Controles (PC):** WASD/flechas para moverse · E para interactuar · Tab para cambiar de tripulante ·
+  Espacio para la acción en las maniobras · Esc para pausar y guardar · **mouse** para decisiones, el tablero de
+  energía y el panel de datos.
+
+## 9. Cambios respecto al prototipo actual
+
+- El prototipo usa una **base lunar** y el **apagón de radio** por llamaradas. En Marte la restricción de comunicación sale de la **demora por distancia** y de la **conjunción solar**.
+- Los 4 recursos más la dosis del prototipo pasan a **3 medidores** más el inventario de comida.
+- Las decisiones con las teclas 1/2/3 pasan al mouse.
 - El prototipo termina la partida cuando un recurso se agota: se reemplaza por la falla en cascada (3.5).
+- Los textos de la interfaz, hoy escritos en el código, pasan a archivos de traducción.
+- La tripulación pasa de un jugador solo a 4 tripulantes con cambio por Tab.
 
-## 8. Pendientes de verificar
+## 10. Pendientes de verificar
 
 - [ ] Fechas de las conjunciones solares de Marte (moratoria de comandos de la NASA) en los rangos de datos.
 - [ ] Ventana de lanzamiento a Marte 2026 (fechas reales, posible gancho de "desafío actual").
 - [ ] Simulaciones WSA-ENLIL de DONKI con impactos en Marte (para eventos en superficie fuera de RAD).
 - [ ] Error típico de las predicciones de llegada de CME (CCMC CME Scoreboard).
-- [ ] Máximos diarios sospechosos de BioSentinel (p. ej. 8556 μGy/h el 08/06/2024) y mínimas < −90 °C de REMS (40 soles).
-- [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas).
+- [ ] Máximos diarios sospechosos de BioSentinel (p. ej. 8556 μGy/h el 08/06/2024, que cae en la vuelta de la campaña) y mínimas < −90 °C de REMS (40 soles).
+- [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas) y de la reentrada de Orion.
 - [ ] Factores Q por fase: confirmar en Hassler 2014 y Zeitlin 2013.
-- [ ] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña (p. ej. mayo de 2024).
+- [ ] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña (mayo y octubre de 2024).
 - [ ] Hallazgos de Mars-500 sobre sueño y actividad (Basner et al. 2013, PNAS).
-- [ ] Pesos de la fórmula de eficiencia y márgenes de la falla en cascada: ajustarlos con pruebas de juego con niños.
+- [ ] Pesos de la fórmula de eficiencia, márgenes de la falla en cascada y límites de masa de las cargas: ajustarlos con pruebas de juego con niños.
 
-## 9. Orden de construcción
+## 11. Orden de construcción
 
-1. **Núcleo compartido:** reloj de misión por fechas reales con avance rápido y frenado por avisos, los 3 medidores con sus fórmulas, la falla en cascada, el planificador de incidentes (línea de tiempo + rangos seguros) y la tripulación automática con eficiencia según su estado. Todo en `src/core/`, con tests.
-2. **Procesamiento de datos:** de `datasets/raw/` a series por fase y fecha (`src/data/`).
-3. **Fase 2, viaje:** mapa de la nave, tareas, tormenta con refugio.
-4. **Fase 4, estancia:** adaptar el mapa actual a Gale y agregar polvo, frío y MOXIE.
-5. **Fase 1, despegue:** carga, Go / No-Go, ascenso, Van Allen.
-6. **Fase 3, aterrizaje.**
-7. **Informe de misión** con gráficas reales.
+1. **Núcleo compartido:**
+   - Reloj de misión por fechas reales, con avance rápido y frenado por avisos.
+   - Los 3 medidores con sus fórmulas, más el inventario.
+   - La falla en cascada.
+   - El planificador de incidentes con niveles de desbloqueo.
+   - La tripulación de 4 con eficiencia según su estado.
+   - Guardado del estado completo.
 
-## 10. Historial de revisiones
+   Todo en `src/core/`, con tests.
+2. **Infraestructura de traducción** (ES/EN) antes de escribir textos nuevos.
+3. **Procesamiento de datos:** de `datasets/raw/` a series por fase y fecha (`src/data/`).
+4. **Viaje** (ida y vuelta comparten mapa y sistemas): tareas, tormenta con refugio, Control de Misión.
+5. **Estancia en Marte:** adaptar el mapa actual a Gale y agregar polvo, frío, MOXIE y muestras.
+6. **Maniobras** (formato común 4.0): ascenso, aterrizaje, despegue de Marte, reentrada.
+7. **Tarjetas, panel de datos e informe de misión.**
+8. **Progresión y desbloqueos.**
+
+## 12. Historial de revisiones
+
+### v3 — decisiones de diseño tomadas en la sesión de preguntas
+
+| Tema | Decisión | Dónde |
+|---|---|---|
+| Final de la misión | **Regreso completo:** despegue de Marte, viaje de vuelta más corto en jornadas y reentrada | 1, 2, 4.5–4.7 |
+| Jugador | **Comandante** como 4.º tripulante, que hace todo al 100 %; los especialistas, ×1,5 en lo suyo | 3.3 |
+| Ciencia | **Muestras en el mapa** de Marte, con masa: cuentan al volver | 4.4, 4.5, 5 |
+| Plataforma | **PC con teclado y mouse** | 1, 8 |
+| Comida | **Dentro de Salud:** stock de inventario; racionar baja la condición física y el ánimo | 3.2, 3.5 |
+| Riesgo | **Semáforo** | 3.6 |
+| Dificultad | **Modo ayuda** opcional | 3.3 |
+| Idioma | **Español e inglés** desde el inicio | 8 |
+| Tiempo en Marte | **Avance rápido** también entre soles | 3.1, 4.4 |
+| Guardado | **En cualquier momento**, con el estado del generador aleatorio | 3.9 |
+| Control de Misión | **Mensajes, consejos y diagnóstico remoto**, todos con demora real | 3.7 |
+| Maniobras | **Checklist más acciones en el momento justo**, formato común | 4.0 |
+| Datos visibles | **Tarjetas "Esto pasó" y panel de datos** | 3.8 |
+| Progresión | **Desbloqueos:** la primera misión tiene pocas tareas e incidentes y se suman más en cada partida | 6 |
+
+Consecuencias derivadas:
+- **Tramos de 4 meses también en el modo libre**, para que la dosis de fondo de ida y vuelta no supere sola el límite de 600 mSv.
+- **Carga de vuelta:** decisión de masa entre muestras y suministros.
+- **Calendario de la vuelta en la campaña:** junio–octubre de 2024, con la X9.0 del 03/10/2024 como clímax antes de la reentrada.
 
 ### v2 — revisión según [`Transcripcion_simulador_marciano.md`](Transcripcion_simulador_marciano.md)
 
 | Problema señalado | Cambio | Dónde |
 |---|---|---|
-| Terminar la misión cuando un medidor llega a cero es un "Game Over disfrazado" que corta la recuperación | **Falla en cascada**: modos de emergencia, sacrificios con coste (beber el escudo de agua, limpiar paneles) y un punto de no retorno solo cuando todo colapsa | 1, 3.5, 4, 5 |
+| Terminar la misión cuando un medidor llega a cero es un "Game Over disfrazado" que corta la recuperación | **Falla en cascada**: modos de emergencia, sacrificios con coste (beber el escudo de agua, limpiar paneles) y un punto de no retorno solo cuando todo colapsa | 1, 3.5, 5 |
 | El salto entre jornadas del viaje hace que las crisis parezcan una ventana de error | **Avance rápido interactivo** que se frena con avisos reales de DONKI, se tiñe de amarillo y deja al jugador prepararse antes del impacto | 2.1, 3.1 |
-| Tripulantes al 70 % y con 3–6 s de demora fijos castigan por algo que el jugador no controla | La **eficiencia y la demora dependen del estado** (fatiga, condición física, CO2, ánimo): de 100 % y 1 s a 50 % y 6 s, con la causa siempre visible | 3.3, 4 |
+| Tripulantes al 70 % y con 3–6 s de demora fijos castigan por algo que el jugador no controla | La **eficiencia y la demora dependen del estado** (fatiga, condición física, CO2, ánimo): de 100 % y 1 s a 50 % y 6 s, con la causa siempre visible | 3.3 |
 
 Ajustes propios sobre las sugerencias:
 - **"Estática de radio" pasó a ser un monitor de partículas.** Las llamaradas afectan la radio terrestre de onda corta, no la Red de Espacio Profundo, así que la estática daría una idea falsa.
@@ -380,4 +538,3 @@ Ajustes propios sobre las sugerencias:
 ### v1 — borrador inicial
 
 Arco de 4 fases, 3 medidores, campaña 2024 y modo libre, carga simplificada, tripulación automática con rendimiento fijo.
-
