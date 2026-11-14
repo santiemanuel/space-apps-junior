@@ -11,6 +11,8 @@ export interface LifeSupportInput {
   evaHours?: number;
   /** O2 fabricado en el paso (MOXIE en Marte, kg). */
   oxygenProducedKg?: number;
+  /** Racionamiento de aire y agua de la falla en cascada (1 = normal, §3.5). */
+  consumptionFactor?: number;
 }
 
 export interface LifeSupportStep {
@@ -33,9 +35,10 @@ export function nextCo2(rules: MeterRules, co2MmHg: number, scrubber: SystemStat
 }
 
 export function stepLifeSupport(rules: MeterRules, ls: LifeSupportMeter, input: LifeSupportInput): LifeSupportStep {
-  const { crewCount, hours, scrubber, waterRecycler, evaHours = 0, oxygenProducedKg = 0 } = input;
-  const oxygen = ls.oxygenKg + oxygenProducedKg - (rules.lifeSupport.oxygenKgPerCrewDay * crewCount * hours) / 24;
-  const lostWater = waterUsedL(rules, crewCount, hours, evaHours) * (1 - rules.lifeSupport.recyclingByStatus[waterRecycler]);
+  const { crewCount, hours, scrubber, waterRecycler, evaHours = 0, oxygenProducedKg = 0, consumptionFactor = 1 } = input;
+  const oxygen = ls.oxygenKg + oxygenProducedKg - (rules.lifeSupport.oxygenKgPerCrewDay * crewCount * hours * consumptionFactor) / 24;
+  const lostWater =
+    waterUsedL(rules, crewCount, hours, evaHours) * consumptionFactor * (1 - rules.lifeSupport.recyclingByStatus[waterRecycler]);
   const water = ls.waterL - lostWater;
   return {
     lifeSupport: {

@@ -2,5 +2,10 @@
   "planning.sceneTitle": "Planear el día",
   "missionControl.sceneTitle": "Control de Misión",
   "dataPanel.sceneTitle": "Panel de datos",
-  "alert.calm": "Todo tranquilo"
+  "alert.calm": "Todo tranquilo",
+  "crewSlow.fatigue": "{name} tiene mucho sueño",
+  "crewSlow.condition": "{name} perdió estado físico: le falta ejercicio",
+  "crewSlow.co2": "{name} tiene dolor de cabeza: hay mucho CO2",
+  "crewSlow.morale": "{name} extraña la Tierra",
+  "crewSlow.resting": "{name} descansa en la enfermería"
 }

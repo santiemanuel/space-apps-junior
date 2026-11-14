@@ -439,7 +439,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/core/clock/`, `meters/`, `cascade/`, `crew/`, `incidents/`, `environment/`, `resources/` | Santiago |
 | `src/core/flow/` (salvo `types.ts`), `maneuvers/`, `save/`, `progression/` | Facundo |
 | `src/data/`, `datasets/`, `scripts/` | Santiago |
-| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts`, `campaign.ts`, `meters.ts` | Santiago |
+| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts`, `campaign.ts`, `meters.ts`, `cascade.ts` | Santiago |
 | `src/content/maneuvers.ts`, `loadouts.ts`, `achievements.ts` | Facundo |
 | `src/game/scenes/simulation/*`, `simulationScenes.ts` | Santiago |
 | `src/game/scenes/flow/*` (incluye `BootScene.ts`), `flowScenes.ts` | Facundo |
@@ -486,6 +486,7 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 | `Mars` → `inventory.samples` → `Loadout(return)` | Santiago |
 | Resultado del aterrizaje (distancia) → puntos de muestreo y EVA en `Mars` | Santiago |
 | Guardado: serializa reloj, medidores, tripulación e incidentes activos | Facundo |
+| `CascadeState` (`src/core/cascade/types.ts`) entra en `GameState` como campo opcional `cascade` para guardarlo; hasta entonces viaja aparte para no tocar los contratos | Santiago (tipo) · Facundo (guardado) |
 | Historial de decisiones e incidentes → `Report` | Facundo |
 | Desbloqueos de `progression` → filtro del planificador de incidentes | Santiago |
 

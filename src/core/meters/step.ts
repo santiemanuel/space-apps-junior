@@ -32,6 +32,14 @@ export interface MeterPlan {
   evaHours?: number;
   oxygenProducedKg?: number;
   ration?: number;
+  /** Escala de la calefacción (modo de emergencia de energía, §3.5). */
+  heatingFactor?: number;
+  /** Racionamiento de aire y agua (modo de emergencia de soporte vital, §3.5). */
+  lifeSupportFactor?: number;
+  /** Eficacia del escudo de agua del refugio (0..1); baja si se desconecta el refugio (§3.5). */
+  shelterEfficacy?: number;
+  /** Energía extra al reciclador: recupera como si estuviera sano (§3.5). */
+  recyclerBoost?: boolean;
   crew?: Partial<Record<CrewId, CrewActivity>>;
 }
 
@@ -50,22 +58,25 @@ export interface MeterStepResult {
 export function stepMeters(rules: MeterRules, state: GameState, env: MeterEnvironment, plan: MeterPlan, hours: number): MeterStepResult {
   const crewCount = state.crew.length;
   const generationKw = solarGenerationKw(env.solar);
-  const loadKw = plan.loadKw + (env.minTempC === undefined ? 0 : heatingKw(rules, env.minTempC));
+  const heating = env.minTempC === undefined ? 0 : heatingKw(rules, env.minTempC) * (plan.heatingFactor ?? 1);
+  const loadKw = plan.loadKw + heating;
   const energy = stepEnergy(state.meters.energy, generationKw, loadKw, hours);
   const life = stepLifeSupport(rules, state.meters.lifeSupport, {
     crewCount,
     hours,
     scrubber: state.systems.scrubber,
-    waterRecycler: state.systems.waterRecycler,
+    waterRecycler: plan.recyclerBoost ? 'green' : state.systems.waterRecycler,
     evaHours: plan.evaHours,
     oxygenProducedKg: plan.oxygenProducedKg,
+    consumptionFactor: plan.lifeSupportFactor,
   });
   const food = stepFood(rules, state.inventory.foodKg, crewCount, hours, plan.ration);
   const q = qualityFactor(rules, env.place, env.sepActive);
+  const waterShield = state.waterShield * (plan.shelterEfficacy ?? 1);
 
   const dose = {} as Record<CrewId, number>;
   const crew = state.crew.map((member) => {
-    const added = doseMSv(env.doseRateUGyH, shieldingFactor(rules, shieldZoneOf(member.location), state.waterShield), q, hours);
+    const added = doseMSv(env.doseRateUGyH, shieldingFactor(rules, shieldZoneOf(member.location), waterShield), q, hours);
     dose[member.id] = added;
     const next = stepCrewHealth(rules, member, {
       hours,
