@@ -1,0 +1,10 @@
+{
+  "source": "NASA Life Support Baseline Values and Assumptions Document (BVAD), NASA/TP-2015-218570/REV2 (2022)",
+  "url": "https://ntrs.nasa.gov/citations/20210024855",
+  "notes": "Valores nominales por tripulante y día, redondeados.",
+  "perCrewMemberPerDay": {
+    "oxygenKg": 0.82,
+    "waterKg": 2.5,
+    "foodKg": 1.8
+  }
+}

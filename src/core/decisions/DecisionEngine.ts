@@ -36,8 +36,8 @@ export const DECISION_RISK_THRESHOLD = 0.25;
 /** Riesgo combinado (amenazas independientes) de una misión en el entorno actual. */
 export function missionRisk(mission: MissionDefinition, env: EnvironmentSnapshot): number {
   const radiation = env.radiationRisk * mission.exposure.radiation;
-  const debris = env.debrisThreat * mission.exposure.debris;
-  return clamp(1 - (1 - radiation) * (1 - debris));
+  const comms = (env.radioBlackout / 5) * mission.exposure.comms;
+  return clamp(1 - (1 - radiation) * (1 - comms));
 }
 
 export function buildDecision(mission: MissionDefinition, env: EnvironmentSnapshot): Decision | null {
@@ -45,7 +45,7 @@ export function buildDecision(mission: MissionDefinition, env: EnvironmentSnapsh
   if (risk < DECISION_RISK_THRESHOLD) return null;
   const drivers = [
     env.radiationRisk * mission.exposure.radiation >= 0.15 ? 'actividad solar elevada' : null,
-    env.debrisThreat * mission.exposure.debris >= 0.15 ? 'aproximación de objetos cercanos' : null,
+    (env.radioBlackout / 5) * mission.exposure.comms >= 0.15 ? `apagón de radio R${env.radioBlackout}` : null,
   ].filter((d): d is string => d !== null);
   return {
     missionId: mission.id,

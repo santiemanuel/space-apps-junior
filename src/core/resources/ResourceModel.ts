@@ -1,26 +1,31 @@
 import { clamp } from '../math';
-import { BVAD_RATES_PER_CREW_DAY, HABITAT_POWER } from './rates';
 
 export type ResourceKey = 'oxygen' | 'water' | 'food' | 'power';
 export type ResourceState = Record<ResourceKey, number>;
+export type ConsumableKey = Exclude<ResourceKey, 'power'>;
+
+export interface PowerSystem {
+  batteryCapacityKwh: number;
+  solarGenerationKw: number;
+  baseLoadKw: number;
+}
 
 export interface ResourceModelOptions {
   crew: number;
   initial: ResourceState;
-  rates?: Record<Exclude<ResourceKey, 'power'>, number>;
-  power?: { batteryCapacityKwh: number; solarGenerationKw: number; baseLoadKw: number };
+  /** Consumo por tripulante y día (kg), p. ej. de NASA BVAD. */
+  rates: Record<ConsumableKey, number>;
+  power: PowerSystem;
 }
 
-/** Soporte vital: consumo por tripulante (BVAD) y balance energético. Lógica pura y determinista. */
+/** Soporte vital: consumo por tripulante y balance energético. Lógica pura y determinista. */
 export class ResourceModel {
   private state: ResourceState;
   private readonly crew: number;
-  private readonly rates: Record<Exclude<ResourceKey, 'power'>, number>;
-  private readonly power: Required<ResourceModelOptions>['power'];
-  /** Multiplicador sobre la generación solar (p. ej. degradación por tormentas). */
-  solarEfficiency = 1;
+  private readonly rates: Record<ConsumableKey, number>;
+  private readonly power: PowerSystem;
 
-  constructor({ crew, initial, rates = BVAD_RATES_PER_CREW_DAY, power = HABITAT_POWER }: ResourceModelOptions) {
+  constructor({ crew, initial, rates, power }: ResourceModelOptions) {
     this.crew = crew;
     this.rates = rates;
     this.power = power;
@@ -37,7 +42,7 @@ export class ResourceModel {
     for (const key of ['oxygen', 'water', 'food'] as const) {
       this.state[key] = Math.max(0, this.state[key] - this.rates[key] * this.crew * days);
     }
-    const netKw = this.power.solarGenerationKw * this.solarEfficiency - this.power.baseLoadKw;
+    const netKw = this.power.solarGenerationKw - this.power.baseLoadKw;
     this.state.power = clamp(this.state.power + netKw * hours, 0, this.power.batteryCapacityKwh);
     return this.depleted();
   }
@@ -54,7 +59,7 @@ export class ResourceModel {
   }
 
   /** Días de autonomía restantes para un consumible al ritmo actual. */
-  daysRemaining(key: Exclude<ResourceKey, 'power'>): number {
+  daysRemaining(key: ConsumableKey): number {
     return this.state[key] / (this.rates[key] * this.crew);
   }
 }

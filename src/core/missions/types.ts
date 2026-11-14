@@ -12,10 +12,12 @@ export interface MissionDefinition {
   stationId: string;
   /** Segundos de trabajo en la estación para completarla. */
   workSeconds: number;
-  /** Sensibilidad de la misión a cada amenaza ambiental (0..1). */
-  exposure: { radiation: number; debris: number };
+  /** Sensibilidad de la misión a cada amenaza del clima espacial (0..1). */
+  exposure: { radiation: number; comms: number };
   reward: Partial<ResourceState>;
   failurePenalty: Partial<ResourceState>;
+  /** Tema científico (OSDR) que se muestra al resolver la misión. */
+  learnTopic?: string;
 }
 
 export interface MissionState {

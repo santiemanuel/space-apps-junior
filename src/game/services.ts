@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import type { EnvironmentSnapshot } from '../core/environment/types';
 import type { GameSession } from '../core/session/GameSession';
+import type { ScienceFact } from '../data/curated';
 
 /**
  * Dependencias que las escenas reciben por inyección (vía registry), nunca importándolas
@@ -9,6 +10,8 @@ import type { GameSession } from '../core/session/GameSession';
 export interface GameServices {
   loadEnvironment(): Promise<EnvironmentSnapshot>;
   createSession(environment: EnvironmentSnapshot): GameSession;
+  /** Dato científico real (NASA OSDR) asociado a un tema de misión. */
+  scienceFact(topic: string): ScienceFact | undefined;
 }
 
 const SERVICES_KEY = 'services';

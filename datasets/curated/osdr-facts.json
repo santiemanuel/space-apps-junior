@@ -1,0 +1,23 @@
+{
+  "source": "NASA Open Science Data Repository (OSDR). Textos divulgativos resumidos de cada estudio para niños de 7–12 años.",
+  "facts": [
+    {
+      "topic": "radiation",
+      "accession": "OSD-992",
+      "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-992",
+      "text": "La radiación del espacio puede dañar las células y hacer que envejezcan antes de tiempo. Por eso la tripulación se protege detrás de paredes gruesas durante las tormentas solares."
+    },
+    {
+      "topic": "plants",
+      "accession": "OSD-615",
+      "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-615",
+      "text": "Las plantas también notan la falta de gravedad: en la Estación Espacial, sus raíces cambian la forma en que construyen sus paredes."
+    },
+    {
+      "topic": "plants",
+      "accession": "OSD-177",
+      "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-177",
+      "text": "En la Estación Espacial unas flores zinnia se enfermaron por un hongo. ¡Cultivar comida en el espacio necesita cuidado constante!"
+    }
+  ]
+}

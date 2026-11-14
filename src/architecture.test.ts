@@ -18,4 +18,11 @@ describe('arquitectura', () => {
       expect(source, file).not.toMatch(/from ['"](\.\.?\/)+game\//);
     }
   });
+
+  it('sólo src/data/ lee datasets/ (el resto recibe modelos de dominio)', () => {
+    const offenders = filesIn(import.meta.dirname)
+      .filter((file) => !file.includes(join(import.meta.dirname, 'data')))
+      .filter((file) => /from ['"](\.\.\/)+datasets\//.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
 });

@@ -9,7 +9,7 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixtures:update": "node scripts/update-fixtures.mjs"
+    "datasets:fetch": "node scripts/fetch-datasets.mjs"
   },
   "type": "module",
   "dependencies": {

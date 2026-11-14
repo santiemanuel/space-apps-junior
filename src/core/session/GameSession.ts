@@ -4,13 +4,18 @@ import { EventBus } from '../events/EventBus';
 import type { GameEvents } from '../events/GameEvents';
 import { MissionSystem } from '../missions/MissionSystem';
 import type { MissionDefinition, MissionState } from '../missions/types';
-import { ResourceModel, type ResourceState } from '../resources/ResourceModel';
+import { ResourceModel, type ConsumableKey, type PowerSystem, type ResourceState } from '../resources/ResourceModel';
 import { Rng } from '../rng/Rng';
 
 export interface GameSessionOptions {
   seed: number;
   crew: number;
   initialResources: ResourceState;
+  /** Consumo por tripulante y día (kg). */
+  consumptionRates: Record<ConsumableKey, number>;
+  power: PowerSystem;
+  /** Dosis de radiación de fondo en el lugar de la misión (mSv/día). */
+  doseRateMSvPerDay: number;
   missions: readonly MissionDefinition[];
   environment: EnvironmentSnapshot;
   /** Horas de juego por segundo real. */
@@ -33,12 +38,21 @@ export class GameSession {
   private readonly postponedUntil = new Map<string, number>();
   private readonly gameHoursPerSecond: number;
   private readonly postponeHours: number;
+  private readonly doseRateMSvPerDay: number;
   gameHours = 0;
+  /** Dosis acumulada por cada tripulante (mSv). */
+  crewDoseMSv = 0;
   overReason: string | null = null;
 
   constructor(options: GameSessionOptions) {
     this.rng = new Rng(options.seed);
-    this.resources = new ResourceModel({ crew: options.crew, initial: options.initialResources });
+    this.resources = new ResourceModel({
+      crew: options.crew,
+      initial: options.initialResources,
+      rates: options.consumptionRates,
+      power: options.power,
+    });
+    this.doseRateMSvPerDay = options.doseRateMSvPerDay;
     this.missions = new MissionSystem(options.missions, this.bus);
     this.gameHoursPerSecond = options.gameHoursPerSecond ?? 0.5;
     this.postponeHours = options.postponeHours ?? 6;
@@ -66,8 +80,6 @@ export class GameSession {
 
   setEnvironment(environment: EnvironmentSnapshot): void {
     this._environment = environment;
-    // Las tormentas solares degradan la eficiencia de los paneles hasta un 30 %.
-    this.resources.solarEfficiency = 1 - environment.radiationRisk * 0.3;
     this.bus.emit('environment:changed', environment);
   }
 
@@ -75,6 +87,7 @@ export class GameSession {
     if (this.paused) return;
     const hours = deltaSeconds * this.gameHoursPerSecond;
     this.gameHours += hours;
+    this.crewDoseMSv += (this.doseRateMSvPerDay * hours) / 24;
     const depleted = this.resources.tick(hours);
     this.bus.emit('clock:tick', { gameHours: this.gameHours });
     this.bus.emit('resources:changed', this.resources.snapshot);

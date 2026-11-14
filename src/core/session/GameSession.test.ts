@@ -1,17 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { makeEnvironment, makeMission } from '../../test-utils/factories';
+import { makeEnvironment, makeSessionOptions } from '../../test-utils/factories';
 import { GameSession, type GameSessionOptions } from './GameSession';
 
-const initialResources = { oxygen: 20, water: 40, food: 30, power: 60 };
-const create = (over: Partial<GameSessionOptions> = {}) =>
-  new GameSession({
-    seed: 1,
-    crew: 4,
-    initialResources,
-    missions: [makeMission(), makeMission({ id: 'eva', stationId: 'airlock', exposure: { radiation: 1, debris: 0 } })],
-    environment: makeEnvironment(),
-    ...over,
-  });
+const create = (over: Partial<GameSessionOptions> = {}) => new GameSession(makeSessionOptions(over));
 
 describe('GameSession', () => {
   it('una misión de bajo riesgo arranca y se completa trabajando, aplicando su recompensa', () => {
@@ -46,8 +37,10 @@ describe('GameSession', () => {
     expect(session.pendingDecision).not.toBeNull();
   });
 
-  it('las tormentas solares degradan la generación eléctrica', () => {
-    expect(create({ environment: makeEnvironment({ radiationRisk: 1 }) }).resources.solarEfficiency).toBeCloseTo(0.7);
+  it('acumula la dosis de radiación de fondo del lugar', () => {
+    const session = create({ doseRateMSvPerDay: 1.37, gameHoursPerSecond: 24 });
+    session.update(2);
+    expect(session.crewDoseMSv).toBeCloseTo(2.74);
   });
 
   it('termina la partida al agotarse el soporte vital', () => {
