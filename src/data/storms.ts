@@ -1,5 +1,7 @@
 import stormsDataset from '../../datasets/storms/biosentinel-storms.json';
+import peaksDataset from '../../datasets/storms/radiation-peaks.json';
 import type { SpaceStorm } from '../core/environment/storms';
+import type { RadiationPeak } from '../core/incidents/timeline';
 
 interface ArchivedStorm {
   id: string;
@@ -29,3 +31,8 @@ const toStorm = (s: ArchivedStorm): SpaceStorm => ({
 
 /** Tormentas en espacio profundo (BioSentinel + DONKI), generadas por scripts/build-storms.mjs. */
 export const DEEP_SPACE_STORMS: readonly SpaceStorm[] = (stormsDataset.storms as ArchivedStorm[]).map(toStorm);
+
+/** Picos a resolución completa de las tormentas con serie de evento (scripts/build-events.mjs). */
+export const RADIATION_PEAKS: readonly RadiationPeak[] = (peaksDataset.peaks as (RadiationPeak & { file: string })[]).map(
+  ({ id, site, onsetAt, peakAt, peakUGyH, baselineUGyH }) => ({ id, site, onsetAt, peakAt, peakUGyH, baselineUGyH }),
+);

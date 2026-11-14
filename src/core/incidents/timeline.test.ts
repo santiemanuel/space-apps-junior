@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INCIDENT_RULES as R } from '../../content/incidents';
 import type { DailyDose, MarsWeather } from '../environment/series';
 import type { SpaceStorm } from '../environment/storms';
-import { coldTimeline, conjunctionTimeline, dustTimeline, marsRadiationTimeline, stormTimeline, timelineBetween } from './timeline';
+import { coldTimeline, conjunctionTimeline, dustTimeline, marsRadiationTimeline, stormTimeline, timelineBetween, withPeaks } from './timeline';
 
 const day = (i: number) => new Date(Date.UTC(2024, 4, 1) + i * 86_400_000).toISOString().slice(0, 10);
 const dose = (rates: number[]): DailyDose[] => rates.map((uGyH, i) => ({ date: day(i), uGyH, capped: false }));
@@ -70,5 +70,17 @@ describe('línea de tiempo real', () => {
   it('timelineBetween deja los que se solapan con la ventana, en orden de aviso', () => {
     const entries = stormTimeline([storm, { ...storm, id: 'early', warnAt: '2024-01-01T00:00:00Z', endAt: '2024-01-02T00:00:00Z' }], R, 'u');
     expect(timelineBetween(entries, '2024-06-04T00:00:00Z', '2024-10-10T00:00:00Z').map((e) => e.id)).toEqual(['storm-x']);
+  });
+
+  it('con serie a resolución completa, la tarjeta usa el pico real y en Marte el impacto pasa al inicio real', () => {
+    const [mars] = marsRadiationTimeline(dose([...Array(27).fill(4.5), 69.3]), R, 48, 'u');
+    const peak = { id: 'p', site: 'marsSurface' as const, onsetAt: `${day(27)}T05:38:56Z`, peakAt: `${day(27)}T06:15:19Z`, peakUGyH: 304, baselineUGyH: 3.9 };
+    const [moved] = withPeaks([mars!], [peak]);
+    expect(moved).toMatchObject({ impactAt: peak.onsetAt, realEvent: { value: 304, date: peak.peakAt, kidValueParams: { times: 78 } } });
+    expect(Date.parse(moved!.impactAt) - Date.parse(moved!.warnAt)).toBe(48 * 3_600_000);
+    const [capped] = withPeaks(stormTimeline([storm], R, 'u'), [{ ...peak, site: 'deepSpace', peakAt: '2024-06-09T00:00:00Z', peakUGyH: 2000 }]);
+    expect(capped).toMatchObject({ impactAt: storm.impactAt, realEvent: { value: 2000 } });
+    expect(capped!.realEvent.capped).toBeUndefined();
+    expect(withPeaks([mars!], [{ ...peak, site: 'deepSpace' }])[0]).toBe(mars);
   });
 });

@@ -25,14 +25,17 @@ describe('línea de tiempo de la campaña 2024', () => {
   it('la ida trae la tormenta de mayo con el aviso real de DONKI (X1.0 del 08/05)', () => {
     const may = campaign('cruiseOut').find((e) => e.id === 'storm-2024-05-11')!;
     expect(may).toMatchObject({ warnAt: '2024-05-08T05:09:00Z', impactAt: '2024-05-11T02:10:00Z' });
-    expect(may.realEvent).toMatchObject({ mission: 'BioSentinel', value: 380.7 });
+    // Hay serie por minuto: la tarjeta muestra el pico real (653 μGy/h, §2), sin el tope de las medias diarias.
+    expect(may.realEvent).toMatchObject({ mission: 'BioSentinel', value: 652.7, date: '2024-05-13T20:52:00Z', kidValueParams: { times: 88 } });
+    expect(may.realEvent.capped).toBeUndefined();
     expect(ids('cruiseOut')).toEqual(['storm-2024-01-29', 'storm-2024-02-09', 'storm-2024-03-23', 'storm-2024-05-11']);
   });
 
   it('en Marte: el SEP del 20/05 en RAD, el polvo del 28/05 y la noche helada del 24/05; sin conjunción', () => {
     expect(ids('mars')).toEqual(['mars-storm-2024-05-20', 'cold-2024-05-24', 'dust-2024-05-28']);
     const sep = campaign('mars')[0]!.realEvent;
-    expect(sep).toMatchObject({ instrument: 'RAD', mission: 'Curiosity', value: 69.3, kidValueParams: { times: 14 } });
+    expect(sep).toMatchObject({ instrument: 'RAD', mission: 'Curiosity', value: 304, kidValueParams: { times: 78 } });
+    expect(campaign('mars')[0]).toMatchObject({ impactAt: '2024-05-20T05:38:56Z', warnAt: '2024-05-18T05:38:56.000Z' });
   });
 
   it('la vuelta llega hasta la tormenta del 09/10 (X1.8) con el valor recortado y avisado', () => {

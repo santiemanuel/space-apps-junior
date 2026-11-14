@@ -7,5 +7,9 @@
   "crewSlow.condition": "{name} is out of shape: needs exercise",
   "crewSlow.co2": "{name} has a headache: too much CO2",
   "crewSlow.morale": "{name} misses Earth",
-  "crewSlow.resting": "{name} is resting in the sick bay"
+  "crewSlow.resting": "{name} is resting in the sick bay",
+  "missionControl.notice.flare": "Mission Control: the Sun shot out a {classType} flare. A radiation storm may be coming.",
+  "missionControl.notice.sep": "Mission Control: the {detector} satellite detects lots of particles from the Sun.",
+  "missionControl.notice.cmeMars": "Mission Control: a cloud of gas from the Sun is travelling at {speed} km/s and will hit Mars.",
+  "missionControl.notice.cmeMarsGlancing": "Mission Control: a cloud of gas from the Sun is travelling at {speed} km/s and may brush past Mars."
 }

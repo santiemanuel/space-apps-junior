@@ -31,6 +31,8 @@ describe('claves de texto de la simulación', () => {
     'incidents.realEvent.doseRate',
     'incidents.realEvent.conjunctionDays',
     'incidents.solarConjunction.explanation',
+    'incidents.vanAllen.explanation',
+    ...['flare', 'sep', 'cmeMars', 'cmeMarsGlancing'].map((k) => `hud.missionControl.notice.${k}`),
     ...SACRIFICES.flatMap((s) => [`incidents.sacrifice.${s.id}.title`, `incidents.sacrifice.${s.id}.cost`]),
   ];
 

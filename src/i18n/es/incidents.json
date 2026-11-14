@@ -112,5 +112,6 @@
   "realEvent.doseRate": "{value} μGy/h",
   "realEvent.uvLow": "Luz del Sol \"baja\" en el sol {sol} ({sols} soles seguidos)",
   "realEvent.coldNight": "{temp} °C de mínima (lo normal era {usual} °C)",
-  "realEvent.conjunctionDays": "{days} días sin mandar órdenes a Marte"
+  "realEvent.conjunctionDays": "{days} días sin mandar órdenes a Marte",
+  "vanAllen.explanation": "Al despegar, la nave cruza los cinturones de Van Allen: zonas alrededor de la Tierra donde su campo magnético atrapa partículas. La nave Orion de Artemis I lo midió en 2022, sin tripulación."
 }

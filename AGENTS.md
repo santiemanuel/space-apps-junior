@@ -11,6 +11,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - `npm run datasets:fetch` — regenera `datasets/donki/` (lo que usa el juego; requiere red)
 - `npm run datasets:download [-- fuente...]` — descargas crudas a `datasets/raw/` + `manifest.json` (RadLab tarda varios minutos)
 - `node scripts/build-storms.mjs` — regenera `datasets/storms/biosentinel-storms.json` desde `datasets/raw/` (sin red)
+- `node scripts/build-events.mjs` — regenera `datasets/storms/radiation-peaks.json`, `series/van-allen-artemis.json` y `notices/donki-notices.json` desde `datasets/raw/`
 - `node scripts/build-series.mjs` — regenera `datasets/series/` (dosis diaria y clima de Gale) desde `datasets/raw/`
 
 ## Convenciones
@@ -37,6 +38,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - En Windows, curl a algunos dominios NASA necesita `--ssl-no-revoke` o `-k`.
 - Vite 8 usa Rolldown: `build.rollupOptions.output.manualChunks` sólo acepta la forma de función.
 - Los heredocs muy largos en exec pueden truncarse: para archivos grandes usar la herramienta de escritura.
+- En exec, las comillas invertidas dentro de `node -e "..."` las interpreta bash: para código con template strings usar la herramienta de edición o de escritura.
 
 ## Preferencias del usuario
 - No hacer commits automáticos: dejar los cambios sin commitear salvo que el usuario lo pida explícitamente.

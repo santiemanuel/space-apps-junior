@@ -1,4 +1,4 @@
-import type { DailyDose, MarsWeather } from '../environment/series';
+import type { DailyDose, DoseSite, MarsWeather } from '../environment/series';
 import type { SpaceStorm } from '../environment/storms';
 import type { RealEvent } from '../events/RealEvent';
 import type { IncidentId, IncidentRules, TimelineKind } from './definitions';
@@ -226,3 +226,50 @@ export const timelineBetween = (entries: readonly TimelineEntry[], from: string,
   entries
     .filter((e) => Date.parse(e.warnAt) < Date.parse(to) && Date.parse(e.endAt) > Date.parse(from))
     .sort((a, b) => Date.parse(a.warnAt) - Date.parse(b.warnAt));
+
+/** Pico de una tormenta a resolución completa (serie de evento de RadLab). */
+export interface RadiationPeak {
+  id: string;
+  site: DoseSite;
+  onsetAt: string;
+  peakAt: string;
+  peakUGyH: number;
+  baselineUGyH: number;
+}
+
+const PEAK_KIND: Partial<Record<DoseSite, TimelineKind>> = { deepSpace: 'deepSpaceStorm', marsSurface: 'marsRadiation' };
+
+/**
+ * Donde hay serie a resolución completa, la tarjeta muestra el pico real y no la media diaria (el tope de
+ * §3.2.1 es para las medias diarias). En Marte el impacto pasa al inicio real de la subida, con la misma antelación.
+ */
+export function withPeaks(entries: readonly TimelineEntry[], peaks: readonly RadiationPeak[]): TimelineEntry[] {
+  return entries.map((entry) => {
+    const peak = peaks.find(
+      (p) =>
+        PEAK_KIND[p.site] === entry.kind &&
+        Date.parse(p.peakAt) >= dayMs(entry.impactAt) &&
+        Date.parse(p.peakAt) < Date.parse(entry.endAt),
+    );
+    if (!peak) return entry;
+    const { capped: _capped, ...realEvent } = entry.realEvent;
+    const moved =
+      entry.kind === 'marsRadiation'
+        ? {
+            warnAt: iso(Date.parse(peak.onsetAt) - (Date.parse(entry.impactAt) - Date.parse(entry.warnAt))),
+            impactAt: peak.onsetAt,
+          }
+        : {};
+    return {
+      ...entry,
+      ...moved,
+      realEvent: {
+        ...realEvent,
+        date: peak.peakAt,
+        value: peak.peakUGyH,
+        kidValueKey: 'incidents.realEvent.timesNormal',
+        kidValueParams: { times: Math.round(peak.peakUGyH / peak.baselineUGyH) },
+      },
+    };
+  });
+}

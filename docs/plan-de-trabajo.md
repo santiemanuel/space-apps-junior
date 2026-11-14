@@ -320,6 +320,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - API: `seriesFor(phase, date)` y `eventsBetween(from, to)`.
 - Cada serie nueva se documenta en `datasets/README.md` (fuente, URL, uso).
 - Cuando se recorta un valor de BioSentinel: `capped: true` en el `RealEvent`.
+- Hecho: `src/data/realData.ts` (`seriesFor(phase, date)`, `eventsBetween(from, to, rules)`), `vanAllen.ts`
+  (`VAN_ALLEN` con su `RealEvent` para el ascenso), `notices.ts` (`DONKI_NOTICES` + `noticeText`) y picos a
+  resolución completa en las tarjetas. Todo sale de `node scripts/build-events.mjs`.
 
 ### S7 · Escena `Voyage`
 

@@ -7,5 +7,9 @@
   "crewSlow.condition": "{name} perdió estado físico: le falta ejercicio",
   "crewSlow.co2": "{name} tiene dolor de cabeza: hay mucho CO2",
   "crewSlow.morale": "{name} extraña la Tierra",
-  "crewSlow.resting": "{name} descansa en la enfermería"
+  "crewSlow.resting": "{name} descansa en la enfermería",
+  "missionControl.notice.flare": "Control de Misión: el Sol lanzó una llamarada {classType}. Puede venir una tormenta de radiación.",
+  "missionControl.notice.sep": "Control de Misión: el satélite {detector} detecta muchas partículas del Sol.",
+  "missionControl.notice.cmeMars": "Control de Misión: una nube de gas del Sol viaja a {speed} km/s y va a pegarle a Marte.",
+  "missionControl.notice.cmeMarsGlancing": "Control de Misión: una nube de gas del Sol viaja a {speed} km/s y puede rozar Marte."
 }

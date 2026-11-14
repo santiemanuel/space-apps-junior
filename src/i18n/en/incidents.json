@@ -112,5 +112,6 @@
   "realEvent.doseRate": "{value} μGy/h",
   "realEvent.uvLow": "Sunlight \"low\" on sol {sol} ({sols} sols in a row)",
   "realEvent.coldNight": "Low of {temp} °C (the usual was {usual} °C)",
-  "realEvent.conjunctionDays": "{days} days without sending commands to Mars"
+  "realEvent.conjunctionDays": "{days} days without sending commands to Mars",
+  "vanAllen.explanation": "At launch the ship crosses the Van Allen belts: zones around Earth where its magnetic field traps particles. The Orion capsule of Artemis I measured them in 2022, with no crew on board."
 }
