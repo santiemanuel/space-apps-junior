@@ -1,0 +1,3 @@
+# Archivos de más de 5 MB: no se versionan. Se regeneran con npm run datasets:download.
+donki/cme.json
+donki/notifications.json

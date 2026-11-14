@@ -9,7 +9,8 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "datasets:fetch": "node scripts/fetch-datasets.mjs"
+    "datasets:fetch": "node scripts/fetch-datasets.mjs",
+    "datasets:download": "node scripts/download/download.mjs"
   },
   "type": "module",
   "dependencies": {

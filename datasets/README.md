@@ -8,7 +8,10 @@ regenerar o revisar sin tocar la lógica. Sólo `src/data/` los lee y los convie
 Elegidos según el desafío [Junior Astronaut Mission Trainer (Space Apps 2026)](https://www.spaceappschallenge.org/2026/challenges/junior-astronaut-mission-trainer/),
 que pide decisiones sobre soporte vital, blindaje contra radiación, energía y comunicaciones, basadas en datos reales.
 
-## Catálogo
+> **Datos crudos**: `datasets/raw/` contiene descargas completas (DONKI desde 2024, RadLab, clima de Marte,
+> OSDR, documentos NASA-STD-3001 y BVAD) pendientes de procesar. Ver [`raw/README.md`](raw/README.md).
+
+## Catálogo (datos que ya usa el juego)
 
 | Archivo | Fuente | Tipo | Situación crítica que modela |
 |---|---|---|---|
@@ -41,12 +44,18 @@ Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 40
 | Dataset | Motivo |
 |---|---|
 | NeoWs (asteroides cercanos) | No aparece en el desafío y no modela ningún problema de una base lunar o marciana |
-| RadLab (dosimetría de la ISS) | Recomendado por el desafío, pero su API devolvía error 500 el 14/11/2026. Se usan en su lugar las tasas publicadas de RAD/LND. Candidato a integrar cuando vuelva a funcionar |
+| RadLab (telemetría de radiación) | Relevante y su API de datos está operativa. Se verificó que una consulta a `https://visualization.osdr.nasa.gov/radlab/api/?spacecraft=ISS&instrument=DosTel&...&format=json` devuelve HTTP 200 y 164 lecturas de 2022. No está integrada aún; el API no expuso `Access-Control-Allow-Origin` en esta prueba, así que habría que descargarlo con Node al archivo en vez de llamarlo desde el navegador. |
 | DONKI CME / GST | Las CME y las tormentas geomagnéticas afectan sobre todo a la Tierra; para una base sin magnetosfera, FLR y SEP son los datos que importan. Las CME son candidatas para un sistema de *alerta temprana* |
 | Mars Trek | Imágenes y terreno: útil si la base se traslada a Marte (cambiar `MISSION_SITE` a `marsSurface`) |
 
 ## Notas técnicas
 
 - DONKI se consulta directamente en `https://ccmc.gsfc.nasa.gov/DONKI-API/get/<TIPO>` **sin barra final**:
-  el proxy de `api.nasa.gov/DONKI` añade una y responde 404. No requiere API key y permite CORS.
+  el proxy de `api.nasa.gov/DONKI` añade una y puede responder 404. No requiere API key y permite CORS.
 - Las respuestas se recortan a los campos que usa el juego. El campo `link` de cada evento enlaza a su ficha en DONKI.
+- RadLab usa otra convención: el endpoint de datos es `https://visualization.osdr.nasa.gov/radlab/api/`
+  **con barra final**, seguido de filtros como `spacecraft=ISS`, `instrument=DosTel`,
+  `timestamp%3E=...` y `format=json`. `/radlab/api/environments` no es una ruta válida y devuelve
+  error; el endpoint correcto respondió 200 el 14/11/2026.
+- El aviso de APOD / Earth API / Mars Rover no afecta a este proyecto: no utiliza ninguno de esos tres servicios.
+  La nueva APOD URL no corrige DONKI ni RadLab.
