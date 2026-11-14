@@ -488,9 +488,9 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 - [ ] Ventana de lanzamiento a Marte 2026 (fechas reales, posible gancho de "desafío actual").
 - [ ] Simulaciones WSA-ENLIL de DONKI con impactos en Marte (para eventos en superficie fuera de RAD).
 - [ ] Error típico de las predicciones de llegada de CME (CCMC CME Scoreboard).
-- [ ] Mínimas < −90 °C de REMS (40 soles). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
+- [x] Mínimas < −90 °C de REMS (40 soles): caídas aisladas de ~30 °C, tratadas como artefacto (ver `datasets/README.md`). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
 - [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas) y de la reentrada de Orion.
-- [ ] Factores Q por fase: confirmar en Hassler 2014 y Zeitlin 2013.
+- [x] Factores Q por fase: Marte 3,05 (0,64 mSv / 0,21 mGy, Hassler 2014); crucero 3,8 (1,84 mSv / 0,48 mGy, Zeitlin 2013).
 - [x] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña: mayo de 2024, 69 h (X1.0 de la región 13664 el 08/05 → subida en BioSentinel el 11/05); octubre de 2024, 1,9 h (X1.8 del 09/10). Detalle en `datasets/README.md`.
 - [ ] Hallazgos de Mars-500 sobre sueño y actividad (Basner et al. 2013, PNAS).
 - [ ] Pesos de la fórmula de eficiencia, márgenes de la falla en cascada y límites de masa de las cargas: ajustarlos con pruebas de juego con niños.

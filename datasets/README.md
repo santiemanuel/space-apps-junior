@@ -21,15 +21,31 @@ que pide decisiones sobre soporte vital, blindaje contra radiación, energía y 
 | `curated/life-support-bvad.json` | [NASA BVAD](https://ntrs.nasa.gov/citations/20210024855) | Curado | Consumo de O2, agua y comida por tripulante y día |
 | `curated/osdr-facts.json` | [NASA OSDR](https://osdr.nasa.gov/bio/repo/) | Curado | Datos científicos reales que se muestran al resolver misiones (OSD-992, OSD-615, OSD-177) |
 | `storms/biosentinel-storms.json` | [RadLab](https://visualization.osdr.nasa.gov/radlab/) (BioSentinel, medias diarias) + DONKI (FLR, SEP) de `raw/` | Derivado | **Tormentas de radiación en espacio profundo**: cuándo avisa DONKI, cuándo sube la dosis y cuánto dura. Frena el reloj de misión (game-design §3.1) |
+| `series/deep-space-dose.json` | RadLab: BioSentinel BPD, medias diarias (nov. 2022 → nov. 2025) | Derivado | **Dosis en los viajes** (μGy/h por día) con el tope de 650 μGy/h de game-design §3.2.1; `capped` marca los días recortados |
+| `series/mars-cruise-dose.json` | RadLab: ExoMars TGO Liulin-MO en crucero (2016) | Derivado | Dosis en crucero para el modo libre |
+| `series/mars-surface-dose.json` | RadLab: Curiosity RAD, medias diarias (2015 → 03/06/2024) | Derivado | **Dosis en Marte** (μGy/h por día) |
+| `series/gale-weather.json` | [REMS de Curiosity](https://mars.nasa.gov/msl/mission/weather/) por fecha terrestre, recortado al rango de RAD | Derivado | **Polvo** (índice UV → f_polvo) y **frío** (mínima → calefacción) en la base de Gale |
+| `curated/nasa-std-3001.json` | NASA-STD-3001 (OCHMO Technical Briefs), BVAD, NASA (ISS) | Curado | Límite de CO2, agua potable y por hora de EVA, kcal diarias, reciclaje de agua y ejercicio diario de los medidores |
 
 **Descargado**: lo genera `npm run datasets:fetch` (año completo, en tramos de 60 días, que es el máximo de DONKI).
-**Derivado**: lo genera `node scripts/build-storms.mjs` a partir de `datasets/raw/` (sin red).
+**Derivado**: lo generan `node scripts/build-storms.mjs` y `node scripts/build-series.mjs` a partir de `datasets/raw/` (sin red).
 **Curado**: valores extraídos a mano de publicaciones, cada uno con su referencia y URL dentro del JSON.
 
 Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 407 llamaradas
 (16 de clase X y 285 de clase M) y 42 eventos SEP repartidos en 13 días.
 
 ## Cómo los usa el juego
+
+- **Medidores** (`series/`, `curated/radiation-dose.json`, `curated/nasa-std-3001.json`): la dosis de cada
+  tripulante es `tasa del día × f_blindaje × Q × horas`. Q = 3,05 en Marte (Hassler 2014), 3,8 en crucero
+  (Zeitlin 2013) y 1,5 durante un SEP (regla). Si una serie no tiene dato ese día, se usa el último día con dato.
+- **Mínimas de REMS bajo −90 °C** (40 soles en todo el archivo, 15 dentro del rango de RAD): todas son caídas
+  aisladas de ~30 °C respecto a los soles vecinos (p. ej. 16/05/2024: −98 °C entre dos días de −68 °C), con
+  valores cerca de −100 °C. Se tratan como artefacto del sensor: el juego usa la mediana de los 3 soles a cada
+  lado y guarda el valor crudo (`rawMinTempC`).
+- **Fondo de radiación real en 2024**: BioSentinel da ~7,2 μGy/h fuera de tormentas (≈ 0,65 mSv/día con Q 3,8 y
+  sin blindaje), menos que los 1,84 mSv/día de MSL en 2012 (Zeitlin 2013) que usa game-design §2.1. 2024 fue un
+  máximo solar, que reduce los rayos cósmicos; además son instrumentos y blindajes distintos.
 
 - **Tormentas y reloj** (`storms/biosentinel-storms.json`):
   - Días de tormenta: media diaria de BioSentinel por encima de 5 × la mediana de los 27 días previos.

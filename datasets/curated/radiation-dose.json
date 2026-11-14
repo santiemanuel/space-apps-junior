@@ -30,5 +30,21 @@
     "mSv": 250,
     "source": "NASA-STD-3001 Vol. 1 [V1 4031] — dosis máxima ante el evento SPE de referencia (octubre de 1989)",
     "url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-020-radiation-protection.pdf"
+  },
+  "qualityFactors": {
+    "marsSurface": {
+      "q": 3.05,
+      "source": "Curiosity RAD en Gale: 0,64 mSv/día de dosis equivalente sobre 0,21 mGy/día absorbidos. Hassler et al. (2014), Science 343, doi:10.1126/science.1244797",
+      "url": "https://doi.org/10.1126/science.1244797"
+    },
+    "cruise": {
+      "q": 3.8,
+      "source": "MSL RAD en crucero: 1,84 mSv/día sobre 0,48 mGy/día (Q medio ≈ 3,8). Zeitlin et al. (2013), Science 340, doi:10.1126/science.1235989",
+      "url": "https://doi.org/10.1126/science.1235989"
+    },
+    "solarParticleEvent": {
+      "q": 1.5,
+      "source": "Regla del juego (game-design §3.2): los protones de un SEP tienen un Q menor que los rayos cósmicos; se simplifica a 1,5"
+    }
   }
 }

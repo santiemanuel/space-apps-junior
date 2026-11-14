@@ -1,4 +1,5 @@
 import bvad from '../../datasets/curated/life-support-bvad.json';
+import std3001 from '../../datasets/curated/nasa-std-3001.json';
 import osdr from '../../datasets/curated/osdr-facts.json';
 import radiation from '../../datasets/curated/radiation-dose.json';
 
@@ -20,6 +21,23 @@ export interface DoseReference {
 export const DOSE_RATES: Record<SurfaceSite, DoseReference> = radiation.doseRates;
 export const CAREER_DOSE_LIMIT_MSV = radiation.careerLimit.mSv;
 export const CHEST_XRAY_MSV = radiation.reference.chestXrayMSv;
+
+/** Factores de calidad Q (dosis absorbida → equivalente): Hassler 2014, Zeitlin 2013 y la regla del SEP. */
+export const QUALITY_FACTORS = {
+  marsSurface: radiation.qualityFactors.marsSurface.q,
+  cruise: radiation.qualityFactors.cruise.q,
+  solarParticleEvent: radiation.qualityFactors.solarParticleEvent.q,
+} as const;
+
+/** Normas NASA-STD-3001 y valores de BVAD que usan los medidores (citas en el JSON). */
+export const HUMAN_STANDARDS = {
+  co2LimitMmHg: std3001.co2LimitMmHg.value,
+  potableWaterLPerCrewDay: std3001.potableWaterLPerCrewDay.value,
+  evaWaterLPerHour: std3001.evaWaterLPerHour.value,
+  kcalPerCrewDay: std3001.kcalPerCrewDay.value,
+  waterRecycling: { min: std3001.waterRecycling.min, max: std3001.waterRecycling.max },
+  exerciseHoursPerDay: std3001.exerciseHoursPerDay.value,
+} as const;
 
 export interface ScienceFact {
   topic: string;

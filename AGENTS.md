@@ -11,6 +11,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - `npm run datasets:fetch` — regenera `datasets/donki/` (lo que usa el juego; requiere red)
 - `npm run datasets:download [-- fuente...]` — descargas crudas a `datasets/raw/` + `manifest.json` (RadLab tarda varios minutos)
 - `node scripts/build-storms.mjs` — regenera `datasets/storms/biosentinel-storms.json` desde `datasets/raw/` (sin red)
+- `node scripts/build-series.mjs` — regenera `datasets/series/` (dosis diaria y clima de Gale) desde `datasets/raw/`
 
 ## Convenciones
 - La lógica de juego vive en `src/core/` y no puede importar `phaser` ni `src/game/`.
