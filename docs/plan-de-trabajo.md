@@ -71,7 +71,7 @@ master
 
 ## 3. Etapa 0 — Contratos compartidos (juntos)
 
-**Estado: implementada en la rama `feat/contratos`, pendiente de PR #1 a `master`.** Al fusionarla, cada uno puede
+**Estado: completa (PR #1 mergeado; resolución agregada después en `master`).** Al fusionarla, cada uno puede
 trabajar sin volver a tocar archivos compartidos.
 
 ### 3.1 Tipos de dominio
@@ -167,12 +167,27 @@ Archivo compartido: sólo se **agregan** funciones.
 - `src/game/dev/devLaunch.ts` (congelado) junta `flowDev.ts` (Facundo) y `simulationDev.ts` (Santiago); cada uno
   agrega ahí los datos que necesitan sus escenas. `null` marca escenas que no se pueden abrir solas.
 
+### 3.8 Resolución, tiles y recursos gráficos
+
+- `src/game/display.ts` (congelado): **1280×720**, tile de **48 px**. La pantalla muestra 26,7 × 15 tiles; los mapas
+  más grandes usan cámara con scroll. El prototipo lunar (tiles de 32) queda centrado hasta que se retire.
+- Hojas de tripulantes (`docs/*-sprites.png`): PNG con transparencia, 1584×864 = **9 × 4 cuadros de 176×216**.
+  Verificado: ningún sprite cruza el borde de su cuadro, los pies están en y = 208 y el centro en x ≈ 88, así que
+  sirven directamente como spritesheet con origen (0,5; 208/216). La escala en pantalla la fija Facundo en
+  `CrewSprite.ts` (≈ 0,35–0,4 para que midan ~1,6–1,8 tiles).
+- Recursos del juego en `public/assets/<dominio>/` (`crew/`, `ui/`, `maneuvers/` → Facundo; `ship/`, `mars/`,
+  `hud/` → Santiago). `docs/` queda para referencias.
+- Imágenes generadas (p. ej. con codex-cli): pixel art en el estilo de `docs/ref-nave.png`, PNG con transparencia,
+  medidas múltiplos de 48 px (tiles y objetos) o 1280×720 (fondos). Se anota el prompt usado en un `README.md` dentro
+  de la carpeta del recurso.
+
 ### Criterios de aceptación de la Etapa 0
 
 - [x] `npm test`, `npm run typecheck` y `npm run build` en verde.
 - [x] El juego actual sigue arrancando; las escenas nuevas son provisionales.
 - [x] Asignación de sprites a roles (ver §5.1).
-- [ ] Los dos revisaron y aprobaron los contratos (PR #1).
+- [x] Resolución y tile (§3.8).
+- [x] PR #1 mergeado a `master`; ramas `feat/simulacion` y `feat/flujo-maniobras` creadas.
 
 ---
 
@@ -434,7 +449,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/i18n/*/voyage\|mars\|hud\|incidents.json` | Santiago |
 | `src/i18n/*/menu\|maneuvers\|report\|common.json` | Facundo |
 | `src/test-utils/factories.ts` | Compartido: sólo se **agregan** funciones, no se modifican las existentes |
-| `src/main.ts`, `GameEvents.ts`, `sceneKeys.ts`, `config.ts`, `registry.ts`, `sceneData.ts`, `devLaunch.ts`, `i18n/index.ts`, `package.json`, `*/types.ts` de la Etapa 0 | **Congelados**: Etapa 0 o integración |
+| `src/main.ts`, `GameEvents.ts`, `sceneKeys.ts`, `config.ts`, `display.ts`, `registry.ts`, `sceneData.ts`, `devLaunch.ts`, `i18n/index.ts`, `package.json`, `*/types.ts` de la Etapa 0 | **Congelados**: Etapa 0 o integración |
 
 ---
 
@@ -512,5 +527,7 @@ Quedan para después del PR de integración:
 - Modo largo completo y modo libre con ventanas aleatorias (se dejan preparados, pero bloqueados).
 - Niveles de desbloqueo 3 y 4 con todo su contenido (MOXIE, corrección de trayectoria, diagnóstico remoto,
   micrometeorito, polvo en los sellos, escenarios especiales).
-- Audio definitivo y pulido visual.
+- **Audio** (alarmas, clics del monitor de partículas, música): decidido dejarlo para después de la integración.
+  Hasta entonces, el monitor de partículas y las alarmas son sólo visuales.
+- Pulido visual.
 - Balance fino con pruebas de juego.

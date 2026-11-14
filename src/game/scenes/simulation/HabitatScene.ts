@@ -43,6 +43,7 @@ export class HabitatScene extends Phaser.Scene {
       createKeyboardControls(this),
     );
     this.physics.add.collider(this.player, walls);
+    this.cameras.main.centerOn((HABITAT_SIZE.cols * TILE_SIZE) / 2, (HABITAT_SIZE.rows * TILE_SIZE) / 2);
   }
 
   update(_time: number, deltaMs: number): void {
