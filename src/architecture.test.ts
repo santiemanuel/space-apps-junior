@@ -2,8 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-/** Las capas core/, data/ y content/ deben poder probarse sin motor gráfico. */
-const ENGINE_FREE_LAYERS = ['core', 'data', 'content'];
+/** Las capas core/, data/, content/ e i18n/ deben poder probarse sin motor gráfico. */
+const ENGINE_FREE_LAYERS = ['core', 'data', 'content', 'i18n'];
 
 const filesIn = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
@@ -23,6 +23,13 @@ describe('arquitectura', () => {
     const offenders = filesIn(import.meta.dirname)
       .filter((file) => !file.includes(join(import.meta.dirname, 'data')))
       .filter((file) => /from ['"](\.\.\/)+datasets\//.test(readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('src/core/ no traduce: guarda claves y la capa game/ llama a t()', () => {
+    const offenders = filesIn(join(import.meta.dirname, 'core')).filter((file) =>
+      /from ['"](\.\.\/)+i18n/.test(readFileSync(file, 'utf8')),
+    );
     expect(offenders).toEqual([]);
   });
 });

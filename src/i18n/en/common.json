@@ -1,0 +1,21 @@
+{
+  "appTitle": "Mission to Mars",
+  "pendingScene": "This part of the game is still being built.",
+  "role.commander": "Commander",
+  "role.commander.description": "Does any job and asks Mission Control for advice.",
+  "role.engineer": "Engineer",
+  "role.engineer.description": "Fixes machines and leaks, looks after power and corrects the ship's course.",
+  "role.botanist": "Botanist",
+  "role.botanist.description": "Takes care of plants, food and water, and stops pests.",
+  "role.geoMedic": "Geologist and doctor",
+  "role.geoMedic.description": "Collects rocks on walks outside, leads exercise and looks after everyone's health.",
+  "phase.prep": "Getting ready",
+  "phase.ascent": "Launch",
+  "phase.cruiseOut": "Trip to Mars",
+  "phase.landing": "Landing",
+  "phase.mars": "Life on Mars",
+  "phase.marsAscent": "Leaving Mars",
+  "phase.cruiseBack": "Trip home",
+  "phase.reentry": "Back to Earth",
+  "dataDate": "Real data from {date}"
+}

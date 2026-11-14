@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import { HABITAT_SIZE, PLAYER_SPAWN, STATIONS, TILE_SIZE } from '../../content/habitat';
-import type { GameSession } from '../../core/session/GameSession';
-import { Player } from '../entities/Player';
-import { StationView } from '../entities/StationView';
-import { createKeyboardControls } from '../input/PlayerControls';
-import { SceneKeys } from '../sceneKeys';
-import type { SessionSceneData } from '../services';
-import { TextureKeys } from '../textures';
+import { HABITAT_SIZE, PLAYER_SPAWN, STATIONS, TILE_SIZE } from '../../../content/habitat';
+import type { GameSession } from '../../../core/session/GameSession';
+import { Player } from '../../entities/Player';
+import { StationView } from '../../entities/StationView';
+import { createKeyboardControls } from '../../input/PlayerControls';
+import { SceneKeys } from '../../sceneKeys';
+import type { SessionSceneData } from '../../services';
+import { TextureKeys } from '../../textures';
 
 /** Mundo top-down: mapa del hábitat, jugador y estaciones. Delega las reglas en GameSession. */
 export class HabitatScene extends Phaser.Scene {

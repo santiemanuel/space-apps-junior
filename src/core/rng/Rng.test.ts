@@ -20,4 +20,12 @@ describe('Rng', () => {
   it('pick falla con listas vacías', () => {
     expect(() => new Rng(1).pick([])).toThrow();
   });
+
+  it('se restaura desde su estado y continúa la misma secuencia', () => {
+    const original = new Rng(99);
+    original.next();
+    original.next();
+    const restored = new Rng(original.state);
+    expect(Array.from({ length: 5 }, () => restored.next())).toEqual(Array.from({ length: 5 }, () => original.next()));
+  });
 });

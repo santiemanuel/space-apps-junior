@@ -1,0 +1,21 @@
+{
+  "appTitle": "Misión a Marte",
+  "pendingScene": "Esta parte del juego todavía se está construyendo.",
+  "role.commander": "Comandante",
+  "role.commander.description": "Hace cualquier tarea y pide consejos a Control de Misión.",
+  "role.engineer": "Ingeniera",
+  "role.engineer.description": "Repara máquinas y fugas, cuida la energía y corrige el rumbo de la nave.",
+  "role.botanist": "Botánico",
+  "role.botanist.description": "Cuida las plantas, la comida y el agua, y frena las plagas.",
+  "role.geoMedic": "Geóloga y médica",
+  "role.geoMedic.description": "Junta rocas en las salidas, guía el ejercicio y cuida la salud de todos.",
+  "phase.prep": "Preparación",
+  "phase.ascent": "Despegue",
+  "phase.cruiseOut": "Viaje a Marte",
+  "phase.landing": "Aterrizaje",
+  "phase.mars": "Vida en Marte",
+  "phase.marsAscent": "Despegue de Marte",
+  "phase.cruiseBack": "Viaje de vuelta",
+  "phase.reentry": "Regreso a la Tierra",
+  "dataDate": "Dato real del {date}"
+}

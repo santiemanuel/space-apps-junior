@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { SceneKeys } from '../sceneKeys';
-import { getServices } from '../services';
-import { createPlaceholderTextures } from '../textures';
+import { SceneKeys } from '../../sceneKeys';
+import { getServices } from '../../services';
+import { createPlaceholderTextures } from '../../textures';
 
 /** Genera texturas, carga el entorno NASA y crea la sesión antes de arrancar el juego. */
 export class BootScene extends Phaser.Scene {
@@ -11,6 +11,13 @@ export class BootScene extends Phaser.Scene {
 
   async create(): Promise<void> {
     createPlaceholderTextures(this);
+    if (import.meta.env.DEV) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('scene')) {
+        const { launchDevScene } = await import('../../dev/devLaunch');
+        if (launchDevScene(this, params)) return;
+      }
+    }
     const { width, height } = this.scale;
     this.add.text(width / 2, height / 2, 'Recibiendo telemetría de la NASA…', {
       fontFamily: 'monospace', fontSize: '18px', color: '#90cdf4',
