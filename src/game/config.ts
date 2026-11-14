@@ -1,8 +1,6 @@
 import Phaser from 'phaser';
 import { HABITAT_SIZE, TILE_SIZE } from '../content/habitat';
-import { BootScene } from './scenes/BootScene';
-import { HabitatScene } from './scenes/HabitatScene';
-import { HudScene } from './scenes/HudScene';
+import { ALL_SCENES } from './scenes/registry';
 
 export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
   return {
@@ -14,6 +12,6 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     pixelArt: true,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { debug: false } },
-    scene: [BootScene, HabitatScene, HudScene],
+    scene: ALL_SCENES,
   };
 }
