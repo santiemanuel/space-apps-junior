@@ -29,6 +29,7 @@ npm run datasets:fetch  # vuelve a descargar los datasets reales de DONKI a data
 ## Datos de la NASA
 
 Están en [`datasets/`](datasets/README.md), fuera de `src/`, con su catálogo, sus fuentes y los motivos de cada elección.
+El diseño de mecánicas y narrativa en curso está en [`docs/game-design.md`](docs/game-design.md).
 
 | Dataset | Efecto en el juego |
 |---|---|
