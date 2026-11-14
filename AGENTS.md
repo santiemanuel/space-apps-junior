@@ -29,3 +29,6 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - En Windows, curl a algunos dominios NASA necesita `--ssl-no-revoke` o `-k`.
 - Vite 8 usa Rolldown: `build.rollupOptions.output.manualChunks` sólo acepta la forma de función.
 - Los heredocs muy largos en exec pueden truncarse: para archivos grandes usar la herramienta de escritura.
+
+## Preferencias del usuario
+- No hacer commits automáticos: dejar los cambios sin commitear salvo que el usuario lo pida explícitamente.
