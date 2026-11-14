@@ -439,7 +439,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/core/clock/`, `meters/`, `cascade/`, `crew/`, `incidents/`, `environment/`, `resources/` | Santiago |
 | `src/core/flow/` (salvo `types.ts`), `maneuvers/`, `save/`, `progression/` | Facundo |
 | `src/data/`, `datasets/`, `scripts/` | Santiago |
-| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts` | Santiago |
+| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts`, `campaign.ts` | Santiago |
 | `src/content/maneuvers.ts`, `loadouts.ts`, `achievements.ts` | Facundo |
 | `src/game/scenes/simulation/*`, `simulationScenes.ts` | Santiago |
 | `src/game/scenes/flow/*` (incluye `BootScene.ts`), `flowScenes.ts` | Facundo |
@@ -511,7 +511,7 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 | Tema | Responsable | Antes de |
 |---|---|---|
 | Fechas de las conjunciones solares de Marte (§10 del diseño) | Santiago | S5 |
-| Antelación real DONKI→RadLab en mayo y octubre de 2024 | Santiago | S1 |
+| ~~Antelación real DONKI→RadLab en mayo y octubre de 2024~~ Hecho: mayo 69 h, octubre 1,9 h (ver `datasets/README.md`) | Santiago | S1 |
 | Factores Q por fase (Hassler 2014, Zeitlin 2013) | Santiago | S2 |
 | Mínimas de REMS por debajo de −90 °C | Santiago | S8 |
 | Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I) | Facundo | F5 |

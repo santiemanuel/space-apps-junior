@@ -10,6 +10,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - `npm run dev` — servidor en http://localhost:5173 (`?scene=Voyage`, `?scene=Maneuver&id=landing`… abre una escena sola con `makeGameState()`)
 - `npm run datasets:fetch` — regenera `datasets/donki/` (lo que usa el juego; requiere red)
 - `npm run datasets:download [-- fuente...]` — descargas crudas a `datasets/raw/` + `manifest.json` (RadLab tarda varios minutos)
+- `node scripts/build-storms.mjs` — regenera `datasets/storms/biosentinel-storms.json` desde `datasets/raw/` (sin red)
 
 ## Convenciones
 - La lógica de juego vive en `src/core/` y no puede importar `phaser` ni `src/game/`.

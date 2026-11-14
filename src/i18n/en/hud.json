@@ -1,5 +1,6 @@
 {
   "planning.sceneTitle": "Plan the day",
   "missionControl.sceneTitle": "Mission Control",
-  "dataPanel.sceneTitle": "Data panel"
+  "dataPanel.sceneTitle": "Data panel",
+  "alert.calm": "All calm"
 }

@@ -20,14 +20,27 @@ que pide decisiones sobre soporte vital, blindaje contra radiación, energía y 
 | `curated/radiation-dose.json` | Curiosity RAD (NASA/JPL), Chang'e-4 LND, NASA-STD-3001 | Curado | Dosis de fondo por día en la Luna y en Marte; límites de dosis de la NASA |
 | `curated/life-support-bvad.json` | [NASA BVAD](https://ntrs.nasa.gov/citations/20210024855) | Curado | Consumo de O2, agua y comida por tripulante y día |
 | `curated/osdr-facts.json` | [NASA OSDR](https://osdr.nasa.gov/bio/repo/) | Curado | Datos científicos reales que se muestran al resolver misiones (OSD-992, OSD-615, OSD-177) |
+| `storms/biosentinel-storms.json` | [RadLab](https://visualization.osdr.nasa.gov/radlab/) (BioSentinel, medias diarias) + DONKI (FLR, SEP) de `raw/` | Derivado | **Tormentas de radiación en espacio profundo**: cuándo avisa DONKI, cuándo sube la dosis y cuánto dura. Frena el reloj de misión (game-design §3.1) |
 
 **Descargado**: lo genera `npm run datasets:fetch` (año completo, en tramos de 60 días, que es el máximo de DONKI).
+**Derivado**: lo genera `node scripts/build-storms.mjs` a partir de `datasets/raw/` (sin red).
 **Curado**: valores extraídos a mano de publicaciones, cada uno con su referencia y URL dentro del JSON.
 
 Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 407 llamaradas
 (16 de clase X y 285 de clase M) y 42 eventos SEP repartidos en 13 días.
 
 ## Cómo los usa el juego
+
+- **Tormentas y reloj** (`storms/biosentinel-storms.json`):
+  - Días de tormenta: media diaria de BioSentinel por encima de 5 × la mediana de los 27 días previos.
+  - Impacto: primer evento SEP de DONKI del día en que empieza la subida (en mayo de 2024 coincide con la
+    serie por minuto de RadLab: la dosis sube el 11/05 entre las 02 y las 03 UTC; el SEP de GOES >100 MeV es de las 02:10).
+  - Aviso: primera llamarada M5+ o X de la región activa del SEP en las 72 h previas. Sin detección previa
+    (o antes de 2024, donde no hay DONKI crudo) se usan 48 h simuladas, como pide el diseño.
+  - `capped: true` cuando la media diaria supera el tope de 650 μGy/h (§3.2.1).
+  - Antelación real de la campaña 2024: 29/01 0,6 h · 09/02 59,6 h · 23/03 4,4 h · **11/05 69 h** (X1.0 de la
+    región 13664 el 08/05) · 08/06 35,3 h · 23/07 48 h (regla) · 15/09 48 h (regla) · **09/10 1,9 h** (X1.8 del 09/10).
+    Los SEP "inmediatos" avisan con minutos u horas: el reloj garantiza al menos 10 s reales de Alerta.
 
 - **Clima espacial**: en modo `live` se consultan los últimos 30 días de DONKI. Si no hay conexión
   (o en modo `archive`), cada partida toma **una ventana real de 30 días al azar** de este archivo,

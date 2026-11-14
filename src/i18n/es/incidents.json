@@ -1,3 +1,5 @@
 {
-  "radiationStorm.title": "Tormenta solar"
+  "radiationStorm.title": "Tormenta solar",
+  "radiationStorm.alert": "Pronóstico: puede venir una tormenta de radiación. Preparen el refugio.",
+  "radiationStorm.impact": "¡Tormenta de radiación! Todos al refugio de agua."
 }

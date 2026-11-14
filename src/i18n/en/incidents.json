@@ -1,3 +1,5 @@
 {
-  "radiationStorm.title": "Solar storm"
+  "radiationStorm.title": "Solar storm",
+  "radiationStorm.alert": "Forecast: a radiation storm may be coming. Get the shelter ready.",
+  "radiationStorm.impact": "Radiation storm! Everyone to the water shelter."
 }
