@@ -1,6 +1,6 @@
 # Documento de diseño — Misión a Marte
 
-Estado: **borrador v3 para validar** antes de programar (ver el historial al final). Cada número indica su tipo:
+Estado: **borrador v4 para validar** antes de programar (ver el historial al final). Cada número indica su tipo:
 
 - **[dato]**: medido o publicado por la NASA u otra agencia, con su fuente.
 - **[norma]**: requisito de NASA-STD-3001 o valor de diseño del BVAD.
@@ -59,13 +59,20 @@ Duración elegible (con guardado en cualquier momento, ver 3.9):
 - La **vuelta es más corta en jornadas jugables** que la ida, pero la nave y la tripulación llegan gastadas (ver 4.6).
 - El tiempo entre jornadas y entre soles **sí transcurre**, en avance rápido (3.1), con los consumos y la dosis
   reales de esos días. Una misión corta juega menos jornadas, pero no acorta el viaje.
-- **Cada tramo dura 4 meses** en los dos modos [regla]. Con viajes reales de 7 meses, el fondo de radiación de ida
-  y vuelta sumaría ~770 mSv (1,84 mSv/día, Zeitlin 2013), más que el límite de carrera de 600 mSv, sin que el jugador
-  pudiera hacer nada. Con 4 meses por tramo suma ~440 mSv: el límite queda cerca y las tormentas y el blindaje deciden
-  [dato + regla]. El juego lo explica como "viaje acelerado". En el informe, se cuenta que una misión real de 7 meses
-  por tramo superaría el límite actual: es un problema abierto de la NASA.
-- Una estancia corta (semanas) con viajes de 4 meses no corresponde a una trayectoria real de mínima energía (que
-  espera ~500 días en Marte). Se presenta como simplificación [regla].
+- **Ruta: nave de propulsión nuclear térmica (NTP), con tramos de 4 meses y estancia corta.**
+  - Es la arquitectura que la NASA estudia para misiones tripuladas: con propulsión nuclear se acortan los viajes y
+    se permiten **estancias cortas en la superficie**, en lugar de esperar más de un año en Marte la alineación de
+    los planetas para volver ([NASA: *Nuclear Propulsion Could Help Get Humans to Mars Faster*](https://www.nasa.gov/solar-system/nuclear-propulsion-could-help-get-humans-to-mars-faster/)) [dato].
+  - Los estudios hablan de tramos de 2–3 meses con reactores grandes; el juego usa **4 meses por tramo** [regla]
+    porque es lo que calza con los datos de la campaña 2024.
+  - El reactor solo funciona en los encendidos de motor. La energía del hábitat sigue viniendo de los **paneles
+    solares**, así que la mecánica de la luz que cae con la distancia (3.2) se mantiene [regla].
+- **Por qué importa la ruta:** con la ruta química clásica (~7 meses por tramo) el fondo de radiación de ida y vuelta
+  sumaría ~770 mSv (1,84 mSv/día, Zeitlin 2013), más que el límite de carrera de 600 mSv sin que el jugador pudiera
+  evitarlo. Con tramos de 4 meses suma ~440 mSv: el límite queda cerca y el blindaje y las tormentas deciden [dato + regla].
+  El informe cuenta **esa misma razón** como la que hace que la NASA estudie la propulsión nuclear.
+- **Simplificación de fechas:** las fechas de la campaña se eligen por los datos disponibles, no por las ventanas de
+  lanzamiento reales (cada ~26 meses). Se aclara en el informe [regla].
 
 ### 2.2 Calendario de la campaña 2024
 
@@ -73,7 +80,7 @@ Restricción de datos: RAD de Curiosity llega hasta el **03/06/2024** en RadLab,
 
 | Fase | Fechas reales | Eventos reales que entran |
 |---|---|---|
-| Despegue | 15/01/2024 | Cruce de Van Allen: perfil de Artemis I (16/11/2022), indicado como "medido por Artemis I" |
+| Despegue (nave nuclear, tramo de 4 meses) | 15/01/2024 | Cruce de Van Allen: perfil de Artemis I (16/11/2022), indicado como "medido por Artemis I" |
 | Viaje de ida | 15/01 → 14/05/2024 | Tormenta solar del 8–14 de mayo (llamaradas X, SEP) en espacio profundo |
 | Aterrizaje | 15/05/2024 | Clima real de Gale ese día |
 | Marte | 15/05 → 03/06/2024 (19 soles) | **Evento SEP del 20/05/2024** en superficie |
@@ -155,9 +162,22 @@ dosis_mSv += tasa_real_μGy/h(fecha, lugar) × f_blindaje(ubicación) × Q(fase)
 
 | Factor | Valores | Tipo |
 |---|---|---|
-| `tasa_real` | Serie de RadLab correspondiente a la fase y la fecha | [dato] |
+| `tasa_real` | Serie de RadLab correspondiente a la fase y la fecha, depurada según 3.2.1 | [dato] |
 | `Q` (dosis absorbida → equivalente) | Marte: ≈ 3,05 (0,64 mSv / 0,21 mGy, Hassler 2014). Crucero: ≈ 3,8 (Zeitlin 2013). Durante un SEP, Q menor (simplificar a 1,5) | [dato] / [regla] |
 | `f_blindaje` | Exterior/EVA 1,0 · Hábitat o nave 0,6 · Refugio: de **0,2** con el escudo de agua lleno a **0,6** vacío, interpolado según el agua del escudo | [regla] |
+
+##### 3.2.1 Depuración de BioSentinel
+
+Algunos días de BioSentinel tienen medias de miles de μGy/h (2513 el 08/06/2024, 2194 el 09/10/2024, 1204 el
+23/03/2024), muy por encima de la tormenta de mayo de 2024 (pico de 653 μGy/h). **Los 11 días con media por encima de 650 μGy/h
+coinciden (±1 día) con eventos SEP de DONKI**, así que el momento de la tormenta es real, pero la intensidad no es confiable (posible
+saturación o artefacto del instrumento).
+
+**Regla simple:** la serie diaria de BioSentinel se **limita a 650 μGy/h** [regla]. Es el percentil 99 de las medias
+diarias y coincide con el pico de mayo de 2024.
+- La fecha y la duración de cada tormenta se mantienen; solo se recorta la altura del pico.
+- Cuando se recorta un valor, la tarjeta de datos lo dice: "BioSentinel registró un valor extremo que podría ser un
+  error del instrumento; el juego usa un tope".
 
 Para niños: la dosis se muestra en **radiografías de tórax** (0,1 mSv) [dato] y como porcentaje del límite de carrera de **600 mSv** [norma].
 La parte inevitable del viaje se muestra separada de la parte que el jugador controla (2.1).
@@ -427,8 +447,7 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 | 3 | Terminar 2 misiones | MOXIE, corrección de trayectoria, diagnóstico remoto | Micrometeorito, noche extrema, CO2 alto | Modo libre, modo largo |
 | 4 | Terminar 3 misiones | Mantenimiento de la esclusa | Polvo en los sellos, conjunción solar | Perfil "Escudo de agua", escenarios especiales |
 
-- La progresión se guarda en el navegador, junto con los récords y los logros.
-- Un docente puede **desbloquear todo** desde el menú, para usarlo en clase.
+- La progresión se guarda en el navegador, junto con los récords y los logros. El juego se juega online sin intervención de terceros.
 
 ## 7. Datasets por mecánica
 
@@ -469,7 +488,7 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 - [ ] Ventana de lanzamiento a Marte 2026 (fechas reales, posible gancho de "desafío actual").
 - [ ] Simulaciones WSA-ENLIL de DONKI con impactos en Marte (para eventos en superficie fuera de RAD).
 - [ ] Error típico de las predicciones de llegada de CME (CCMC CME Scoreboard).
-- [ ] Máximos diarios sospechosos de BioSentinel (p. ej. 8556 μGy/h el 08/06/2024, que cae en la vuelta de la campaña) y mínimas < −90 °C de REMS (40 soles).
+- [ ] Mínimas < −90 °C de REMS (40 soles). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
 - [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas) y de la reentrada de Orion.
 - [ ] Factores Q por fase: confirmar en Hassler 2014 y Zeitlin 2013.
 - [ ] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña (mayo y octubre de 2024).
@@ -497,6 +516,14 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 
 ## 12. Historial de revisiones
 
+### v4 — ruta, BioSentinel y progresión
+
+| Tema | Cambio | Dónde |
+|---|---|---|
+| Tramos de viaje de 4 meses que no correspondían a ninguna ruta | **Nave de propulsión nuclear térmica** con estancia corta, la arquitectura que estudia la NASA; se quita el "viaje acelerado" | 2.1, 2.2 |
+| Valores extremos de BioSentinel | **Tope de 650 μGy/h** (percentil 99 y pico de mayo de 2024); las fechas de las tormentas se mantienen porque coinciden con SEP de DONKI | 3.2.1 |
+| Desbloqueo por docente | **Eliminado:** el juego es online y sin intervención de docentes | 6 |
+
 ### v3 — decisiones de diseño tomadas en la sesión de preguntas
 
 | Tema | Decisión | Dónde |
@@ -517,7 +544,7 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 | Progresión | **Desbloqueos:** la primera misión tiene pocas tareas e incidentes y se suman más en cada partida | 6 |
 
 Consecuencias derivadas:
-- **Tramos de 4 meses también en el modo libre**, para que la dosis de fondo de ida y vuelta no supere sola el límite de 600 mSv.
+- **Tramos de 4 meses también en el modo libre**, para que la dosis de fondo de ida y vuelta no supere sola el límite de 600 mSv (en la v4 se justifica con la propulsión nuclear).
 - **Carga de vuelta:** decisión de masa entre muestras y suministros.
 - **Calendario de la vuelta en la campaña:** junio–octubre de 2024, con la X9.0 del 03/10/2024 como clímax antes de la reentrada.
 
