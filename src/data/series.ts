@@ -59,3 +59,21 @@ export const SERIES_SOURCES = {
   marsSurface: marsSurface.source,
   galeWeather: galeWeather.source,
 } as const;
+
+const inRange = (rows: readonly Row[], from: string, to: string): readonly Row[] =>
+  rows.filter((r) => (r[0] as string) >= from.slice(0, 10) && (r[0] as string) < to.slice(0, 10));
+
+/** Días con dato real en [from, to) para un lugar (sin rellenar huecos). */
+export const doseDaysBetween = (site: DoseSite, from: string, to: string): DailyDose[] =>
+  inRange(DOSE_ROWS[site], from, to).map((row) => ({ date: row[0] as string, uGyH: row[1] as number, capped: row[2] === 1 }));
+
+/** Soles con dato real de REMS en [from, to). */
+export const galeWeatherBetween = (from: string, to: string): MarsWeather[] =>
+  inRange(galeWeather.rows as readonly Row[], from, to).map((row) => galeWeatherOn(row[0] as string));
+
+export const SERIES_URLS = {
+  deepSpace: deepSpace.url,
+  marsCruise: marsCruise.url,
+  marsSurface: marsSurface.url,
+  galeWeather: galeWeather.url,
+} as const;

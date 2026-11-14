@@ -302,6 +302,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Contenido en `src/content/incidents.ts`: tormenta de radiación, tormenta de polvo, depurador averiado,
   micrometeorito, aislamiento, noche extrema, CO2 alto, plaga, polvo en los sellos, conjunción solar.
 - Emite `realEvent:shown` con un `RealEvent` completo para cada evento del dataset.
+- Hecho: `core/incidents/` (`definitions.ts` con el formato de §3.4, `timeline.ts`, `planner.ts`), `content/incidents.ts`,
+  `data/incidentTimeline.ts`. Los avisos dinámicos llegan al reloj con `MissionClock.addAlert`; el estado del
+  planificador (`IncidentPlannerState`) viaja junto al `GameState`, como el de la cascada.
 
 ### S6 · Datos — `src/data/`
 
@@ -511,7 +514,7 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 
 | Tema | Responsable | Antes de |
 |---|---|---|
-| Fechas de las conjunciones solares de Marte (§10 del diseño) | Santiago | S5 |
+| ~~Fechas de las conjunciones solares de Marte (§10 del diseño)~~ Hecho: 2015, 2017, 2019, 2021 y 2023 (JPL), en `datasets/curated/mars-conjunctions.json` | Santiago | S5 |
 | ~~Antelación real DONKI→RadLab en mayo y octubre de 2024~~ Hecho: mayo 69 h, octubre 1,9 h (ver `datasets/README.md`) | Santiago | S1 |
 | ~~Factores Q por fase (Hassler 2014, Zeitlin 2013)~~ Hecho: 3,05 y 3,8, citados en `datasets/curated/radiation-dose.json` | Santiago | S2 |
 | ~~Mínimas de REMS por debajo de −90 °C~~ Hecho: son artefactos aislados, se reemplazan por la mediana vecina (ver `datasets/README.md`) | Santiago | S8 |

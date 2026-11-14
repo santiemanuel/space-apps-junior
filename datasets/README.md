@@ -25,6 +25,7 @@ que pide decisiones sobre soporte vital, blindaje contra radiación, energía y 
 | `series/mars-cruise-dose.json` | RadLab: ExoMars TGO Liulin-MO en crucero (2016) | Derivado | Dosis en crucero para el modo libre |
 | `series/mars-surface-dose.json` | RadLab: Curiosity RAD, medias diarias (2015 → 03/06/2024) | Derivado | **Dosis en Marte** (μGy/h por día) |
 | `series/gale-weather.json` | [REMS de Curiosity](https://mars.nasa.gov/msl/mission/weather/) por fecha terrestre, recortado al rango de RAD | Derivado | **Polvo** (índice UV → f_polvo) y **frío** (mínima → calefacción) en la base de Gale |
+| `curated/mars-conjunctions.json` | NASA JPL (anuncios de cada moratoria de comandos) | Curado | **Conjunción solar**: días sin Control de Misión en Marte (2015, 2017, 2019, 2021, 2023) |
 | `curated/nasa-std-3001.json` | NASA-STD-3001 (OCHMO Technical Briefs), BVAD, NASA (ISS) | Curado | Límite de CO2, agua potable y por hora de EVA, kcal diarias, reciclaje de agua y ejercicio diario de los medidores |
 
 **Descargado**: lo genera `npm run datasets:fetch` (año completo, en tramos de 60 días, que es el máximo de DONKI).
@@ -58,6 +59,15 @@ Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 40
     región 13664 el 08/05) · 08/06 35,3 h · 23/07 48 h (regla) · 15/09 48 h (regla) · **09/10 1,9 h** (X1.8 del 09/10).
     Los SEP "inmediatos" avisan con minutos u horas: el reloj garantiza al menos 10 s reales de Alerta.
 
+- **Incidentes de la línea de tiempo** (`src/data/incidentTimeline.ts`, reglas en `src/content/incidents.ts`):
+  - Viajes: las tormentas de `storms/` con su antelación real; la tarjeta muestra la media diaria con el tope de 650 μGy/h
+    y "N veces lo normal" respecto de `baselineUGyH`.
+  - Tormenta en Marte: días de RAD por encima de 5 × la mediana de los 27 días previos (la misma regla que BioSentinel).
+    Sin DONKI que la preceda, aviso de 48 h. En la campaña: 20/05/2024 (69,3 μGy/h de media diaria, 14 veces lo normal).
+  - Polvo: soles seguidos con UV "Low" en REMS (aviso de 24 h). En la campaña: 28/05/2024.
+  - Noche extrema: mínima 4 °C por debajo de la mediana de los 7 soles previos, o por debajo de −85 °C (aviso de 12 h).
+    Marca ~5 % de los soles de Gale; en la campaña, el 24/05/2024 (−73 °C contra −69 °C).
+  - Conjunción solar: la moratoria completa de `curated/mars-conjunctions.json` (aviso de 72 h).
 - **Clima espacial**: en modo `live` se consultan los últimos 30 días de DONKI. Si no hay conexión
   (o en modo `archive`), cada partida toma **una ventana real de 30 días al azar** de este archivo,
   lo que hace que cada partida sea distinta. La interfaz siempre indica si los datos son *en vivo* o

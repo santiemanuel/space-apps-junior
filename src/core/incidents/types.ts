@@ -12,6 +12,14 @@ export interface IncidentState {
   impactAt: string;
   /** `RealEvent.id` que lo disparó, si viene de un dataset. */
   realEventId?: string;
+  /** Fecha del aviso (ISO 8601). */
+  warnAt?: string;
+  /** Fin previsto (ISO 8601) de los incidentes que terminan solos (tormentas, noches, conjunción). */
+  endAt?: string;
+  /** Respuesta elegida por el jugador (id de la definición). */
+  responseId?: string;
+  /** Avance del trabajo de la respuesta, 0..1 (reparaciones). */
+  progress?: number;
 }
 
 /** Medidor que entró en modo de emergencia (§3.5). */

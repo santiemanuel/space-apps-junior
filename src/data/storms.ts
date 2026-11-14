@@ -11,6 +11,7 @@ interface ArchivedStorm {
   impact: { kind: 'sep'; link: string } | { kind: 'radlabDay' };
   peakMeanUGyH: number;
   capped: boolean;
+  baselineUGyH: number;
 }
 
 const toStorm = (s: ArchivedStorm): SpaceStorm => ({
@@ -22,6 +23,7 @@ const toStorm = (s: ArchivedStorm): SpaceStorm => ({
   warning: s.warning.kind === 'flare' ? { kind: 'donkiFlare', classType: s.warning.classType, link: s.warning.link } : { kind: 'rule48h' },
   peakMeanUGyH: s.peakMeanUGyH,
   capped: s.capped,
+  baselineUGyH: s.baselineUGyH,
   sourceLinks: [s.warning, s.impact].flatMap((x) => ('link' in x ? [x.link] : [])),
 });
 

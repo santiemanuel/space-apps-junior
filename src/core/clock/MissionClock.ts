@@ -58,6 +58,13 @@ interface TimedAlert extends ClockAlert {
   endMs: number;
 }
 
+const timed = (a: ClockAlert): TimedAlert => ({
+  ...a,
+  warnMs: Date.parse(a.warnAt),
+  impactMs: Date.parse(a.impactAt),
+  endMs: Date.parse(a.endAt),
+});
+
 const SEVERITY: Record<AlertLevel, number> = { calm: 0, alert: 1, impact: 2 };
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
@@ -68,7 +75,7 @@ const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 export class MissionClock {
   private nowMs: number;
   private readonly endMs: number;
-  private readonly alerts: TimedAlert[];
+  private alerts: TimedAlert[];
   private readonly windows: { startMs: number; endMs: number }[];
   private readonly playHoursPerSecond: number;
   private readonly resolved = new Set<string>();
@@ -82,12 +89,7 @@ export class MissionClock {
     this.nowMs = Date.parse(options.start);
     this.endMs = Date.parse(options.end);
     if (!(this.endMs > this.nowMs)) throw new Error('MissionClock: el fin debe ser posterior al inicio');
-    this.alerts = (options.alerts ?? []).map((a) => ({
-      ...a,
-      warnMs: Date.parse(a.warnAt),
-      impactMs: Date.parse(a.impactAt),
-      endMs: Date.parse(a.endAt),
-    }));
+    this.alerts = (options.alerts ?? []).map(timed);
     this.windows = (options.playWindows ?? []).map((w) => ({ startMs: Date.parse(w.start), endMs: Date.parse(w.end) }));
     this.playHoursPerSecond = options.playHoursPerSecond ?? CLOCK_RULES.playHoursPerSecond;
     this.lastDay = isoDay(this.nowMs);
@@ -139,6 +141,14 @@ export class MissionClock {
 
   resume(): void {
     this.paused = false;
+  }
+
+  /** Aviso que aparece durante la fase (falla con semilla o salida del rango seguro, §3.4). */
+  addAlert(alert: ClockAlert): ClockEvent[] {
+    this.alerts = [...this.alerts.filter((a) => a.id !== alert.id), timed(alert)];
+    const events: ClockEvent[] = [];
+    this.collectTransitions(events);
+    return events;
   }
 
   /** El aviso quedó atendido (p. ej. todos en el refugio): deja de frenar el reloj. */

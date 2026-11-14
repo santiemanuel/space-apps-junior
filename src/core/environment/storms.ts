@@ -14,6 +14,8 @@ export interface SpaceStorm {
   warning: { kind: 'donkiFlare'; classType: string; link: string } | { kind: 'rule48h' };
   /** Media diaria más alta (μGy/h), antes del tope de §3.2.1. */
   peakMeanUGyH: number;
+  /** Mediana de los 27 días previos (μGy/h): "cuántas veces lo normal". */
+  baselineUGyH?: number;
   /** La media diaria superó el tope de 650 μGy/h (§3.2.1). */
   capped: boolean;
   sourceLinks: string[];

@@ -60,6 +60,14 @@ describe('MissionClock', () => {
     expect(clock.hoursPerSecond).toBe(CLOCK_RULES.playHoursPerSecond);
   });
 
+  it('un aviso agregado durante la fase frena el reloj desde ya (falla con semilla)', () => {
+    const clock = new MissionClock({ start: '2024-01-01T00:00:00Z', end: '2024-02-01T00:00:00Z' });
+    clock.advance(1);
+    const events = clock.addAlert({ ...storm, id: 'falla', warnAt: clock.simDate, impactAt: '2024-01-02T00:00:00.000Z' });
+    expect(events).toEqual([{ type: 'level', level: 'alert', reasonKey: 'incidents.radiationStorm.alert', alertId: 'falla', at: clock.simDate }]);
+    expect(clock.hoursPerSecond).toBeLessThan(CLOCK_RULES.calmHoursPerSecond);
+  });
+
   it('resolver el aviso devuelve la calma', () => {
     const clock = new MissionClock({ start: '2024-01-04T07:00:00Z', end: '2024-01-10T00:00:00Z', alerts: [storm] });
     expect(clock.level).toBe('impact');

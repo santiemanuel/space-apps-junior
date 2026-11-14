@@ -1,7 +1,9 @@
 import bvad from '../../datasets/curated/life-support-bvad.json';
+import conjunctions from '../../datasets/curated/mars-conjunctions.json';
 import std3001 from '../../datasets/curated/nasa-std-3001.json';
 import osdr from '../../datasets/curated/osdr-facts.json';
 import radiation from '../../datasets/curated/radiation-dose.json';
+import type { SolarConjunction } from '../core/incidents/timeline';
 
 /** Consumo por tripulante y día (kg) — NASA BVAD. */
 export const LIFE_SUPPORT_RATES = {
@@ -53,3 +55,6 @@ export function scienceFactFor(topic: string, random: () => number): ScienceFact
   const matches = SCIENCE_FACTS.filter((fact) => fact.topic === topic);
   return matches[Math.floor(random() * matches.length)];
 }
+
+/** Moratorias de comandos de la NASA por conjunción solar de Marte (fechas inclusivas, citas en el JSON). */
+export const MARS_CONJUNCTIONS: readonly SolarConjunction[] = conjunctions.conjunctions.map(({ id, start, end, url }) => ({ id, start, end, sourceUrl: url }));
