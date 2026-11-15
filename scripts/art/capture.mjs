@@ -39,8 +39,8 @@ try {
   await sleep(Number(wait));
   for (const step of keys.split(',').filter(Boolean)) {
     const [key, ms] = step.split(':');
-    const special = { Tab: 9, Enter: 13, Escape: 27, Space: 32 }[key];
-    const event = special ? { key, code: key, windowsVirtualKeyCode: special } : { key, code: `Key${key.toUpperCase()}`, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) };
+    const special = { Tab: 9, Enter: 13, Escape: 27, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 }[key];
+    const event = special ? { key, code: key, windowsVirtualKeyCode: special } : { key, code: /^[0-9]$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) };
     await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event });
     await sleep(Number(ms));
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event });

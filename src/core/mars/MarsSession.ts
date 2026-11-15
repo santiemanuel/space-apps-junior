@@ -12,6 +12,7 @@ import { realEventLogEntry } from '../report/report';
 import { Rng } from '../rng/Rng';
 import type { GameState, HabitatSave, Sample } from '../state/types';
 import type { MarsContent, SampleSite } from './types';
+import type { HabitatTask } from '../habitat/types';
 
 const HOUR_MS = 3_600_000;
 /** Semilla propia de los puntos de muestreo: no gasta tiradas del `Rng` de la partida y no cambia al cargar. */
@@ -91,6 +92,10 @@ const BASE = 'base';
 const BATTERY = 'battery';
 /** Prefijo de la zona de trabajo de un cable cortado (`repairZoneAt`). */
 const CABLE = 'cable:';
+/** Zona de trabajo de los paneles solares (afuera, junto a ellos) y tareas optativas de riesgo y recompensa. */
+export const PANELS_ZONE = 'panels';
+const CLEAN_PANELS = 'cleanPanels';
+const NIGHT_PREP = 'nightPrep';
 
 /** Cómo llega la energía ahora (red de cables y fusible de la sala de energía). */
 export interface MarsGrid {
@@ -107,6 +112,12 @@ export interface MarsGrid {
   solarFactor: number;
 }
 
+/** Tipo (`Sample.rock`) de las muestras de plantas del invernadero. */
+export const PLANT_ROCK = 'plant';
+export const isPlant = (sample: Sample): boolean => sample.rock === PLANT_ROCK;
+/** Muestras de plantas [regla]: una por sol como mucho, livianas y con algo de valor científico. */
+const PLANT_SAMPLES = { max: 4, massKg: 1, value: 8, harvestFoodKg: 2 } as const;
+
 /**
  * Escena `Mars` sin motor (§4.4): la base en el cráter Gale con el polvo (UV) y el frío reales de REMS, la luz
  * del sol marciano, MOXIE, el invernadero y las salidas al exterior a juntar muestras.
@@ -119,6 +130,10 @@ export class MarsSession extends HabitatSession<MarsContent> {
   /** Muestras guardadas en el depósito y quién lleva cada una de las que todavía no se guardaron. */
   private readonly stored = new Set<string>();
   private readonly carried = new Map<string, CrewId>();
+  /** Polvo juntado sobre los paneles (0 limpios, 1 lo más sucio). */
+  private dust = 0;
+  /** Hasta cuándo dura la base preparada para la noche (ms de la fecha simulada). */
+  private nightReadyUntilMs = 0;
 
   constructor(options: MarsOptions) {
     super({ ...options, phase: 'mars' });
@@ -127,6 +142,34 @@ export class MarsSession extends HabitatSession<MarsContent> {
     const saved = Date.parse(options.state.simDate) > Date.parse(this.window.start) ? options.state.habitat?.mars : undefined;
     for (const id of saved?.stored ?? []) this.stored.add(id);
     for (const [id, crew] of Object.entries(saved?.carried ?? {})) this.carried.set(id, crew as CrewId);
+    this.dust = saved?.panelDust ?? 0;
+    this.nightReadyUntilMs = saved?.nightReadyUntil ? Date.parse(saved.nightReadyUntil) : 0;
+  }
+
+  /** Polvo sobre los paneles (0..1) y la parte de la generación que se pierde por él. */
+  get panels(): { dust: number; loss: number; canClean: boolean } {
+    const { maxLoss, cleanFrom } = this.content.panels;
+    return { dust: this.dust, loss: maxLoss * this.dust, canClean: this.dust >= cleanFrom };
+  }
+
+  /** La base está preparada para esta noche (o la que viene). */
+  get nightReady(): boolean {
+    return Date.parse(this.simDate) < this.nightReadyUntilMs;
+  }
+
+  /** De noche y con la base preparada: los sistemas gastan menos y el invernadero queda a oscuras. */
+  private get nightSaving(): boolean {
+    return this.nightReady && !this.daylight;
+  }
+
+  protected loadFactor(): number {
+    return this.nightSaving ? this.content.night.loadFactor : 1;
+  }
+
+  protected taskReady(task: HabitatTask): boolean {
+    if (task.id === CLEAN_PANELS) return this.panels.canClean;
+    if (task.id === NIGHT_PREP) return this.daylight && !this.nightReady && hourOf(Date.parse(this.simDate)) >= this.content.night.fromHour;
+    return true;
   }
 
   /** Tubo que rompió un incidente (fijo para cada uno, sin gastar tiradas del Rng). */
@@ -195,7 +238,35 @@ export class MarsSession extends HabitatSession<MarsContent> {
     }
     if (here !== EXTERIOR) return null;
     const cable = this.broken('cableCut').map((i) => this.cableOf(i.id)).find((c) => near(c.at));
-    return cable ? CABLE + cable.id : null;
+    if (cable) return CABLE + cable.id;
+    const { at, reach: panelReach } = this.content.panels;
+    return Math.hypot(at.x - position.x, at.y - position.y) <= panelReach ? PANELS_ZONE : null;
+  }
+
+  /**
+   * Dónde se para un automático para reparar: junto a una puerta del tubo roto (del lado de afuera del tubo) o al lado
+   * del cable cortado, en el exterior (sólo si se puede salir).
+   */
+  protected repairSpots(incident: IncidentState, _work: NonNullable<IncidentResponse['work']>): Point[] {
+    const { layout } = this.content;
+    if (incident.definitionId === 'tubeBreach') {
+      const id = this.tubeOf(incident.id);
+      const tube = layout.passages.find((p) => p.id === id);
+      const spots: Point[] = [];
+      for (const door of tube?.doorTiles ?? [])
+        for (const [dc, dr] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+          const point = { x: door.col + dc + 0.5, y: door.row + dr + 0.5 };
+          const zone = zoneAt(layout, point);
+          if (zone && zone !== id && zone !== EXTERIOR) spots.push(point);
+        }
+      return spots;
+    }
+    if (incident.definitionId === 'cableCut') return this.evaOpen ? [this.cableOf(incident.id).at] : [];
+    return [];
+  }
+
+  protected repairContextKey(): string {
+    return this.evaOpen ? 'eva' : '';
   }
 
   protected incidentWorkZone(incident: IncidentState, work: NonNullable<IncidentResponse['work']>): string | undefined {
@@ -234,6 +305,74 @@ export class MarsSession extends HabitatSession<MarsContent> {
     return { stored: this.stored.size, carried: this.carried.size };
   }
 
+  /**
+   * Cosecha del invernadero (su minijuego, una vez por sol): deja una muestra de plantas cultivadas en Marte, que el
+   * tripulante lleva encima hasta el depósito, como las rocas, para subirla a la nave al final.
+   */
+  protected onTaskDone(task: HabitatTask, daily: boolean): void {
+    const log = (key: string) => {
+      const s = this._state;
+      this._state = { ...s, history: [...s.history, { simDate: s.simDate, phase: 'mars', kind: 'decision', key, data: { crewId: s.activeCrewId } }] };
+    };
+    if (task.id === CLEAN_PANELS) {
+      this.dust = 0;
+      return log('mars.log.panelsCleaned');
+    }
+    if (task.id === NIGHT_PREP) {
+      // Dura hasta la próxima salida del Sol.
+      const now = Date.parse(this.simDate);
+      const day = 24 * HOUR_MS;
+      let sunrise = Math.floor(now / day) * day + this.content.daylight.sunriseHour * HOUR_MS;
+      while (sunrise <= now) sunrise += day;
+      this.nightReadyUntilMs = sunrise;
+      return log('mars.log.nightReady');
+    }
+    if (task.id !== 'greenhouse' || !daily) return;
+    // La cosecha siempre deja comida fresca; la muestra para la Tierra, mientras haya frascos.
+    this._state = { ...this._state, inventory: { ...this._state.inventory, foodKg: this._state.inventory.foodKg + PLANT_SAMPLES.harvestFoodKg } };
+    const s = this._state;
+    if (!this.plantSamplesLeft) return;
+    const id = `plant-${s.simDate.slice(0, 10)}`;
+    if (s.inventory.samples.some((x) => x.id === id)) return;
+    const sample: Sample = { id, siteId: id, massKg: PLANT_SAMPLES.massKg, value: PLANT_SAMPLES.value, rock: PLANT_ROCK };
+    this.carried.set(id, s.activeCrewId);
+    this._state = {
+      ...s,
+      inventory: { ...s.inventory, samples: [...s.inventory.samples, sample] },
+      history: [...s.history, { simDate: s.simDate, phase: 'mars', kind: 'decision', key: 'mars.log.plant', data: { crewId: s.activeCrewId } }],
+    };
+  }
+
+  /** Frascos de muestras de plantas que quedan por llenar. */
+  get plantSamplesLeft(): number {
+    return Math.max(0, PLANT_SAMPLES.max - this.state.inventory.samples.filter(isPlant).length);
+  }
+
+  /** Rocas juntadas (sin contar las plantas). */
+  get rocksCollected(): number {
+    return this.state.inventory.samples.filter((x) => !isPlant(x)).length;
+  }
+
+  /** Con todas las rocas juntadas se puede empezar el embarque sin esperar al último sol. */
+  get canLeaveEarly(): boolean {
+    return !this.departure && !this.outcome && this.sites.length > 0 && this.rocksCollected >= this.sites.length && !!this.content.departure;
+  }
+
+  /** Empieza el embarque ahora (F): todos a la nave y la carga del depósito. */
+  leaveEarly(): boolean {
+    if (!this.canLeaveEarly) return false;
+    const s = this._state;
+    this._state = { ...s, history: [...s.history, { simDate: s.simDate, phase: 'mars', kind: 'decision', key: 'mars.log.leaveEarly' }] };
+    this.windowEnded();
+    return true;
+  }
+
+  /** En una salida, o con muestras encima sin guardar en el depósito, hay trabajo: el reloj no se apura. */
+  protected extraWork(): boolean {
+    const active = this.state.crew.find((m) => m.id === this.state.activeCrewId);
+    return active?.location === EXTERIOR || [...this.carried.values()].includes(this.state.activeCrewId);
+  }
+
   /** Quien entra al depósito deja ahí las muestras que lleva. */
   protected afterUpdate(): void {
     const storage = this.content.departure?.cargoZone;
@@ -245,7 +384,14 @@ export class MarsSession extends HabitatSession<MarsContent> {
   }
 
   protected saveExtras(): Partial<HabitatSave> {
-    return { mars: { stored: [...this.stored], carried: Object.fromEntries(this.carried) } };
+    return {
+      mars: {
+        stored: [...this.stored],
+        carried: Object.fromEntries(this.carried),
+        ...(this.dust > 0 ? { panelDust: this.dust } : {}),
+        ...(this.nightReady ? { nightReadyUntil: new Date(this.nightReadyUntilMs).toISOString() } : {}),
+      },
+    };
   }
 
   /** Muestras que siguen en el terreno, con lo que lleva juntado el jugador. */
@@ -266,7 +412,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
   protected averageGenerationKw(): number {
     const { daylight, power, meterRules } = this.content;
     const dayShare = (daylight.sunsetHour - daylight.sunriseHour) / 24;
-    return (power.panelKwAt1Au / MARS_DISTANCE_AU ** 2) * dustFactorFromUv(meterRules, this.weather.uv) * dayShare * (2 / Math.PI) * this.grid.solarFactor;
+    return (power.panelKwAt1Au / MARS_DISTANCE_AU ** 2) * dustFactorFromUv(meterRules, this.weather.uv) * (1 - this.panels.loss) * dayShare * (2 / Math.PI) * this.grid.solarFactor;
   }
 
   protected averageHeatingKw(): number {
@@ -291,7 +437,8 @@ export class MarsSession extends HabitatSession<MarsContent> {
       solar: {
         panelKwAt1Au: this.content.power.panelKwAt1Au,
         distanceAu: MARS_DISTANCE_AU,
-        dustFactor: adj.dustFactorOverride ?? dustFactorFromUv(this.content.meterRules, weather.uv),
+        // El polvo del cielo (UV real del día) y el que se juntó sobre los paneles.
+        dustFactor: (adj.dustFactorOverride ?? dustFactorFromUv(this.content.meterRules, weather.uv)) * (1 - this.panels.loss),
         // Lo que llega por los cables: con el fusible quemado o sin camino, nada.
         lightFactor: this.lightFactor(hours) * this.grid.solarFactor,
       },
@@ -304,7 +451,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
     const moxieOn = adj.moxieOn && !this.blackout && this.activeLoads({ adj, mods }).includes('moxie');
     const moxieKgPerDay = moxieOn && moxie !== 'red' ? this.content.moxieOxygenKgPerDay * (moxie === 'yellow' ? 0.5 : 1) : 0;
     return {
-      heatingFactor: adj.heatingFactor * mods.heatingFactor,
+      heatingFactor: adj.heatingFactor * mods.heatingFactor * (this.nightSaving ? this.content.night.heatingFactor : 1),
       oxygenProducedKg: ((moxieKgPerDay + adj.extraOxygenKgPerDay) * hours) / 24,
     };
   }
@@ -323,13 +470,18 @@ export class MarsSession extends HabitatSession<MarsContent> {
         daylight: this.daylight,
         evaOpen: this.evaOpen,
         samples: {
-          count: samples.length,
+          count: this.rocksCollected,
           total: this.sites.length,
           kg: Math.round(samples.reduce((sum, x) => sum + x.massKg, 0) * 10) / 10,
           value: samples.reduce((sum, x) => sum + x.value, 0),
           ...this.sampleStorage,
         },
+        plants: samples.filter(isPlant).length,
+        canLeave: this.canLeaveEarly,
         grid: this.grid,
+        panels: this.panels,
+        nightReady: this.nightReady,
+        nightPrepOpen: this.taskAt(this.content.tasks.find((t) => t.id === NIGHT_PREP)?.zone ?? null)?.kind === 'task' && this.taskReady({ id: NIGHT_PREP } as HabitatTask) && !this.departure,
       },
     };
   }
@@ -337,8 +489,11 @@ export class MarsSession extends HabitatSession<MarsContent> {
   /** El invernadero encendido suma comida al stock; con plaga rinde la mitad (§4.4). */
   protected afterStep(_before: GameState, after: GameState, hours: number, ctx: StepContext): GameState {
     const s = this.realMomentsUntil(after);
+    // El polvo se junta sobre los paneles: de a poco, y mucho más rápido en una tormenta de polvo.
+    const { dustPerSol, stormMultiplier } = this.content.panels;
+    this.dust = Math.min(1, this.dust + ((dustPerSol * hours) / 24) * (this.sky.storm ? stormMultiplier : 1));
     const status = s.systems.greenhouse;
-    if (status === 'red' || this.blackout || !this.activeLoads(ctx).includes('greenhouse')) return s;
+    if (status === 'red' || this.blackout || this.nightSaving || !this.activeLoads(ctx).includes('greenhouse')) return s;
     const { foodKgPerDay, priorityMultiplier } = this.content.greenhouse;
     const food = ((foodKgPerDay * hours) / 24) * (status === 'yellow' ? 0.5 : 1) * (ctx.adj.greenhousePriority ? priorityMultiplier : 1);
     return { ...s, inventory: { ...s.inventory, foodKg: s.inventory.foodKg + food } };
@@ -367,7 +522,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
     if (!member || member.location !== EXTERIOR) return null;
     const site = this.siteAt(position);
     if (!site) return null;
-    const progress = (this.sampleProgress.get(site.id) ?? 0) + (hours * workSpeed(member, 'samples', s.meters.lifeSupport.co2MmHg)) / this.content.samples.collectHours;
+    const progress = (this.sampleProgress.get(site.id) ?? 0) + (hours * workSpeed(member, 'samples', s.meters.lifeSupport.co2MmHg) * this.resourceMode.scienceFactor) / this.content.samples.collectHours;
     if (progress < 1) {
       this.sampleProgress.set(site.id, progress);
       return s;

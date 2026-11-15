@@ -17,42 +17,79 @@ import { METER_RULES } from './meters';
  *   https://www.nasa.gov/blogs/missions/2022/12/11/artemis-i-flight-day-26-orion-crew-module-separation-from-service-module-complete/
  */
 export const MANEUVERS: Record<ManeuverId, ManeuverDefinition> = {
+  // Abordaje y despegue desde la Tierra (~1 min 30 s): cargar combustible, abordar, presurizar la cabina, prueba de
+  // radio, cuenta regresiva desde T-60 con los preparativos a la vista, giro y separaciones.
   ascent: {
     id: 'ascent',
     checklist: ['engines', 'scrubber', 'radio', 'solarPanels'],
     stages: [
-      { id: 'ignition', zoneWidth: 0.24, speed: 0.6, systems: ['engines'] },
+      { id: 'fuel', kind: 'fuel', zoneWidth: 0.2, speed: 0.6, systems: ['engines'] },
+      { id: 'board', kind: 'board', zoneWidth: 0.2, speed: 0.6, systems: ['scrubber'] },
+      { id: 'pressure', kind: 'pressure', zoneWidth: 0.2, speed: 0.6, systems: ['scrubber'] },
+      { id: 'radioCheck', kind: 'radio', zoneWidth: 0.2, speed: 0.6, systems: ['radio'] },
+      {
+        id: 'countdown',
+        kind: 'countdown',
+        zoneWidth: 0.2,
+        speed: 0.6,
+        systems: ['engines'],
+        from: 60,
+        milestones: [
+          { at: 45, id: 'armRetract' },
+          { at: 30, id: 'beacons' },
+          { at: 15, id: 'water' },
+          { at: 6, id: 'engineStart' },
+        ],
+      },
+      { id: 'gravityTurn', kind: 'steer', zoneWidth: 0.2, speed: 0.6, systems: ['engines', 'radio'] },
       { id: 'boosterSeparation', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
       { id: 'stageSeparation', zoneWidth: 0.18, speed: 0.85, systems: ['engines'] },
-      { id: 'engineCutoff', zoneWidth: 0.16, speed: 0.95, systems: ['engines', 'radio'] },
     ],
     effect: 'vanAllen',
   },
+  // Aterrizaje en Marte (~35 s): entrada con el escudo, paracaídas, separación del escudo y descenso con motores.
   landing: {
     id: 'landing',
     checklist: ['heatShield', 'parachutes', 'engines', 'radio'],
     stages: [
-      { id: 'entry', zoneWidth: 0.22, speed: 0.7, systems: ['heatShield'] },
+      { id: 'entry', kind: 'steer', zoneWidth: 0.22, speed: 0.7, systems: ['heatShield'] },
       { id: 'parachute', zoneWidth: 0.18, speed: 0.85, systems: ['parachutes'] },
       { id: 'heatShieldSeparation', zoneWidth: 0.18, speed: 0.9, systems: ['heatShield'] },
-      { id: 'descentEngines', zoneWidth: 0.15, speed: 1, systems: ['engines'] },
+      { id: 'descentEngines', kind: 'steer', zoneWidth: 0.15, speed: 1, systems: ['engines'] },
     ],
     effect: 'landingDistance',
   },
+  // Despegue de Marte (~1 min): cargar el propelente, abordar, presurizar, cuenta regresiva desde T-30 y entrada en órbita.
   marsAscent: {
     id: 'marsAscent',
     checklist: ['engines', 'scrubber', 'radio'],
     stages: [
-      { id: 'ignition', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
+      { id: 'fuel', kind: 'fuel', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
+      { id: 'board', kind: 'board', zoneWidth: 0.2, speed: 0.75, systems: ['scrubber'] },
+      { id: 'pressure', kind: 'pressure', zoneWidth: 0.2, speed: 0.75, systems: ['scrubber'] },
+      {
+        id: 'countdown',
+        kind: 'countdown',
+        zoneWidth: 0.2,
+        speed: 0.75,
+        systems: ['engines'],
+        from: 30,
+        milestones: [
+          { at: 20, id: 'mastRetract' },
+          { at: 12, id: 'dust' },
+          { at: 6, id: 'engineStart' },
+        ],
+      },
       { id: 'orbitInsertion', zoneWidth: 0.16, speed: 0.95, systems: ['engines', 'radio'] },
     ],
     effect: 'returnFuel',
   },
+  // Regreso a la Tierra (~30 s): orientar el escudo, la reentrada con apagón de radio y los paracaídas.
   reentry: {
     id: 'reentry',
     checklist: ['heatShield', 'parachutes', 'radio'],
     stages: [
-      { id: 'orientShield', zoneWidth: 0.22, speed: 0.75, systems: ['heatShield'] },
+      { id: 'orientShield', kind: 'steer', zoneWidth: 0.22, speed: 0.75, systems: ['heatShield'] },
       { id: 'reentry', zoneWidth: 0.17, speed: 0.95, systems: ['heatShield', 'radio'] },
       { id: 'splashdown', zoneWidth: 0.17, speed: 0.9, systems: ['parachutes'] },
     ],

@@ -265,3 +265,69 @@ export class SealsGame extends Minigame {
     this.progress = clamp(1 - this.dust.reduce((a, b) => a + b, 0) / this.total);
   }
 }
+
+export interface HarvestPlant {
+  /** Crecimiento: 0 recién cortada … `RIPE.min`–`RIPE.max` a punto … más de `RIPE.max` pasada. */
+  growth: number;
+  /** Cuánto crece por segundo. */
+  rate: number;
+  /** Cuándo se cortó bien o mal por última vez (s), para la animación. */
+  cutAt: number | null;
+  wrongAt: number | null;
+}
+
+/**
+ * Cosecha del invernadero: las plantas crecen solas y hay que cortar cada una cuando está a punto (ni verde ni
+ * pasada). ← → eligen la maceta y E corta. Cada corte a punto es un brote para la muestra que se lleva a la Tierra.
+ */
+export class HarvestGame extends Minigame {
+  readonly id = 'harvest';
+  protected readonly parSeconds = 16;
+  /** Franja de "a punto" y cuándo la planta se pasa del todo y vuelve a brotar. */
+  static readonly RIPE = { min: 0.7, max: 1, wilt: 1.35 } as const;
+  readonly cols = 4;
+  readonly rows = 1;
+  readonly plants: HarvestPlant[];
+  readonly cursor: GridCursor;
+  readonly need: number;
+  collected = 0;
+
+  constructor(setup: MinigameSetup) {
+    super(setup);
+    this.need = setup.easy ? 3 : setup.hard ? 5 : 4;
+    this.cursor = new GridCursor(this.cols, this.rows, 0, 0);
+    this.plants = Array.from({ length: this.cols }, (_, i) => ({ growth: 0.1 + i * 0.14 + this.rng.between(0, 0.08), rate: this.rate(), cutAt: null, wrongAt: null }));
+  }
+
+  private rate(): number {
+    return this.rng.between(0.2, 0.3) * (this.setup.easy ? 0.8 : this.setup.hard ? 1.25 : 1);
+  }
+
+  /** Estado de una planta para dibujarla y para el mensaje. */
+  stageOf(plant: HarvestPlant): 'growing' | 'ripe' | 'overripe' {
+    const { min, max } = HarvestGame.RIPE;
+    return plant.growth < min ? 'growing' : plant.growth <= max ? 'ripe' : 'overripe';
+  }
+
+  protected step(dt: number, input: MinigameInput): void {
+    this.cursor.update(dt, input);
+    for (const plant of this.plants) {
+      plant.growth += plant.rate * dt;
+      // Pasada del todo: se marchita y vuelve a brotar (no cuenta como error: sólo se pierde tiempo).
+      if (plant.growth >= HarvestGame.RIPE.wilt) Object.assign(plant, { growth: 0, rate: this.rate() });
+    }
+    if (!input.pressed.action) return;
+    const plant = this.plants[this.cursor.index]!;
+    const stage = this.stageOf(plant);
+    if (stage === 'ripe') {
+      this.collected++;
+      this.progress = this.collected / this.need;
+      Object.assign(plant, { growth: 0, rate: this.rate(), cutAt: this.elapsed });
+      this.say('cut', true);
+    } else {
+      this.mistakes++;
+      plant.wrongAt = this.elapsed;
+      this.say(stage === 'growing' ? 'unripe' : 'overripe', false);
+    }
+  }
+}

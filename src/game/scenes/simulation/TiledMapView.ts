@@ -14,6 +14,8 @@ export interface MapAssets {
   propsAtlasUrl: string;
   /** Índices del tileset: hojas izquierda y derecha de las puertas corredizas. */
   doorPanels: { left: number; right: number };
+  /** Las puertas de los costados también tienen hoja (en la base de Marte, que si no parecían abiertas). */
+  sideDoors?: boolean;
   /** Índices del tileset que son frentes de pared con una franja de luz. */
   lightTiles: readonly number[];
   /** Índices del tileset de los techos de pared que llevan borde (contorno y luz); sin la lista, todos. */
@@ -105,7 +107,8 @@ export interface MapView {
    * Abre las puertas a las que se acerca alguien (`feet`: pies de la tripulación, px). Las de `locked` (por el nombre
    * de su dueño, p. ej. un tubo roto) quedan cerradas.
    */
-  update(feet: readonly Point[], dt: number, locked?: ReadonlySet<string>): void;
+  /** `onDoor`: una puerta empieza a abrirse o a cerrarse (para su sonido), con su centro en píxeles. */
+  update(feet: readonly Point[], dt: number, locked?: ReadonlySet<string>, onDoor?: (state: 'open' | 'close', x: number, y: number) => void): void;
 }
 
 /** Alto (px) de la franja de luz dentro del tile de frente de pared. */
@@ -167,9 +170,13 @@ interface Door {
   cx: number;
   cy: number;
   x: number;
-  left: Phaser.GameObjects.Image;
-  right: Phaser.GameObjects.Image;
+  left: Phaser.GameObjects.Image | null;
+  right: Phaser.GameObjects.Image | null;
+  /** Hoja de una puerta de costado (vista 3/4): una franja que sube al abrirse. */
+  side: Phaser.GameObjects.Rectangle | null;
   open: number;
+  /** Alguien está cerca (se está abriendo o ya abrió). */
+  near: boolean;
 }
 
 /**
@@ -287,20 +294,27 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
     return name;
   };
   const doors: Door[] = (assets.map.layers.find((l) => l.name === 'zonas')?.objects ?? [])
-    .filter((o) => o.type === 'door' && o.name !== 'exterior' && o.width > o.height)
-    .map((o) => ({
-      name: o.name,
-      cx: o.x + o.width / 2,
-      cy: o.y + o.height / 2,
-      x: o.x,
-      left: scene.add.image(o.x, o.y, tilesKey, frameOf(assets.doorPanels.left)).setOrigin(0, 0).setDepth(MapDepth.doors).setVertexRoundMode('full'),
-      right: scene.add.image(o.x + T, o.y, tilesKey, frameOf(assets.doorPanels.right)).setOrigin(0, 0).setDepth(MapDepth.doors).setVertexRoundMode('full'),
-      open: 0,
-    }));
+    .filter((o) => o.type === 'door' && o.name !== 'exterior' && (o.width > o.height || assets.sideDoors))
+    .map((o) => {
+      const wide = o.width > o.height;
+      return {
+        name: o.name,
+        cx: o.x + o.width / 2,
+        cy: o.y + o.height / 2,
+        x: o.x,
+        left: wide ? scene.add.image(o.x, o.y, tilesKey, frameOf(assets.doorPanels.left)).setOrigin(0, 0).setDepth(MapDepth.doors).setVertexRoundMode('full') : null,
+        right: wide ? scene.add.image(o.x + T, o.y, tilesKey, frameOf(assets.doorPanels.right)).setOrigin(0, 0).setDepth(MapDepth.doors).setVertexRoundMode('full') : null,
+        side: wide
+          ? null
+          : scene.add.rectangle(o.x + o.width / 2, o.y, 10, o.height, 0x8a94a6).setOrigin(0.5, 0).setStrokeStyle(2, 0x2d3748).setDepth(MapDepth.doors),
+        open: 0,
+        near: false,
+      };
+    });
 
   // Luz dinámica: todo lo del mapa la recibe (los normal maps le dan relieve); los brillos y textos no.
   if (assets.normals) {
-    const lit = [...map.layers.map((l) => l.tilemapLayer), rims, ...props.map((p) => p.image), ...decor.map((d) => d.image), ...doors.flatMap((d) => [d.left, d.right])];
+    const lit = [...map.layers.map((l) => l.tilemapLayer), rims, ...props.map((p) => p.image), ...decor.map((d) => d.image), ...doors.flatMap((d) => [d.left, d.right].filter((x): x is Phaser.GameObjects.Image => x !== null))];
     for (const object of lit) object?.setLighting(true);
   }
 
@@ -315,17 +329,20 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
     lights,
     faceTiles,
     floorTiles,
-    update(feet, dt, locked) {
+    update(feet, dt, locked, onDoor) {
       for (const door of doors) {
         const near = !locked?.has(door.name) && feet.some((f) => Math.abs(f.x - door.cx) < DOOR_REACH.x && Math.abs(f.y - door.cy) < DOOR_REACH.y);
+        if (near !== door.near) onDoor?.(near ? 'open' : 'close', door.cx, door.cy);
+        door.near = near;
         const step = (dt / DOOR_OPEN_S) * T;
         const open = Phaser.Math.Clamp(door.open + (near ? step : -step), 0, T);
         if (open === door.open) continue;
         door.open = open;
         // En pasos de un píxel de arte, para que el borde de la hoja no se vea borroso.
         const s = Math.round(open / 2) * 2;
-        door.left.setVisible(s < T).setCrop(s, 0, T - s, T).setX(door.x - s);
-        door.right.setVisible(s < T).setCrop(0, 0, T - s, T).setX(door.x + T + s);
+        door.left?.setVisible(s < T).setCrop(s, 0, T - s, T).setX(door.x - s);
+        door.right?.setVisible(s < T).setCrop(0, 0, T - s, T).setX(door.x + T + s);
+        door.side?.setVisible(s < T).setScale(1, 1 - s / T);
       }
     },
   };

@@ -1,0 +1,7 @@
+Attached image: the pixel-art Mars planet of the game. Use it as the BASE of the logo: keep its rust-orange colors, banded hard shading and dark night side, redrawn in chunky pixels.
+
+Create a square GAME LOGO icon (1:1), retro pixel art, very low resolution with big chunky square pixels (the whole image should read as roughly 64x64 pixel blocks, every block the same size), limited palette (about 16 colors), dark 1-pixel outlines, no anti-aliasing, no gradients, no blur, no soft glow. Transparent background (no sky, no frame, no stars filling the background). For kids 7-12: bold, friendly, readable at small sizes.
+
+The logo shows the title text "HELLO MARS" in big blocky pixel-font capital letters (cream/white letters with a thick dark outline and a small orange drop shadow), spelled exactly H-E-L-L-O M-A-R-S, no other text.
+
+Composition: the Mars planet in the center, "HELLO MARS" on a sturdy pixel banner across the lower half of the planet. Theme "every decision matters": around the planet an orbit ring made of mission-control choice buttons — a green check button, a yellow warning button and a red X button — and a big glowing lever/switch on one side, like a spaceship control panel. A tiny astronaut helmet peeks over the top edge of the planet.

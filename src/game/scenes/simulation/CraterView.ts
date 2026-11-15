@@ -6,6 +6,7 @@ import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { formatDate, formatNumber } from '../../../i18n/format';
 import { GAME_HEIGHT } from '../../display';
 import { VIEW_WIDTH } from './HudScene';
+import { addKeyButton, KEY_BUTTON, panelIn } from '../../ui/ui';
 
 export const CRATER_TEXTURE = 'gale-crater';
 
@@ -29,7 +30,11 @@ export class CraterView {
   private readonly here: Phaser.GameObjects.Graphics;
   private readonly route: { from: Point; to: Point; door: number; end: number };
 
-  constructor(private readonly scene: Phaser.Scene, layout: ShipLayout) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    layout: ShipLayout,
+    private readonly close: () => void,
+  ) {
     scene.textures.get(CRATER_TEXTURE).setFilter(Phaser.Textures.FilterMode.NEAREST);
     const from = craterPoint(GALE_PLACES.bradbury.lat, GALE_PLACES.bradbury.lon);
     const to = craterPoint(GALE_PLACES.gediz.lat, GALE_PLACES.gediz.lon);
@@ -45,6 +50,7 @@ export class CraterView {
   }
 
   setVisible(visible: boolean): void {
+    if (visible && !this.root.visible) panelIn(this.root);
     this.root.setVisible(visible);
   }
 
@@ -185,6 +191,6 @@ export class CraterView {
     }
     const realKm = Math.round(craterKm(GALE_PLACES.bradbury, GALE_PLACES.gediz));
     text(INSET.x, y + 8, tr('mars.crater.compressed', { km: realKm }), 11, '#cbd5e0', VIEW_WIDTH - INSET.x - 14);
-    text(INSET.x, GAME_HEIGHT - 26, tr('mars.crater.close'), 11, '#718096');
+    add(addKeyButton(s, VIEW_WIDTH - KEY_BUTTON.margin, GAME_HEIGHT - KEY_BUTTON.margin, 'V', tr('mars.crater.close'), this.close, { sfx: null }));
   }
 }

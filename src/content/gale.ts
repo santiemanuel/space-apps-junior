@@ -26,7 +26,10 @@ export const GALE_MAP: TiledMap = galeMap;
 export const GALE_LAYOUT: ShipLayout = layoutFromTiled(GALE_MAP);
 /** Franjas del exterior (rectángulos `terrain` del mapa), de norte a sur. */
 export const GALE_TERRAIN: readonly TerrainStrip[] = terrainFromTiled(GALE_MAP);
-/** Puntos con nombre del mapa: `curiosity` (el rover), `recipe` (la receta de las reservas), `j1` y `j2` (cajas de empalme). */
+/**
+ * Puntos con nombre del mapa: `curiosity` (el rover), `recipe` (la receta de las reservas), `j1` y `j2` (cajas de
+ * empalme), `bed` (la cama donde se duerme), `console` (la consola de recursos) y `panels` (los paneles solares).
+ */
 export const GALE_LANDMARKS: Readonly<Record<string, Point>> = landmarksFromTiled(GALE_MAP);
 /** Cables de la red eléctrica (verdes en el plano), con su recorrido. */
 export const GALE_CABLES: readonly MapCable[] = cablesFromTiled(GALE_MAP);
@@ -52,7 +55,7 @@ export const SULFUR_EVENT: RealEvent = {
 export const GALE_TASKS: readonly HabitatTask[] = [
   { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise', minigame: 'bike' },
   { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber', minigame: 'scrubber' },
-  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare', minigame: 'plants' },
+  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare', minigame: 'plants', daily: true, dailyMinigame: 'harvest' },
   { id: 'moxie', zone: 'moxie', kind: 'maintenance', category: 'energy', system: 'moxie', minigame: 'moxie' },
   { id: 'airlock', zone: 'airlock', kind: 'maintenance', category: 'leak', system: 'airlock', resets: 'evaHoursSinceMaintenance', minigame: 'seals' },
   { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms', minigame: 'radio' },
@@ -62,6 +65,9 @@ export const GALE_TASKS: readonly HabitatTask[] = [
   CARE_TASKS.checkup,
   { ...CARE_TASKS.cook, recipeAt: GALE_LANDMARKS.recipe! },
   CARE_TASKS.shield,
+  // Optativas, de riesgo y recompensa [regla]: limpiar los paneles (una salida) y preparar la base para la noche.
+  { id: 'cleanPanels', zone: 'panels', kind: 'care', category: 'energy', minigame: 'dust', tradeoff: true },
+  { id: 'nightPrep', zone: 'battery', kind: 'care', category: 'energy', minigame: 'night', tradeoff: true },
 ];
 
 /** La ingeniera cuida MOXIE y el botánico el invernadero; las salidas las decide el jugador [regla]. */
@@ -91,10 +97,17 @@ export const MARS_CONTENT: MarsContent = {
     lossPerCut: 0.25,
     repairReach: 1.6,
   },
+  // La consola de recursos está en la sala de energía, junto al tablero.
+  resourceConsole: { zone: 'energy', at: GALE_LANDMARKS.console! },
+  // En 20 soles sin limpiar, los paneles pierden un tercio de lo que dan [regla]; una tormenta los ensucia el triple.
+  panels: { at: GALE_LANDMARKS.panels!, reach: 3.5, dustPerSol: 0.05, stormMultiplier: 3, maxLoss: 0.35, cleanFrom: 0.15 },
+  // Desde el mediodía; esa noche los sistemas gastan un 30 % menos y la calefacción un 20 % menos [regla].
+  night: { fromHour: 12, loadFactor: 0.7, heatingFactor: 0.8 },
   // Al terminar la estancia hay que llevar la carga del depósito a la nave y subir todos.
   departure: { shipZone: 'ship', cargoZone: 'storage' },
   crewSpeedTilesPerS: 4.5,
   infirmaryZone: 'infirmary',
+  bedAt: GALE_LANDMARKS.bed!,
   shelterZone: 'shelter',
   // El comandante pide desde la radio; el diagnóstico acelera ×1,5 (game-design §3.7).
   missionControl: { consoleZone: 'radio', diagnosisKwh: 0.5, diagnosisBoost: 1.5 },

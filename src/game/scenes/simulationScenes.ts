@@ -2,8 +2,7 @@ import { DataPanelScene } from './simulation/DataPanelScene';
 import { HudScene } from './simulation/HudScene';
 import { MarsScene } from './simulation/MarsScene';
 import { MissionControlScene } from './simulation/MissionControlScene';
-import { PlanningScene } from './simulation/PlanningScene';
 import { VoyageScene } from './simulation/VoyageScene';
 
 /** Escenas de simulación. Dueño: Santiago. */
-export const simulationScenes = [VoyageScene, MarsScene, PlanningScene, HudScene, MissionControlScene, DataPanelScene];
+export const simulationScenes = [VoyageScene, MarsScene, HudScene, MissionControlScene, DataPanelScene];

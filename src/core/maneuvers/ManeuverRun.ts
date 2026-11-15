@@ -43,6 +43,8 @@ export class ManeuverRun {
   private readonly rng: Rng;
   private readonly log: MissionLogEntry[] = [];
   private zones: StageZone[] = [];
+  /** Cuánto se achica la zona de cada etapa (1 = sistemas en verde): los minijuegos también se ponen más difíciles. */
+  private factors: number[] = [];
   private time = 0;
 
   constructor(
@@ -108,6 +110,7 @@ export class ManeuverRun {
       const width = stage.zoneWidth * zoneFactor[worst];
       return { center: this.rng.between(zoneMargin + width / 2, 1 - zoneMargin - width / 2), width };
     });
+    this.factors = this.definition.stages.map((_stage, i) => this.zones[i]!.width / this.definition.stages[i]!.zoneWidth);
     this.step = 'stage';
     this.time = 0;
     return true;
@@ -119,6 +122,16 @@ export class ManeuverRun {
 
   get zone(): StageZone | undefined {
     return this.zones[this.stageIndex];
+  }
+
+  /** Dificultad de la etapa actual: 1 con sus sistemas en verde, menos si quedaron en amarillo o rojo. */
+  get stageFactor(): number {
+    return this.factors[this.stageIndex] ?? 1;
+  }
+
+  /** Semilla de la etapa actual para su minijuego (sale del Rng de la partida: misma partida, mismo minijuego). */
+  get stageSeed(): number {
+    return (this.zones[this.stageIndex]?.center ?? 0.5) * 2 ** 31;
   }
 
   /** Posición de la marca en la barra (0..1). */
@@ -135,11 +148,28 @@ export class ManeuverRun {
   press(): StageOutcome | null {
     const stage = this.stage;
     const zone = this.zone;
-    if (this.step !== 'stage' || !stage || !zone) return null;
+    if (this.step !== 'stage' || !stage || !zone || (stage.kind ?? 'timing') !== 'timing') return null;
     const distance = Math.abs(this.marker - zone.center);
     const hit = distance <= zone.width / 2;
     const precision = hit ? 1 - (distance / (zone.width / 2)) * 0.5 : 0;
-    if (!hit) this.state.fuel = round(clamp(this.state.fuel - this.rules.fuelPerMiss));
+    return this.record(precision, hit);
+  }
+
+  /**
+   * Termina una etapa que es un minijuego (cargar combustible, abordar, cuenta regresiva, pilotar) con su puntaje
+   * (0..1). Igual que la barra: nunca termina la partida, sólo cuesta combustible.
+   */
+  complete(score: number): StageOutcome | null {
+    const stage = this.stage;
+    if (this.step !== 'stage' || !stage || (stage.kind ?? 'timing') === 'timing') return null;
+    const precision = clamp(score);
+    return this.record(precision, precision >= 0.5);
+  }
+
+  /** El combustible se gasta según la calidad: perfecto no cuesta nada y un error, `fuelPerMiss` entero. */
+  private record(precision: number, hit: boolean): StageOutcome {
+    const stage = this.stage!;
+    this.state.fuel = round(clamp(this.state.fuel - this.rules.fuelPerMiss * (1 - precision)));
     const outcome = { stageId: stage.id, hit, precision };
     this.outcomes.push(outcome);
     this.logEntry('maneuver', `${this.definition.id}.${stage.id}`, { hit, precision: round(precision) });

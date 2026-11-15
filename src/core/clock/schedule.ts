@@ -19,6 +19,13 @@ export interface PhaseCalendar {
   playedDays: Record<MissionLength, Record<TimedPhase, number>>;
   /** Horas simuladas por segundo real cuando se juega una jornada (§3.1). */
   playHoursPerSecond: Record<TimedPhase, number>;
+  /**
+   * Velocidad de una jornada sin nada que hacer, si la fase no usa la de siempre (`CLOCK_RULES.idleHoursPerSecond`).
+   * Igual a la de juego: la fase dura siempre lo mismo (la estancia en Gale).
+   */
+  idleHoursPerSecond?: Partial<Record<TimedPhase, number>>;
+  /** Velocidad mientras se duerme, si la fase no usa la de siempre (`CLOCK_RULES.sleepHoursPerSecond`). */
+  sleepHoursPerSecond?: Partial<Record<TimedPhase, number>>;
 }
 
 /** `count` jornadas de 24 h repartidas de forma pareja desde el inicio de la ventana. */
@@ -59,5 +66,7 @@ export function createPhaseClock({ calendar, phase, length, alerts = [], from }:
     alerts,
     playWindows: evenPlayWindows(window, calendar.playedDays[length][phase]),
     playHoursPerSecond: calendar.playHoursPerSecond[phase],
+    ...(calendar.idleHoursPerSecond?.[phase] !== undefined ? { idleHoursPerSecond: calendar.idleHoursPerSecond[phase] } : {}),
+    ...(calendar.sleepHoursPerSecond?.[phase] !== undefined ? { sleepHoursPerSecond: calendar.sleepHoursPerSecond[phase] } : {}),
   });
 }

@@ -60,7 +60,6 @@ describe('claves de texto de la simulación', () => {
     SULFUR_EVENT.explanationKey,
     ...['cruise', 'mars'].map((place) => `hud.source.${place}`),
     ...[...new Set([...Object.keys(VOYAGE_CONTENT.power.loadsKw), ...Object.keys(MARS_CONTENT.power.loadsKw)])].map((id) => `hud.load.${id}`),
-    ...['sleepHours', 'exerciseHours', 'workHours'].map((b) => `hud.planning.block.${b}`),
     ...['deepSpace', 'marsCruise', 'marsSurface'].map((site) => `hud.dataPanel.site.${site}`),
     ...['flare', 'sep', 'cmeMars'].map((kind) => `hud.dataPanel.notice.${kind}`),
     ...['offline', 'notCommander', 'notAtConsole'].map((k) => `hud.missionControl.blocked.${k}`),
@@ -70,7 +69,7 @@ describe('claves de texto de la simulación', () => {
     ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),
     'hud.log.allInShelter',
     ...['cruise', 'mars'].map((place) => `hud.info.title.${place}`),
-    ...['move', 'use', 'switch', 'decide', 'sound', 'status', 'plan', 'missionControl', 'charts', 'crater'].map((k) => `hud.info.key.${k}`),
+    ...['move', 'use', 'sleep', 'switch', 'decide', 'sound', 'status', 'missionControl', 'charts', 'crater'].map((k) => `hud.info.key.${k}`),
     ...['condition', 'fatigue', 'food', 'radiation'].map((k) => `hud.health.${k}`),
   ];
 

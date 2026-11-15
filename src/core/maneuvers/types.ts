@@ -1,15 +1,33 @@
 import type { ManeuverId } from '../flow/types';
 import type { SystemId, SystemStatus } from '../systems/types';
 
-/** Una etapa con acción en el momento justo: una barra y una zona de acierto (game-design §4.0). */
+/**
+ * Tipo de minijuego de una etapa: `timing` es la barra de apretar en el momento justo (game-design §4.0); los demás
+ * representan la preparación y el vuelo (cargar combustible, abordar, presurizar, prueba de radio, cuenta regresiva,
+ * pilotar).
+ */
+export type StageKind = 'timing' | 'fuel' | 'board' | 'pressure' | 'radio' | 'countdown' | 'steer';
+
+/** Una etapa de la maniobra: un minijuego con su puntaje (0..1). */
 export interface StageDefinition {
   id: string;
+  /** Por defecto `timing`. */
+  kind?: StageKind;
   /** Ancho de la zona de acierto, como fracción de la barra (0..1). */
   zoneWidth: number;
   /** Barras recorridas por segundo por la marca (ida o vuelta). */
   speed: number;
   /** Sistemas que, en amarillo o rojo, achican la zona de esta etapa. */
   systems: SystemId[];
+  /** Cuenta regresiva: número desde el que arranca (por defecto 10). */
+  from?: number;
+  /** Cuenta regresiva: preparativos que se ven al pasar por cada número (clave `maneuvers.milestone.<id>`). */
+  milestones?: CountdownMilestone[];
+}
+
+export interface CountdownMilestone {
+  at: number;
+  id: string;
 }
 
 /** Qué cambia en la partida según la precisión, además del combustible por errores. */

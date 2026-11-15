@@ -5,6 +5,7 @@ import { GALE_CABLES, GALE_LANDMARKS, GALE_LAYOUT, GALE_MAP, GALE_TASKS, GALE_TE
 import { GALE_STRIPS } from './galeTerrain';
 import { SHIP_LAYOUT, SHIP_MAP, VOYAGE_TASKS } from './ship';
 import { layoutFromTiled, propsFromTiled, wallTilesFromTiled, type TiledMap } from './tiledLayout';
+import { PANELS_ZONE } from '../core/mars/MarsSession';
 
 describe.each([
   ['nave', SHIP_MAP, SHIP_LAYOUT, VOYAGE_TASKS],
@@ -55,7 +56,8 @@ describe.each([
         expect(insideProp(p.x, p.y), `${zone.id}: ${p.x},${p.y}`).toBe(false);
       }
     }
-    for (const task of tasks) expect(layout.zones.some((z) => z.id === task.zone), task.id).toBe(true);
+    // Cada tarea tiene su cuarto, salvo la de los paneles solares, que se hace afuera junto a ellos.
+    for (const task of tasks) expect(task.zone === PANELS_ZONE || layout.zones.some((z) => z.id === task.zone), task.id).toBe(true);
   });
 });
 

@@ -18,7 +18,7 @@ describe('informe de misión', () => {
     const report = buildReport(finalState(), 'completed', ACHIEVEMENTS, REPORT_RULES);
     expect(report.stars).toEqual({ healthyCrew: true, lowDose: true, samplesHome: true });
     expect(report.starCount).toBe(3);
-    expect(report.samples).toEqual({ count: 2, value: 5, massKg: 10 });
+    expect(report.samples).toEqual({ count: 2, value: 5, massKg: 10, plants: 0 });
   });
 
   it('cada estrella se pierde por su motivo', () => {

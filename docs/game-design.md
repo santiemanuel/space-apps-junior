@@ -53,9 +53,13 @@ Duración elegible (con guardado en cualquier momento, ver 3.9):
 
 | | Despegue | Ida (jornadas) | Aterrizaje | Marte (soles jugados) | Despegue de Marte | Vuelta (jornadas) | Reentrada | Total aprox. |
 |---|---|---|---|---|---|---|---|---|
-| **Corta** | ~4 min | 4 | ~2 min | 10 | ~2 min | 2 | ~2 min | ~35 min |
-| **Larga** | ~6 min | 8 | ~2 min | 19–30 | ~3 min | 4 | ~2 min | ~75 min |
+| **Corta** | ~1 min | 2 | ~1 min | 5 | ~1 min | 2 | ~1 min | ~15 min |
+| **Larga** | ~1 min | 6 | ~1 min | 12 | ~1 min | 4 | ~1 min | ~30 min |
 
+- **La duración depende de lo que haga el jugador** [regla]: una jornada dura ~1 min (un sol ~50 s) mientras hay algo
+  que hacer (tareas del día, incidentes, decisiones, emergencias, refugio, una salida con muestras). Con todo al día,
+  el resto de la jornada corre en avance rápido (2,5 h por segundo) y vuelve al tiempo normal apenas aparece algo. Las
+  alertas frenan el reloj igual (3.1).
 - La **vuelta es más corta en jornadas jugables** que la ida, pero la nave y la tripulación llegan gastadas (ver 4.6).
 - El tiempo entre jornadas y entre soles **sí transcurre**, en avance rápido (3.1), con los consumos y la dosis
   reales de esos días. Una misión corta juega menos jornadas, pero no acorta el viaje.
@@ -95,8 +99,11 @@ En el modo libre, los viajes usan ventanas de BioSentinel (2022-11 → 2025-11) 
 
 ### 3.1 Tiempo
 
-- **Viaje (ida y vuelta):** una jornada jugada ≈ 2 min.
-- **Marte:** un sol jugado ≈ 90 s.
+- **Viaje (ida y vuelta):** una jornada jugada ≈ 1 min mientras hay algo que hacer.
+- **Marte:** un sol jugado ≈ 50 s mientras hay algo que hacer.
+- **Jornada sin nada que hacer** (tareas del día hechas, sin incidentes, decisiones, emergencias ni refugio): corre
+  rápido (2,5 h por segundo) hasta que aparezca algo [regla]. El tablero lo avisa ("Todo al día") y, si falta algo,
+  lista qué hay que hacer. Cada jornada pide 2 tareas del día y una más por cada tormenta vivida, hasta 4.
 - **Entre jornadas y entre soles**, el calendario corre en **avance rápido interactivo**, no con un salto:
   - Los medidores se animan día a día; nunca saltan de golpe del día 10 al 47.
   - La tripulación sigue sus rutinas sola.
@@ -106,7 +113,7 @@ En el modo libre, los viajes usan ventanas de BioSentinel (2022-11 → 2025-11) 
 
   | Nivel | Disparador | Velocidad | Señales para el jugador |
   |---|---|---|---|
-  | Calma | Sin avisos | Rápida (~1 día cada 2 s) [regla] | Interfaz normal |
+  | Calma | Sin avisos | Rápida (1,75 días por segundo) [regla] | Interfaz normal |
   | **Alerta** | En el viaje: detección real en DONKI (CME, llamarada M/X, alerta de `notifications`). En Marte: el UV de REMS empieza a bajar (polvo), se anuncia una noche extrema o hay un aviso de radiación | Lenta | Interfaz teñida de amarillo; texto de la alerta adaptado; el **monitor de partículas** (clics tipo contador Geiger) acelera; ligeras fluctuaciones de los paneles |
   | **Impacto** | Inicio real del pico de dosis en RadLab, o el sol de polvo o frío | Tiempo normal | Alarma y orden de refugio o de reparto de energía |
 
@@ -321,6 +328,10 @@ Las cuatro maniobras (ascenso, aterrizaje, despegue de Marte, reentrada) compart
 2. **Etapas con acción en el momento justo:** una barra por etapa; se aprieta **Espacio** en la zona correcta.
    Un sistema en amarillo achica la zona [regla].
 3. Un error nunca termina la partida: cuesta combustible, precisión o una corrección extra.
+4. **Escena de vuelo** (~30 s a 1 min): una ilustración animada muestra el abordaje, la cuenta regresiva T-10 y el
+   despegue (o la entrada, los paracaídas y el aterrizaje), y cada etapa es un minijuego: cargar combustible
+   (soltar en la franja), abordar (secuencia de flechas), cuenta regresiva (apretar justo en el cero), pilotar (aguja
+   en la zona) o apretar en el momento justo. El combustible se gasta según lo bien que salga cada uno [regla].
 
 ### 4.1 Fase 1 — Preparación y despegue
 
@@ -406,10 +417,15 @@ Los soles tranquilos pasan en avance rápido (3.1), y se juegan a mano los que t
 
 ### 4.5 Fase 5 — Despegue de Marte
 
-1. **Carga de vuelta:** la decisión que cierra la estancia. Hay un límite de masa para muestras y suministros [regla].
+1. **Carga de vuelta:** la decisión que cierra la estancia. La bodega de la nave es una grilla de 8 × 6 casilleros
+   (como un maletín): cada pieza ocupa lugar según su tamaño, se puede girar y lo que no entra se queda en Marte
+   [regla]. Lo recomendado ocupa 42 de los 48 casilleros; hay un botón para acomodar solo.
    - Muchas muestras → más ciencia, pero menos comida, agua y repuestos para la vuelta.
    - Pocas muestras → vuelta más segura, menos estrellas.
    - El agua de la vuelta vuelve a ser **bebida y blindaje**: la tormenta de octubre está esperando en la campaña.
+   - También se cargan las **muestras de plantas** del invernadero: una por sol como mucho, con el minijuego de la
+     cosecha (cortar cada planta cuando está a punto). Si el invernadero pide cuidado, primero se curan las plantas.
+   - Con **todas las rocas juntadas** se puede empezar el embarque sin esperar al último sol (tecla F, dos veces).
 2. **Maniobra (4.0):** checklist de la nave de ascenso y etapas de despegue. La precisión define cuánto combustible
    queda para correcciones en la vuelta.
 
@@ -567,3 +583,17 @@ Ajustes propios sobre las sugerencias:
 ### v1 — borrador inicial
 
 Arco de 4 fases, 3 medidores, campaña 2024 y modo libre, carga simplificada, tripulación automática con rendimiento fijo.
+
+---
+
+## Anexo: tripulantes automáticos [regla]
+
+- Las rutinas del día no se planean a mano: cada tripulante trabaja en su especialidad y se cuida solo (duerme más si
+  está cansado, hace más ejercicio si está débil, llama más a casa si está triste).
+- **Reparan solos.** Cuando el jugador elige cómo responder a una avería, va el tripulante que mejor lo hace (su
+  especialista, si puede llegar): camina hasta el cuarto, el tubo roto o el cable cortado y trabaja. El jugador puede
+  ir a ayudar con el minijuego para terminar antes, pero no hace falta: una reparación con alguien asignado no frena
+  el reloj. Sobre su cabeza se ve un globo con el ícono de lo que hace y, en el tablero, su estado (en línea, ausente,
+  no molestar, desconectado).
+- En el embarque final de Marte las reparaciones siguen aunque el calendario haya terminado, para que un tubo roto no
+  deje a nadie sin llegar a la nave.

@@ -8,6 +8,7 @@ import { getLocale, t, type TranslationKey } from '../../../i18n';
 import { SceneKeys } from '../../sceneKeys';
 import { PanelColumn, type PanelRow } from './PanelColumn';
 import type { SimulationSceneData } from './simulationData';
+import { addKeyButton, overlayFade } from '../../ui/ui';
 
 const DAY_MS = 86_400_000;
 /** Mensajes de ánimo y noticias de casa (§3.7): uno cada tres días, en orden [regla]. */
@@ -40,8 +41,10 @@ export class MissionControlScene extends Phaser.Scene {
   }
 
   create(): void {
+    overlayFade(this);
     this.add.rectangle(BOX.x, BOX.y, BOX.width, BOX.height, 0x0b1020, 0.95).setOrigin(0, 0).setStrokeStyle(2, 0x63b3ed);
     this.column = new PanelColumn(this, BOX.x + 16, BOX.y + 12, BOX.width - 32);
+    addKeyButton(this, BOX.x + BOX.width - 14, BOX.y + BOX.height - 14, 'C', t('hud.missionControl.close'), () => this.scene.stop(), { sfx: 'back' });
     const off = this.data_.sim.on('sim:snapshot', (s) => (this.snapshot = s));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
   }
@@ -120,7 +123,7 @@ export class MissionControlScene extends Phaser.Scene {
       rows.push({ text: `${date} · ${m.text}`, color: m.summary ? '#e2e8f0' : '#9ae6b4', size: 12 });
       if (m.summary && getLocale() === 'en') rows.push({ text: `  "${m.summary.slice(0, 140)}"`, color: '#718096', size: 11 });
     }
-    rows.push({ gap: 8, text: t('hud.missionControl.close'), color: '#718096', size: 11 });
+    rows.push({ gap: 8, text: t('hud.missionControl.clockRuns'), color: '#718096', size: 11 });
     return rows;
   }
 }

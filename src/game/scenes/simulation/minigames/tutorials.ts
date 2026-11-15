@@ -35,11 +35,14 @@ export const TUTORIALS: Record<MinigameId, readonly TutorialStep[]> = {
     { icons: ['plant-pale', 'growlamp'], keys: ['2'] },
     { icons: ['plant-bugs', 'ladybug'], keys: ['3'] },
   ],
+  harvest: [{ icons: ['plant-pale'], keys: ['←', '→'] }, { icons: ['plant-ok'], keys: ['E'], mark: 'yes' }, { icons: ['plant-dry'], mark: 'no' }],
   moxie: [{ icons: ['heater'], keys: ['E'] }, { gauge: true }, { icons: ['heater'], mark: 'no' }],
   seals: [{ icons: ['brush'], keys: ['←', '→'] }, { icons: ['dust'], keys: ['E'] }],
   patch: [{ keys: ARROWS }, { glyph: '♪' }, { icons: ['patch'], keys: ['E'] }],
   fuses: [{ glyph: '▮', keys: ARROWS }, { glyph: '10 A' }, { keys: ['1', '2', '3'] }],
   wires: [{ glyph: '●' }, { keys: ['↑', '↓'] }, { glyph: '⟷', keys: ['E'] }],
+  dust: [{ icons: ['dust'], keys: ARROWS }, { icons: ['brush'], keys: ['E'], mark: 'yes' }, { glyph: '▦', mark: 'no' }],
+  night: [{ keys: ['↑', '↓'] }, { glyph: '☾', keys: ['E'], mark: 'yes' }, { glyph: '♥', mark: 'no' }],
 };
 
 const GAP = 14;

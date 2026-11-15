@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { CrewId } from '../../../core/crew/types';
 import { crewTextureKey } from '../../assets';
 import { HUD_ICONS, ICON_CELL } from '../../hudIcons';
+import type { CrewPresence } from '../../../core/crew/presence';
 
 /** Ícono de estado: un ícono del atlas (`frame`) o, si no hay, un carácter (`glyph`), con una luz del color dado. */
 export interface PanelIcon {
@@ -28,11 +29,15 @@ export interface PanelRow {
    */
   bar?: { fraction: number; color: string; from?: number; to?: number; segments?: number };
   /** Valor alineado a la derecha de la fila (p. ej. los días que dura una reserva). */
-  value?: { text: string; color: string };
+  value?: { text: string; color: string; size?: number };
   /** Varias celdas de ícono y texto en la misma fila, repartidas a lo ancho (en vez de `text`). */
   cells?: readonly { icon: string; text: string; color: string }[];
+  /** Texto resaltado: fondo del color del texto y letra oscura (el tripulante que maneja el jugador). */
+  inverse?: boolean;
   /** Cara del tripulante antes del texto. */
   portrait?: CrewId;
+  /** Estado del tripulante (como en Discord): punto, luna, signo menos o anillo en la esquina del retrato. */
+  presence?: CrewPresence;
   /**
    * Media columna: dos filas seguidas con `half` van lado a lado (la tripulación en 2 × 2). Los íconos van debajo del
    * texto, de izquierda a derecha.
@@ -55,6 +60,7 @@ interface Slot {
   text: Phaser.GameObjects.Text;
   lead: Phaser.GameObjects.Image;
   portrait: Phaser.GameObjects.Image;
+  presence: Phaser.GameObjects.Graphics;
   bar: Phaser.GameObjects.Graphics;
   value: Phaser.GameObjects.Text;
   icons: { image: Phaser.GameObjects.Image; glyph: Phaser.GameObjects.Text; pip: Phaser.GameObjects.Rectangle }[];
@@ -113,13 +119,16 @@ export class PanelColumn {
       const lead = row.icon && icons;
       const indent = portrait ? (PORTRAIT.w * PORTRAIT.scale) + 6 : lead ? ICON_CELL : 0;
       const { text } = slot;
-      text.setText(row.cells ? '' : row.text).setColor(row.color ?? '#e2e8f0').setFontSize(size).setVisible(!row.cells);
+      text.setText(row.cells ? '' : row.text).setColor(row.inverse ? '#0b1020' : (row.color ?? '#e2e8f0')).setFontSize(size).setVisible(!row.cells);
+      text.setBackgroundColor(row.inverse ? (row.color ?? '#e2e8f0') : 'rgba(0,0,0,0)').setPadding(row.inverse ? { x: 4, y: 1 } : { x: 0, y: 0 });
+      text.setWordWrapWidth(width - indent);
       const textHeight = row.cells ? size + 4 : text.height;
       const height = below
         ? Math.max(textHeight + 22, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0)
         : Math.max(textHeight, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0, lead || row.icons?.some((c) => c.frame) || row.cells ? 22 : 0);
       const textY = below ? y : y + Math.round((height - textHeight) / 2);
-      text.setPosition(x + indent, textY).setWordWrapWidth(half ? width - indent : this.width);
+      // El salto de línea descuenta el ícono o el retrato: si no, las filas largas se salían de la caja.
+      text.setPosition(x + indent, textY).setWordWrapWidth(width - indent);
       this.handlers.set(text, row.onClick);
       if (row.onClick) text.setInteractive({ useHandCursor: true });
       else text.disableInteractive();
@@ -130,10 +139,15 @@ export class PanelColumn {
         slot.portrait.setTexture(crewTextureKey(row.portrait!), 0).setCrop(PORTRAIT.x, PORTRAIT.y, PORTRAIT.w, PORTRAIT.h);
         slot.portrait.setPosition(x - PORTRAIT.x * PORTRAIT.scale, y + 1 - PORTRAIT.y * PORTRAIT.scale).setAlpha(row.color === '#a0aec0' ? 0.6 : 1);
       }
+      slot.presence.clear().setVisible(!!portrait && !!row.presence);
+      if (portrait && row.presence) drawPresence(slot.presence, x + PORTRAIT.w * PORTRAIT.scale - 3, y + PORTRAIT.h * PORTRAIT.scale - 3, row.presence);
       slot.bar.clear().setVisible(!!row.bar);
       if (row.bar) this.drawBar(slot.bar, row.bar.from ?? BAR.x, row.bar.to ?? width, y + Math.round((height - BAR.height) / 2), row.bar.fraction, hex(row.bar.color), row.bar.segments);
       slot.value.setVisible(!!row.value);
-      if (row.value) slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(size).setPosition(x + width, textY);
+      if (row.value) {
+        const valueSize = row.value.size ?? size;
+        slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(valueSize).setPosition(x + width, textY + Math.round((size - valueSize) / 2));
+      }
       slot.icons.forEach((icon, n) => {
         // Abajo del texto se leen de izquierda a derecha; al final de la fila, desde la derecha.
         const spec = below ? row.icons?.[n] : row.icons?.[row.icons.length - 1 - n];
@@ -174,6 +188,7 @@ export class PanelColumn {
       slot.text.setVisible(false).disableInteractive();
       slot.lead.setVisible(false);
       slot.portrait.setVisible(false);
+      slot.presence.clear();
       slot.bar.clear();
       slot.value.setVisible(false);
       slot.icons.forEach((icon) => [icon.image, icon.glyph, icon.pip].forEach((o) => o.setVisible(false)));
@@ -221,6 +236,7 @@ export class PanelColumn {
       text,
       lead: image(),
       portrait: scene.add.image(0, 0, '__WHITE').setOrigin(0, 0).setScale(PORTRAIT.scale).setDepth(51).setScrollFactor(0).setVisible(false),
+      presence: scene.add.graphics().setDepth(52).setScrollFactor(0),
       bar: scene.add.graphics().setDepth(51).setScrollFactor(0),
       value: scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '13px' }).setOrigin(1, 0).setDepth(51).setScrollFactor(0).setVisible(false),
       icons: Array.from({ length: ICON_SLOTS }, () => ({
@@ -236,4 +252,17 @@ export class PanelColumn {
     this.slots.push(slot);
     return slot;
   }
+}
+
+/** Colores de los estados, como los de Discord. */
+export const PRESENCE_COLOR: Record<CrewPresence, number> = { online: 0x43b581, away: 0xfaa61a, busy: 0xf04747, offline: 0x747f8d };
+
+/** Dibuja el estado: punto verde, luna amarilla, círculo rojo con un menos o anillo gris, con borde oscuro. */
+export function drawPresence(g: Phaser.GameObjects.Graphics, x: number, y: number, presence: CrewPresence, r = 6): void {
+  const color = PRESENCE_COLOR[presence];
+  g.fillStyle(0x111827).fillCircle(x, y, r + 2);
+  g.fillStyle(color).fillCircle(x, y, r);
+  if (presence === 'away') g.fillStyle(0x111827).fillCircle(x - r * 0.45, y - r * 0.45, r * 0.7);
+  if (presence === 'busy') g.fillStyle(0x111827).fillRect(x - r * 0.6, y - 1, r * 1.2, 2.5);
+  if (presence === 'offline') g.fillStyle(0x111827).fillCircle(x, y, r * 0.5);
 }

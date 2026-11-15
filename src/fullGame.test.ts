@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, REPORT_RULES } from './content/achievements';
 import { MARS_CONTENT } from './content/gale';
 import { INCIDENTS } from './content/incidents';
-import { OUTBOUND_PROFILES, RETURN_RULES } from './content/loadouts';
+import { CARGO_GRID, OUTBOUND_PROFILES, RETURN_RULES } from './content/loadouts';
 import { MANEUVER_RULES, MANEUVERS, maneuverConditions } from './content/maneuvers';
 import { MISSION_START } from './content/missionStart';
 import { VOYAGE_CONTENT } from './content/ship';
@@ -12,7 +12,8 @@ import { MissionFlow, type FlowStep } from './core/flow/MissionFlow';
 import { createNewGame } from './core/flow/newGame';
 import type { ManeuverId, PhaseResult } from './core/flow/types';
 import type { HabitatSession } from './core/habitat/HabitatSession';
-import { availableForReturn, initialReturnCargo, outboundResult, returnResult } from './core/loadout/loadout';
+import { autoPack, cargoItems, gridReturnResult } from './core/loadout/cargoGrid';
+import { availableForReturn, outboundResult } from './core/loadout/loadout';
 import { ManeuverRun } from './core/maneuvers/ManeuverRun';
 import { MarsSession } from './core/mars/MarsSession';
 import { buildReport } from './core/report/report';
@@ -32,8 +33,12 @@ function playManeuver(id: ManeuverId, state: GameState, bus: EventBus<GameEvents
   for (const item of run.items) run.decide(item.systemId, item.status === 'green' ? 'go' : 'risk');
   run.start();
   while (run.step === 'stage') {
-    for (let i = 0; i < 10_000 && Math.abs(run.marker - run.zone!.center) > run.zone!.width / 4; i++) run.update(0.005);
-    run.press();
+    // Los minijuegos de preparación y pilotaje, jugados bien; la barra, cerca del centro.
+    if ((run.stage!.kind ?? 'timing') !== 'timing') run.complete(0.9);
+    else {
+      for (let i = 0; i < 10_000 && Math.abs(run.marker - run.zone!.center) > run.zone!.width / 4; i++) run.update(0.005);
+      run.press();
+    }
     run.next();
   }
   if (run.definition.effect === 'vanAllen') bus.emit('realEvent:shown', VAN_ALLEN.realEvent);
@@ -45,8 +50,10 @@ function playManeuver(id: ManeuverId, state: GameState, bus: EventBus<GameEvents
  * con orden de refugio, lleva a su tripulante al refugio. En el embarque de Marte va al depósito, carga y la lleva a
  * la nave. Devuelve cuando la fase emite `phase:completed`.
  */
-function playHabitat(session: HabitatSession, shelterZone: string): void {
+function playHabitat(session: HabitatSession, shelterZone: string): number {
+  let seconds = 0;
   for (let i = 0; i < MAX_STEPS && !session.outcome; i++) {
+    if (!session.departing) seconds += DT;
     for (const d of session.pendingDecisions()) {
       const option = d.options.find((o) => o.available && o.response.risk === 'green') ?? d.options.find((o) => o.available);
       if (option) session.respond(d.incident.id, option.response.id);
@@ -59,6 +66,8 @@ function playHabitat(session: HabitatSession, shelterZone: string): void {
     if (departing) session.doAction(zone);
   }
   if (!session.outcome) throw new Error(`la fase ${session.phase} no terminó`);
+  // Segundos reales de la fase, sin contar el embarque final.
+  return seconds;
 }
 
 function voyage(state: GameState, bus: EventBus<GameEvents>, leg: 'out' | 'back'): VoyageSession {
@@ -98,21 +107,31 @@ function playMission(seed: number) {
   bus.on('phase:progress', (s) => flow.progress(s));
   bus.on('realEvent:shown', (e) => flow.recordRealEvent(e));
 
+  let marsSeconds = 0;
   while (flow.step.kind !== 'report' && steps.length < 20) {
     const step = flow.step;
     const state = flow.state;
     if (step.kind === 'loadout' && step.mode === 'outbound') results.push(outboundResult(state, OUTBOUND_PROFILES.balanced));
-    else if (step.kind === 'loadout') results.push(returnResult(state, initialReturnCargo(availableForReturn(state, RETURN_RULES), RETURN_RULES), RETURN_RULES));
+    else if (step.kind === 'loadout') {
+      // La vuelta: la bodega de casilleros, con "acomodar solo".
+      const items = cargoItems(state, RETURN_RULES, CARGO_GRID);
+      results.push(gridReturnResult(state, items, autoPack(items, CARGO_GRID, RETURN_RULES, availableForReturn(state, RETURN_RULES).waterPoolL)));
+    }
     else if (step.kind === 'maneuver') results.push(playManeuver(step.maneuverId, state, bus));
     else if (step.kind === 'voyage') playHabitat(voyage(state, bus, step.leg), VOYAGE_CONTENT.shelterZone);
-    else playHabitat(mars(state, bus), MARS_CONTENT.shelterZone);
+    else marsSeconds = playHabitat(mars(state, bus), MARS_CONTENT.shelterZone);
     steps.push(flow.complete(results.at(-1)!)!);
   }
-  return { flow, steps, final: flow.state };
+  return { flow, steps, final: flow.state, marsSeconds };
 }
 
 describe('partida completa (campaña 2024, modo corto, semilla fija)', () => {
-  const { flow, steps, final } = playMission(2024);
+  const { flow, steps, final, marsSeconds } = playMission(2024);
+
+  it('la estancia en Gale (20 soles) dura entre 10 y 12 minutos reales', () => {
+    expect(marsSeconds / 60).toBeGreaterThanOrEqual(10);
+    expect(marsSeconds / 60).toBeLessThanOrEqual(12);
+  });
 
   it('recorre las 7 fases en orden hasta el informe, con la tripulación de vuelta', () => {
     expect(steps).toEqual([

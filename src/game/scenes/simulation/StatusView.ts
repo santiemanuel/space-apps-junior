@@ -13,6 +13,7 @@ import { GAME_HEIGHT } from '../../display';
 import { HUD_ICONS } from '../../hudIcons';
 import { VIEW_WIDTH } from './HudScene';
 import { gridWarningKey, locationKey } from './simulationData';
+import { addKeyButton, KEY_BUTTON, panelIn } from '../../ui/ui';
 
 export const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 export const LIGHT: Record<SystemStatus, string> = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' };
@@ -65,9 +66,11 @@ const VALUE_X = 130;
 const PORTRAIT = { x: 4, y: 8, w: 72, h: 52 } as const;
 const CARD_HEIGHT = 96;
 const KEYS_Y = 628;
-const KEYS = ['move', 'use', 'switch', 'decide', 'sound', 'status', 'plan', 'missionControl', 'charts'] as const;
+/** Ancho de cada tecla de la lista: deja lugar abajo a la derecha para el botón de cerrar. */
+const KEY_COLUMN = 150;
+const KEYS = ['move', 'use', 'sleep', 'switch', 'decide', 'sound', 'status', 'missionControl', 'charts'] as const;
 const KEY_CAPS: Record<(typeof KEYS)[number] | 'crater', string> = {
-  move: 'WASD', use: 'E', switch: 'Tab', decide: '1 2 3', sound: 'M', status: 'I', plan: 'P', missionControl: 'C', charts: 'G', crater: 'V',
+  move: 'WASD', use: 'E', sleep: 'Z', switch: 'Tab', decide: '1 2 3', sound: 'M', status: 'I', missionControl: 'C', charts: 'G', crater: 'V',
 };
 
 /**
@@ -78,7 +81,11 @@ const KEY_CAPS: Record<(typeof KEYS)[number] | 'crater', string> = {
 export class StatusView {
   private readonly root: Phaser.GameObjects.Container;
 
-  constructor(private readonly scene: Phaser.Scene, private readonly namespace: 'voyage' | 'mars') {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly namespace: 'voyage' | 'mars',
+    private readonly close: () => void,
+  ) {
     this.root = scene.add.container(0, 0).setDepth(100).setVisible(false);
   }
 
@@ -89,6 +96,7 @@ export class StatusView {
   show(s: SimSnapshot): void {
     this.root.removeAll(true);
     this.draw(s);
+    if (!this.root.visible) panelIn(this.root);
     this.root.setVisible(true);
   }
 
@@ -132,7 +140,6 @@ export class StatusView {
     const g = this.add(this.scene.add.graphics());
     this.text(LEFT.x, 14, tr(`hud.info.title.${s.place}`), 22, HEAD);
     this.text(LEFT.x, 44, t('hud.info.subtitle'), 12, SOFT);
-    this.text(VIEW_WIDTH - 28, 20, t('hud.info.close'), 11, DIM).setOrigin(1, 0);
 
     let y = this.resources(g, s, TOP);
     y = this.systems(g, s, y + 14);
@@ -140,7 +147,7 @@ export class StatusView {
     y = this.crew(g, s, TOP);
     this.outside(g, s, y + 14);
     this.keys(g, !!s.mars);
-
+    this.add(addKeyButton(this.scene, VIEW_WIDTH - KEY_BUTTON.margin, GAME_HEIGHT - KEY_BUTTON.margin, 'I', t('hud.info.close'), this.close, { sfx: null }));
   }
 
   /** Reservas: cada una con su barra y los días que dura. */
@@ -248,7 +255,7 @@ export class StatusView {
     const column = { x: LEFT.x, width: RIGHT.x + RIGHT.width - LEFT.x };
     const y = this.section(g, column, KEYS_Y, 'hud.info.keys');
     [...KEYS, ...(mars ? (['crater'] as const) : [])].forEach((id, i) => {
-      const x = column.x + (i % 5) * 172;
+      const x = column.x + (i % 5) * KEY_COLUMN;
       const cy = y + Math.floor(i / 5) * 26;
       const cap = this.add(
         this.scene.add.text(x, cy, KEY_CAPS[id], { ...TEXT, fontSize: '11px', color: '#fbd38d', backgroundColor: '#2d3748', padding: { x: 5, y: 2 } }),

@@ -63,3 +63,49 @@ export function autoShelterCrew(state: GameState, level: AlertLevel): CrewId[] {
   if (!state.helpMode || level !== 'impact') return [];
   return state.crew.filter((m) => !m.resting && m.id !== state.activeCrewId && m.location !== 'shelter').map((m) => m.id);
 }
+
+/** Tarea de trabajo que se puede asignar a la rutina (las de mantenimiento de cada escena). */
+export interface AssignableTask {
+  id: string;
+  category: string;
+  /** El sistema ya está gastado o pronto lo va a estar: va primero. */
+  urgent?: boolean;
+}
+
+/**
+ * Rutinas automáticas (reemplazan la planificación a mano): cada tripulante trabaja en la tarea de su especialidad
+ * (las urgentes primero, sin repetir), duerme más si está cansado, hace más ejercicio si está débil y llama más a
+ * casa si está desanimado [regla]. En reposo sólo duerme.
+ */
+export function smartRoutines(
+  crew: readonly CrewMemberState[],
+  tasks: readonly AssignableTask[],
+  specialties: Readonly<Record<string, readonly string[]>>,
+): RoutinePlan {
+  const free = [...tasks].sort((a, b) => Number(Boolean(b.urgent)) - Number(Boolean(a.urgent)));
+  const take = (match: (t: AssignableTask) => boolean): string | null => {
+    const index = free.findIndex(match);
+    return index === -1 ? null : free.splice(index, 1)[0]!.id;
+  };
+  // Primero los especialistas, después el resto (la comandante cubre lo que falte).
+  const order = [...crew].sort((a, b) => (specialties[b.role]?.length ?? 0) - (specialties[a.role]?.length ?? 0));
+  const plan = {} as RoutinePlan;
+  for (const m of order) {
+    if (m.resting) {
+      plan[m.id] = { sleepHours: 12, exerciseHours: 0, workHours: 0, taskId: null, callsHomePerDay: 0 };
+      continue;
+    }
+    const mine = specialties[m.role] ?? [];
+    const taskId = take((t) => mine.includes(t.category)) ?? (mine.length ? null : take((t) => Boolean(t.urgent)));
+    const sleepHours = m.fatigue > 0.6 ? 10 : m.fatigue > 0.3 ? 9 : 8;
+    const exerciseHours = m.condition < 0.7 ? 3 : 2;
+    plan[m.id] = {
+      sleepHours,
+      exerciseHours,
+      workHours: Math.max(0, 20 - sleepHours - exerciseHours),
+      taskId,
+      callsHomePerDay: m.morale < 0.6 ? 1 : 0.5,
+    };
+  }
+  return plan;
+}

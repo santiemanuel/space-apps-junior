@@ -21,16 +21,19 @@ function play(maneuver: ManeuverRun, hits: boolean[]): void {
   confirmAll(maneuver);
   maneuver.start();
   for (const hit of hits) {
-    const zone = maneuver.zone!;
-    aimAt(maneuver, hit ? zone.center : zone.center > 0.5 ? 0.01 : 0.99);
-    maneuver.press();
+    if ((maneuver.stage!.kind ?? 'timing') !== 'timing') maneuver.complete(hit ? 1 : 0);
+    else {
+      const zone = maneuver.zone!;
+      aimAt(maneuver, hit ? zone.center : zone.center > 0.5 ? 0.01 : 0.99);
+      maneuver.press();
+    }
     maneuver.next();
   }
 }
 
 describe('maniobras', () => {
   it('las cuatro maniobras tienen las etapas del diseño', () => {
-    expect(Object.values(MANEUVERS).map((m) => m.stages.length)).toEqual([4, 4, 2, 3]);
+    expect(Object.values(MANEUVERS).map((m) => m.stages.length)).toEqual([8, 4, 5, 3]);
     for (const m of Object.values(MANEUVERS)) {
       for (const stage of m.stages) for (const system of stage.systems) expect(m.checklist).toContain(system);
     }
@@ -83,9 +86,11 @@ describe('maniobras', () => {
 
   describe('etapas', () => {
     it('la marca va y vuelve por la barra', () => {
-      const maneuver = run('ascent');
+      const maneuver = run('landing');
       confirmAll(maneuver);
       maneuver.start();
+      maneuver.complete(1);
+      maneuver.next();
       const speed = maneuver.stage!.speed;
       maneuver.update(0.25 / speed);
       expect(maneuver.marker).toBeCloseTo(0.25);
@@ -95,7 +100,7 @@ describe('maniobras', () => {
 
     it('acertar en el centro da precisión 1 y no gasta combustible', () => {
       const maneuver = run('ascent');
-      play(maneuver, [true, true, true, true]);
+      play(maneuver, [true, true, true, true, true, true, true, true]);
       expect(maneuver.step).toBe('done');
       expect(maneuver.precision).toBeCloseTo(1);
       expect(maneuver.fuel).toBe(1);
@@ -103,11 +108,24 @@ describe('maniobras', () => {
 
     it('un error cuesta combustible pero la maniobra sigue hasta el final', () => {
       const maneuver = run('ascent');
-      play(maneuver, [false, true, false, true]);
+      play(maneuver, [false, true, false, true, true, true, true, true]);
       expect(maneuver.step).toBe('done');
       expect(maneuver.misses).toBe(2);
       expect(maneuver.fuel).toBeCloseTo(1 - 2 * MANEUVER_RULES.fuelPerMiss);
-      expect(maneuver.precision).toBeCloseTo(0.5);
+      expect(maneuver.precision).toBeCloseTo(6 / 8);
+    });
+
+    it('los minijuegos gastan combustible según el puntaje y no se pueden terminar con la barra', () => {
+      const maneuver = run('ascent');
+      confirmAll(maneuver);
+      maneuver.start();
+      expect(maneuver.stage!.kind).toBe('fuel');
+      expect(maneuver.press()).toBeNull();
+      expect(maneuver.complete(0.5)).toMatchObject({ stageId: 'fuel', hit: true, precision: 0.5 });
+      expect(maneuver.fuel).toBeCloseTo(1 - 0.5 * MANEUVER_RULES.fuelPerMiss);
+      maneuver.next();
+      maneuver.complete(1);
+      expect(maneuver.fuel).toBeCloseTo(1 - 0.5 * MANEUVER_RULES.fuelPerMiss);
     });
 
     it('no se puede apretar fuera de una etapa', () => {
@@ -139,9 +157,9 @@ describe('maniobras', () => {
 
     it('la precisión del despegue de Marte define el combustible para la vuelta', () => {
       const good = run('marsAscent');
-      play(good, [true, true]);
+      play(good, [true, true, true, true, true]);
       const bad = run('marsAscent');
-      play(bad, [false, false]);
+      play(bad, [false, false, false, false, false]);
       expect(good.toPhaseResult().state.fuel).toBe(1);
       expect(bad.toPhaseResult().state.fuel).toBe(MANEUVER_RULES.returnFuel.worst);
     });

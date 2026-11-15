@@ -516,6 +516,19 @@
           "map",
           "earthSignal"
         ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-sistemas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "engines",
+          "heatShield",
+          "parachutes",
+          "solarPanels"
+        ]
       }
     ]
   },

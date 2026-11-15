@@ -14,8 +14,10 @@ import { hasKey, t, type TranslationKey } from '../../../i18n';
 import { formatDate, formatNumber } from '../../../i18n/format';
 import { GAME_WIDTH } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
-import { addButton, addText, COLOR, listenUntilShutdown, onKeys, openSource, type Button } from '../../ui/ui';
+import { addButton, addText, COLOR, fadeIn, listenUntilShutdown, onKeys, openSource, type Button } from '../../ui/ui';
 import type { ReportSceneData } from '../sceneData';
+import { audio } from '../../audio/audio';
+import { drawReportBackdrop } from './reportBackdrop';
 
 /** `onExit` lo pone el director del flujo para volver al menú. */
 export type ReportData = ReportSceneData & { onExit?: () => void };
@@ -104,9 +106,12 @@ export class ReportScene extends Phaser.Scene {
 
   create(): void {
     const completed = this.report.outcome === 'completed';
+    drawReportBackdrop(this, completed);
+    // Panel translúcido detrás del contenido, para que se lea sobre el fondo animado.
+    this.add.graphics().setDepth(-4).fillStyle(0x0b1220, 0.72).fillRoundedRect(70, 18, 1140, 690, 16).lineStyle(2, completed ? 0x68d391 : 0xf6ad55, 0.6).strokeRoundedRect(70, 18, 1140, 690, 16);
     this.header = {
-      title: addText(this, CENTER, 40, 30, COLOR.title).setOrigin(0.5),
-      outcome: addText(this, CENTER, 80, 18, completed ? COLOR.ok : COLOR.warn).setOrigin(0.5),
+      title: addText(this, CENTER, 46, 34, completed ? COLOR.ok : COLOR.focus).setOrigin(0.5),
+      outcome: addText(this, CENTER, 86, 17, completed ? COLOR.ok : COLOR.warn).setOrigin(0.5),
       controls: addText(this, CENTER, 702, 13, COLOR.dim).setOrigin(0.5),
     };
     this.tabs = PAGES.map((page, index) => addButton(this, CENTER + (index - 1) * 200, 124, () => this.show(page), { size: 16 }));
@@ -133,6 +138,7 @@ export class ReportScene extends Phaser.Scene {
     if (page === 'summary') this.showSummary();
     else if (page === 'mission') this.showMission();
     else this.showData();
+    fadeIn(this, this.view, { duration: 260, rise: 12 });
   }
 
   private showSummary(): void {
@@ -140,23 +146,35 @@ export class ReportScene extends Phaser.Scene {
     STARS.forEach((star, i) => {
       const x = CENTER + (i - 1) * 240;
       const earned = report.stars[star];
-      const shape = this.add.star(x, 205, 5, 16, 36, earned ? GOLD : 0x2d3748).setStrokeStyle(2, earned ? GOLD : 0x718096);
-      view.add([shape, addText(this, x, 256, 15, earned ? COLOR.focus : COLOR.dim).setOrigin(0.5).setText(t(`report.star.${star}`))]);
+      const shape = this.add.star(x, 188, 5, 14, 32, earned ? GOLD : 0x2d3748).setStrokeStyle(2, earned ? GOLD : 0x718096);
+      view.add([shape, addText(this, x, 234, 15, earned ? COLOR.focus : COLOR.dim).setOrigin(0.5).setText(t(`report.star.${star}`))]);
+      // La estrella de dosis baja que se perdió por quedarse fuera del refugio en una tormenta: se dice por qué.
+      if (star === 'lowDose' && !earned && this.data_.state.history.some((e) => e.key === 'hud.log.stormDose'))
+        view.add(addText(this, x, 248, 12, COLOR.warn, { align: 'center', wordWrap: { width: 230 } }).setOrigin(0.5, 0).setText(t('report.star.lowDose.lostStorm')));
+      if (earned) {
+        shape.setScale(0);
+        this.tweens.add({ targets: shape, scale: 1, angle: 360, duration: 500, delay: 400 + i * 450, ease: 'Back.Out', onStart: () => audio.sfx('reportStar', 1 + i * 0.12) });
+      }
     });
 
-    view.add(addText(this, 120, 300, 20, COLOR.text).setText(t('report.achievements.title')));
-    report.achievements.forEach(({ id, earned }, i) => {
-      const y = 345 + i * 54;
+    view.add(addText(this, 120, 266, 20, COLOR.text).setText(t('report.achievements.title')));
+    // Cada logro ocupa lo que mide su explicación (una o dos líneas), así la lista nunca se pisa ni tapa el resumen.
+    let y = 300;
+    for (const { id, earned } of report.achievements) {
+      const description = addText(this, 154, y + 19, 12, COLOR.dim, { wordWrap: { width: 490 } }).setText(t(`report.achievement.${id}.description`));
       view.add([
-        this.add.circle(132, y + 10, 10, earned ? GOLD : 0x2d3748).setStrokeStyle(2, earned ? GOLD : 0x718096),
-        addText(this, 154, y, 16, earned ? COLOR.text : COLOR.dim).setText(t(`report.achievement.${id}`)),
-        addText(this, 154, y + 22, 13, COLOR.dim, { wordWrap: { width: 440 } }).setText(t(`report.achievement.${id}.description`)),
+        this.add.circle(132, y + 10, 9, earned ? GOLD : 0x2d3748).setStrokeStyle(2, earned ? GOLD : 0x718096),
+        addText(this, 154, y, 15, earned ? COLOR.text : COLOR.dim).setText(t(`report.achievement.${id}`)),
+        description,
       ]);
-    });
+      y += 19 + description.height + 9;
+    }
+    // Después de las estrellas, un sonido por cada logro ganado.
+    report.achievements.filter((a) => a.earned).forEach((_a, i) => this.time.delayedCall(2000 + i * 500, () => audio.sfx('achievementUnlock')));
 
-    view.add(addText(this, 680, 300, 20, COLOR.text).setText(t('report.crew.title')));
+    view.add(addText(this, 680, 266, 20, COLOR.text).setText(t('report.crew.title')));
     report.crew.forEach((member, i) => {
-      const y = 345 + i * 54;
+      const y = 302 + i * 54;
       const arrival = member.arrival ?? 'waiting';
       view.add([
         addText(this, 680, y, 16, arrival === 'walk' ? COLOR.ok : arrival === 'stretcher' ? COLOR.warn : COLOR.muted).setText(
@@ -171,8 +189,10 @@ export class ReportScene extends Phaser.Scene {
     const samples = report.samples.count
       ? t('report.samples', { count: report.samples.count, value: formatNumber(report.samples.value), mass: formatNumber(report.samples.massKg) })
       : t('report.samples.none');
+    const plants = report.samples.plants ? t('report.samples.plants', { plants: report.samples.plants }) : '';
     const landing = report.landingDistanceKm !== null ? t('report.landing', { km: report.landingDistanceKm }) : '';
-    view.add(addText(this, CENTER, 588, 15, COLOR.muted, { align: 'center' }).setOrigin(0.5).setText([samples, landing].filter(Boolean).join('\n')));
+    view.add(this.add.rectangle(CENTER, 572, 1000, 1, 0x4a5568).setOrigin(0.5));
+    view.add(addText(this, CENTER, 580, 14, COLOR.muted, { align: 'center', lineSpacing: 2 }).setOrigin(0.5, 0).setText([samples, plants, landing].filter(Boolean).join('\n')));
   }
 
   private showMission(): void {

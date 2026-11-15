@@ -26,5 +26,13 @@
   "task.cook": "E: make a meal",
   "station.cook": "Food",
   "task.shield": "E: check the shelter",
-  "station.shield": "Shield"
+  "station.shield": "Shield",
+  "chore.exercise": "{place}: time to move so you do not lose strength",
+  "chore.scrubber": "The CO₂ filter is filling up",
+  "chore.recycler": "The water recycler needs a check",
+  "chore.callHome": "{name} misses home: call from the radio",
+  "chore.navigate": "The course needs a check with the stars",
+  "chore.checkup": "Time for the crew check-up",
+  "chore.cook": "The crew is hungry: time to cook",
+  "chore.shield": "The shelter water shield has gaps"
 }

@@ -35,12 +35,31 @@ export type ClockEvent =
 
 /** Velocidades del reloj en horas simuladas por segundo real [regla, §3.1]. */
 export const CLOCK_RULES = {
-  /** Calma: ~1 día cada 2 s. */
-  calmHoursPerSecond: 12,
-  /** Tiempo normal del viaje: una jornada ≈ 2 min. */
-  playHoursPerSecond: 0.2,
+  /** Calma entre jornadas: 1,75 días por segundo (una partida corta dura unos 15 min). */
+  calmHoursPerSecond: 42,
+  /** Tiempo normal del viaje: una jornada ≈ 1 min. */
+  playHoursPerSecond: 0.4,
+  /** Jornada sin nada que hacer (tareas al día, sin incidentes): el resto del día pasa en unos segundos. */
+  idleHoursPerSecond: 2.5,
+  /**
+   * Durmiendo en la enfermería: la noche pasa en unos segundos (las alertas despiertan), lo justo para que se vea la
+   * pantalla a oscuras con la hora que avanza y el jugador pueda despertarse a mano.
+   */
+  sleepHoursPerSecond: 3,
+  /**
+   * El Impacto va a tiempo normal sólo sus primeras horas simuladas (lo que tarda en llegar al refugio): las
+   * tormentas reales duran días y, si no, el viaje se hacía eterno. Después sigue a la velocidad de una jornada sin
+   * nada que hacer.
+   */
+  impactSlowHours: 8,
   /** La Alerta dura al menos estos segundos reales, aunque la antelación real sea de minutos. */
   alertMinSeconds: 10,
+  /**
+   * Segundos reales mínimos entre el fin de un aviso y el comienzo del siguiente: las tormentas reales a veces llegan
+   * con pocos días de diferencia y, con el avance rápido, se encadenaban. El reloj se frena lo justo para respetarlo
+   * (las fechas reales no cambian). Las tareas que aparecen al azar llenan esa espera, por eso es corta.
+   */
+  alertGapSeconds: 75,
   calmReasonKey: 'hud.alert.calm',
 } as const;
 
@@ -50,6 +69,10 @@ export interface MissionClockOptions {
   alerts?: readonly ClockAlert[];
   playWindows?: readonly PlayWindow[];
   playHoursPerSecond?: number;
+  /** Velocidad de una jornada sin nada que hacer (por defecto `CLOCK_RULES.idleHoursPerSecond`). */
+  idleHoursPerSecond?: number;
+  /** Velocidad mientras se duerme (por defecto `CLOCK_RULES.sleepHoursPerSecond`). */
+  sleepHoursPerSecond?: number;
 }
 
 interface TimedAlert extends ClockAlert {
@@ -78,12 +101,18 @@ export class MissionClock {
   private alerts: TimedAlert[];
   private readonly windows: { startMs: number; endMs: number }[];
   private readonly playHoursPerSecond: number;
+  private readonly idleHoursPerSecond: number;
+  private readonly sleepHoursPerSecond: number;
   private readonly resolved = new Set<string>();
   private paused = false;
+  private idle = false;
+  private sleep = false;
   private ended = false;
   private lastDay: string;
   private lastLevel: { level: AlertLevel; alertId: string | null };
   private lastPace: ClockPace;
+  /** Segundos reales que faltan para que pueda empezar otro aviso (desde que terminó el último). */
+  private quietSeconds = 0;
 
   constructor(options: MissionClockOptions) {
     this.nowMs = Date.parse(options.start);
@@ -92,6 +121,8 @@ export class MissionClock {
     this.alerts = (options.alerts ?? []).map(timed);
     this.windows = (options.playWindows ?? []).map((w) => ({ startMs: Date.parse(w.start), endMs: Date.parse(w.end) }));
     this.playHoursPerSecond = options.playHoursPerSecond ?? CLOCK_RULES.playHoursPerSecond;
+    this.idleHoursPerSecond = options.idleHoursPerSecond ?? CLOCK_RULES.idleHoursPerSecond;
+    this.sleepHoursPerSecond = options.sleepHoursPerSecond ?? CLOCK_RULES.sleepHoursPerSecond;
     this.lastDay = isoDay(this.nowMs);
     this.lastLevel = this.currentAlert();
     this.lastPace = this.pace;
@@ -123,15 +154,54 @@ export class MissionClock {
     return this.nowMs >= this.endMs;
   }
 
-  /** Horas simuladas por segundo real en este momento. */
+  /** Horas simuladas por segundo real en este momento (con el avance de las jornadas sin nada que hacer). */
   get hoursPerSecond(): number {
+    const base = this.baseHoursPerSecond;
+    const calm = this.currentAlert().level === 'calm';
+    const rate = this.sleep && calm ? Math.max(base, this.sleepHoursPerSecond) : this.idleBoost ? Math.max(base, this.idleHoursPerSecond) : base;
+    // Recién terminó un aviso: el próximo no llega antes de `alertGapSeconds` reales.
+    const next = calm && this.quietSeconds > 0 ? this.nextWarnMs() : null;
+    return next === null ? rate : Math.min(rate, (next - this.nowMs) / HOUR_MS / this.quietSeconds);
+  }
+
+  /** Cuándo empieza el próximo aviso pendiente (null si no queda ninguno). */
+  private nextWarnMs(): number | null {
+    let next: number | null = null;
+    for (const a of this.alerts) if (!this.resolved.has(a.id) && a.warnMs > this.nowMs && (next === null || a.warnMs < next)) next = a.warnMs;
+    return next;
+  }
+
+  /** La jornada corre rápido porque el jugador no tiene nada que hacer (sólo en calma y dentro de una jornada). */
+  get idleBoost(): boolean {
+    return this.idle && this.pace === 'play' && this.currentAlert().level === 'calm' && this.idleHoursPerSecond > this.playHoursPerSecond;
+  }
+
+  /** Velocidad sin el avance de las jornadas sin nada que hacer: calma, jornada, alerta o impacto. */
+  get baseHoursPerSecond(): number {
     const { level, alertId } = this.currentAlert();
-    if (level === 'impact') return this.playHoursPerSecond;
+    if (level === 'impact') {
+      const alert = this.alerts.find((a) => a.id === alertId)!;
+      const late = (this.nowMs - alert.impactMs) / HOUR_MS >= CLOCK_RULES.impactSlowHours;
+      return late ? Math.max(this.playHoursPerSecond, this.idleHoursPerSecond) : this.playHoursPerSecond;
+    }
     const base = this.pace === 'play' ? this.playHoursPerSecond : CLOCK_RULES.calmHoursPerSecond;
     if (level === 'calm') return base;
     const alert = this.alerts.find((a) => a.id === alertId)!;
     const leadHours = (alert.impactMs - alert.warnMs) / HOUR_MS;
     return Math.min(base, leadHours / CLOCK_RULES.alertMinSeconds);
+  }
+
+  /**
+   * Si el jugador no tiene nada que hacer (lo decide la sesión: tareas al día, sin incidentes ni decisiones), la
+   * jornada avanza rápido; apenas aparece algo por hacer vuelve al tiempo normal. Las alertas frenan igual.
+   */
+  setIdle(idle: boolean): void {
+    this.idle = idle;
+  }
+
+  /** La tripulación duerme hasta mañana (enfermería): el reloj corre muy rápido mientras haya calma. */
+  setSleep(sleep: boolean): void {
+    this.sleep = sleep;
   }
 
   /** El jugador detiene el avance (se abre la planificación) o lo retoma. */
@@ -167,13 +237,17 @@ export class MissionClock {
       const msPerSecond = this.hoursPerSecond * HOUR_MS;
       const target = this.nowMs + remaining * msPerSecond;
       const boundary = this.nextBoundary();
+      let used: number;
       if (target < boundary) {
+        used = remaining;
         this.nowMs = target;
         remaining = 0;
       } else {
-        remaining -= (boundary - this.nowMs) / msPerSecond;
+        used = (boundary - this.nowMs) / msPerSecond;
+        remaining -= used;
         this.nowMs = boundary;
       }
+      this.quietSeconds = Math.max(0, this.quietSeconds - used);
       this.collectTransitions(events);
     }
     if (this.nowMs >= this.endMs && !this.ended) {
@@ -229,6 +303,7 @@ export class MissionClock {
     }
     const current = this.currentAlert();
     if (current.level !== this.lastLevel.level || current.alertId !== this.lastLevel.alertId) {
+      if (current.level === 'calm' && this.lastLevel.level !== 'calm') this.quietSeconds = CLOCK_RULES.alertGapSeconds;
       this.lastLevel = current;
       events.push({ type: 'level', level: current.level, reasonKey: this.reasonFor(current), alertId: current.alertId, at: this.simDate });
     }

@@ -13,11 +13,14 @@ export type MinigameId =
   | 'meal'
   | 'shield'
   | 'plants'
+  | 'harvest'
   | 'moxie'
   | 'seals'
   | 'patch'
   | 'fuses'
-  | 'wires';
+  | 'wires'
+  | 'dust'
+  | 'night';
 
 export interface MinigameKeys {
   left: boolean;

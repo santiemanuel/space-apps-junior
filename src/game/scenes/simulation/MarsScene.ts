@@ -19,6 +19,11 @@ import { MarsWeatherFx } from './MarsWeatherFx';
 import { skyLight, type SkyLight } from './marsSky';
 import { SimulationMapScene, toPx, tr } from './SimulationMapScene';
 import { depthAt, MapDepth, type MapAssets, type MapView } from './TiledMapView';
+import { audio } from '../../audio/audio';
+import { HUD_ICONS } from '../../hudIcons';
+import { KeyMarker } from './KeyMarker';
+import { PLANT_ROCK } from '../../../core/mars/MarsSession';
+import type { ZoneMinigame } from '../../../core/habitat/HabitatSession';
 
 /** Paisaje de Gale que se ve por los ventanales de la base (`art/prompts/vista-marte.txt`). */
 const VISTA = 'mars-vista';
@@ -29,6 +34,9 @@ const CABLE = { outline: 0x1a2a12, wire: 0x5fbf3a, light: 0x9be36b, box: 0xf2d24
  * Estancia en el cráter Gale (game-design §4.4): la base, la esclusa y el exterior con los puntos de muestreo.
  * Curiosity, el vecino robot, reporta el clima real del día. Reglas en `MarsSession`.
  */
+/** Distancia (tiles) desde la que se oyen los motores de Curiosity. */
+const ROVER_REACH = 7;
+
 export class MarsScene extends SimulationMapScene<MarsSession> {
   constructor() {
     super(SceneKeys.Mars, 'mars');
@@ -50,6 +58,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   }
 
   private curiosityBubble!: Phaser.GameObjects.Text;
+  /** Marcador de la tecla E junto a los paneles solares (limpiarlos es una tarea optativa). */
+  private panelsMarker: KeyMarker | null = null;
   private bubbleDay = '';
   /** Franja del exterior donde está el jugador y las que ya visitó (al entrar a una nueva se cuenta qué es). */
   private strip: string | null = null;
@@ -64,6 +74,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   private departureShown = false;
   /** Zona del jugador en el cuadro anterior: al cruzar la puerta exterior de la esclusa la vista hace un fundido. */
   private lastZone: string | null = null;
+  /** Lo juntado de cada roca en el cuadro anterior (si sube, se está juntando). */
+  private sampleProgress = new Map<string, number>();
   /** Próxima ráfaga que sacude la cámara en el pico de la tormenta (ms de la escena). */
   private nextGust = 0;
   private readonly gustRng = new Rng(0x6057);
@@ -107,6 +119,7 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
       propsUrl: 'assets/mars/props.png',
       propsAtlasUrl: 'assets/mars/props.json',
       doorPanels: { left: 18, right: 22 },
+      sideDoors: true,
       lightTiles: [11],
       // Bordes en los techos de la base y en los de los cerros, las crestas de duna y el monte Sharp, con colores de
       // la paleta cálida.
@@ -144,6 +157,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   }
 
   create(): void {
+    this.leaveKey = this.input.keyboard?.addKey('F') ?? null;
+    this.leaveConfirmUntil = 0;
     this.strip = null;
     this.visited = new Set();
     this.weather = null;
@@ -151,13 +166,15 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.departureShown = false;
     super.create();
     this.stored = this.session.sampleStorage.stored;
+    const panels = toPx(MARS_CONTENT.panels.at);
+    this.panelsMarker = new KeyMarker(this, panels.x, panels.y, 'E', MapDepth.darkness + 2).setVisible(false);
     // Curiosity, el vecino robot (§4.4, §5.3): estacionado en el canal Gediz Vallis, donde estaba de verdad en mayo
     // de 2024 (src/content/galeTerrain.ts). El sprite (con polvo: está ahí desde 2012) es un objeto del mapa; acá van
     // su nombre y el globo con el dato real del día.
     const { x, y } = toPx(GALE_LANDMARKS.curiosity!);
     this.add.text(x, y + 26, 'Curiosity', { fontFamily: 'monospace', fontSize: '11px', color: '#fbd38d' }).setOrigin(0.5, 0).setDepth(MapDepth.darkness + 2).setResolution(2);
     this.curiosityBubble = this.add
-      .text(x, y - 84, '', { fontFamily: 'monospace', fontSize: '11px', color: '#1a202c', backgroundColor: '#fefcbf', padding: { x: 4, y: 2 }, wordWrap: { width: 220 } })
+      .text(x, y - 84, '', { fontFamily: 'monospace', fontSize: '12px', color: '#1a202c', backgroundColor: '#fefcbf', padding: { x: 6, y: 4 }, align: 'center', wordWrap: { width: 250 } })
       .setOrigin(0.5, 1)
       .setDepth(MapDepth.darkness + 2)
       .setResolution(2);
@@ -217,10 +234,18 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.weather ??= new MarsWeatherFx(this, this.interior, this.session.state.seed);
     const sky = this.marsSky;
     const outside = activeZone === EXTERIOR;
+    // Curiosity: sus motores se oyen al acercarse (a menos de ROVER_REACH tiles).
+    const rover = GALE_LANDMARKS.curiosity!;
+    const player = walkers.find((w) => w.active);
+    const near = player ? Math.hypot(player.x / TILE - rover.x, player.y / TILE - rover.y) : Infinity;
+    audio.loop('rover', near < ROVER_REACH ? 'rover' : null, 0.55 * (1 - near / ROVER_REACH));
+    // Tormenta de polvo: el viento se oye fuerte afuera y apagado desde adentro.
+    audio.loop('weather', this.marsSky.storm ? 'dustStorm' : null, outside ? 0.75 : 0.3);
     this.weather.update({ sky, outside, walkers }, time, dt);
     // Fundido corto al pasar por la puerta exterior de la esclusa, como al bajar el visor del casco.
     const crossed = (this.lastZone === 'airlock' && outside) || (this.lastZone === EXTERIOR && activeZone === 'airlock');
     if (crossed && this.lastZone !== null) {
+      audio.sfx(outside ? 'airlockOut' : 'airlockIn', 1, 0.8);
       const cam = this.cameras.main;
       cam.fadeOut(110, 10, 8, 16);
       cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => cam.fadeIn(260, 10, 8, 16));
@@ -251,10 +276,12 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.renderGrid();
     if (s.departing && !this.departureShown) {
       this.departureShown = true;
-      this.showToast(t('mars.departure.start'));
+      this.showToast(t('mars.departure.start'), { icon: 'target' });
     }
+    // Los paneles solares: la E con el rayo rebota cuando ya vale la pena limpiarlos (una salida).
+    this.panelsMarker?.setVisible(!s.departing && s.panels.dust > 0.02).set(s.panels.canClean ? 'pending' : 'done', { atlas: HUD_ICONS, frame: 'energy' }).update(this.time.now);
     const { stored } = s.sampleStorage;
-    if (stored > this.stored) this.showToast(t('mars.samples.stored', { count: stored - this.stored }));
+    if (stored > this.stored) this.showToast(t('mars.samples.stored', { count: stored - this.stored }), { icon: 'samples' });
     this.stored = stored;
     const { ambient } = skyLight(this.marsSky);
     for (const vista of this.vistas) vista.setTint(ambient);
@@ -267,10 +294,27 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     const taken = s.state.inventory.samples;
     if (taken.length > this.samplesTaken) {
       const rock = taken.at(-1)?.rock;
-      if (rock) this.showToast(t('mars.rock.collected', { name: tr(`mars.rock.${rock}.name`), fact: tr(`mars.rock.${rock}.fact`) }));
+      if (rock === PLANT_ROCK) this.showToast(t('mars.plant.collected'), { icon: 'greenhouse' });
+      // Con la foto chica de la roca: el dato se aprende mirándola.
+      else if (rock) this.showToast(t('mars.rock.collected', { name: tr(`mars.rock.${rock}.name`), fact: tr(`mars.rock.${rock}.fact`) }), { image: { key: this.mapView!.propsKey, frame: `sample-${rock}` } });
+      audio.sfx('scan');
+    }
+    // Con todas las rocas, F (dos veces) empieza el embarque sin esperar al último sol.
+    if (this.leaveKey && Phaser.Input.Keyboard.JustDown(this.leaveKey) && s.canLeaveEarly) {
+      if (this.time.now < this.leaveConfirmUntil && s.leaveEarly()) {
+        audio.sfx('departureScheduled');
+        this.showToast(t('mars.leave.started'), { icon: 'target' });
+      } else {
+        this.leaveConfirmUntil = this.time.now + 4000;
+        this.showToast(t('mars.leave.confirm'), { icon: 'target' });
+      }
     }
     this.samplesTaken = taken.length;
     const remaining = s.remainingSites();
+    // Mientras se junta una muestra suena el taladro (la pala en la planta).
+    const digging = remaining.find((r) => r.progress > (this.sampleProgress.get(r.site.id) ?? 0));
+    audio.loop('drill', digging ? (digging.site.rock === PLANT_ROCK ? 'shovel' : 'drill') : null, 0.6);
+    this.sampleProgress = new Map(remaining.map((r) => [r.site.id, r.progress]));
     for (const [id, image] of this.sampleSprites) image.setVisible(remaining.some((r) => r.site.id === id));
     for (const { site, progress } of remaining) {
       // Anillo a los pies de la roca; el arco azul es lo que lleva juntado el jugador.
@@ -280,6 +324,17 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     }
   }
 
+  protected minigameReward(m: ZoneMinigame): string | null {
+    if (m.id === 'dust') return t('hud.minigame.reward.cleanPanels');
+    if (m.id === 'night') return t('hud.minigame.reward.nightPrep');
+    if (m.id !== 'harvest') return null;
+    return t(this.session.plantSamplesLeft ? 'hud.minigame.reward.harvest' : 'hud.minigame.reward.harvestFood');
+  }
+
+  /** F: empezar la vuelta a casa cuando ya están todas las rocas (hay que apretarla dos veces). */
+  private leaveKey: Phaser.Input.Keyboard.Key | null = null;
+  private leaveConfirmUntil = 0;
+
   protected placePrompt(position: Point, zone: string | null): string | null {
     const s = this.session;
     if (zone === 'airlock' && !s.evaOpen) return t(s.daylight ? 'mars.task.doorStorm' : 'mars.task.doorNight');
@@ -288,8 +343,10 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     // Junto a un tubo roto sin reparación elegida: hay que dar la vuelta (o elegir repararlo).
     const task = s.taskAt(zone, position);
     if (!task && s.closedPassages().size > 0 && this.nearClosedDoor(position)) return t('mars.task.tubeClosed');
-    if (zone === 'energy' && (!task || (task.kind === 'task' && task.upToDate))) return t('mars.task.panel');
-    if (zone === 'battery') return t('mars.task.batteryRoom', { kwh: Math.round(s.state.meters.energy.batteryKwh) });
+    // En la sala de la batería: preparar la noche (a la tarde) o cuánta carga queda.
+    if (zone === 'battery' && !(task?.kind === 'task' && !task.upToDate)) return t(s.nightReady ? 'mars.task.nightReady' : 'mars.task.batteryRoom', { kwh: Math.round(s.state.meters.energy.batteryKwh) });
+    // Junto a los paneles solares: cuánto polvo tienen.
+    if (zone === EXTERIOR && task?.kind === 'task' && task.task.id === 'cleanPanels' && task.upToDate) return t('mars.task.panelsClean');
     if (zone !== EXTERIOR) return null;
     this.enterStrip(position);
     if (task) return null;
@@ -397,6 +454,6 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.strip = strip;
     if (!strip || this.visited.has(strip)) return;
     this.visited.add(strip);
-    this.showToast(`${tr(`mars.terrain.${strip}.name`)}: ${tr(`mars.terrain.${strip}.fact`)}`);
+    this.showToast(`${tr(`mars.terrain.${strip}.name`)}: ${tr(`mars.terrain.${strip}.fact`)}`, { icon: 'map' });
   }
 }

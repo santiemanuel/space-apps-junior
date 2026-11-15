@@ -31,6 +31,17 @@ export interface MarsContent extends HabitatContent {
     /** Hasta dónde llega la mano para reparar un tubo o un cable (tiles) [regla]. */
     repairReach: number;
   };
+  /**
+   * Polvo sobre los paneles solares [regla]: se junta de a poco (más rápido en una tormenta de polvo) y baja la
+   * generación hasta `maxLoss`. Limpiarlos (una salida hasta `at`, a `reach` tiles) los deja como nuevos; se puede
+   * desde que el polvo llega a `cleanFrom`.
+   */
+  panels: { at: Point; reach: number; dustPerSol: number; stormMultiplier: number; maxLoss: number; cleanFrom: number };
+  /**
+   * Preparar la base para la noche [regla]: se hace a la tarde (desde `fromHour`) en la sala de la batería. Esa noche
+   * los sistemas y la calefacción gastan menos, pero el invernadero queda a oscuras y no crece.
+   */
+  night: { fromHour: number; loadFactor: number; heatingFactor: number };
   /** Hora local de salida y puesta del Sol (se aproxima con la hora UTC del dato). La EVA es de día. */
   daylight: { sunriseHour: number; sunsetHour: number };
   samples: {

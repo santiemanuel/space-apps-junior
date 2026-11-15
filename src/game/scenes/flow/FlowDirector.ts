@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import Phaser from 'phaser';
 import { ACHIEVEMENTS, REPORT_RULES } from '../../../content/achievements';
 import { EventBus } from '../../../core/events/EventBus';
 import type { GameEvents } from '../../../core/events/GameEvents';
@@ -7,7 +7,7 @@ import { MissionFlow, type FlowStep } from '../../../core/flow/MissionFlow';
 import type { PhaseResult } from '../../../core/flow/types';
 import { recordMissionEnd } from '../../../core/progression/progression';
 import { buildReport, earnedAchievements, type MissionOutcome } from '../../../core/report/report';
-import { clearGame, loadProgression, saveGame, saveProgression, saveSettings } from '../../../core/save/save';
+import { clearGame, loadProgression, saveGame, saveProgression } from '../../../core/save/save';
 import type { SaveStore } from '../../../core/save/SaveStore';
 import type { GameState } from '../../../core/state/types';
 import { SceneKeys, type SceneKey } from '../../sceneKeys';
@@ -16,6 +16,20 @@ import type { PauseSceneData } from './PauseScene';
 import { sceneForStep } from './phaseScenes';
 import type { ReportData } from './ReportScene';
 import type { TitleSceneData } from './TitleScene';
+import { audio } from '../../audio/audio';
+import type { MusicId } from '../../audio/themes';
+
+/** Fundidos entre pantallas (ms) y su color: el fondo general del juego (#05070d). */
+const FADE = { out: 260, in: 380, color: [5, 7, 13] as [number, number, number] } as const;
+
+/** Música de cada paso del flujo (menú, despegues y aterrizajes, viaje, Marte y el final). */
+function musicFor(step: FlowStep): MusicId {
+  if (step.kind === 'report') return step.outcome === 'completed' ? 'victory' : 'failure';
+  if (step.kind === 'maneuver') return 'launch';
+  if (step.kind === 'voyage') return 'voyage';
+  if (step.kind === 'mars') return 'mars';
+  return 'menu';
+}
 
 interface Overlay {
   key: SceneKey;
@@ -35,13 +49,18 @@ export class FlowDirector {
   private overlay: Overlay | null = null;
   private pendingStep: FlowStep | null = null;
   private cards: RealEvent[] = [];
+  /** Cuándo se cerró la última superpuesta (ms de `performance.now`). */
+  private overlayClosedAt = 0;
+  /** Hay un fundido entre pantallas en curso. */
+  private switching = false;
 
   constructor(
     private readonly game: Phaser.Game,
     private readonly store: SaveStore,
   ) {
     window.addEventListener('keydown', (event) => {
-      if (event.code === 'Escape') this.openPause();
+      // La misma tecla que cierra la pausa (o una tarjeta) no la vuelve a abrir en ese momento.
+      if (event.code === 'Escape' && performance.now() - this.overlayClosedAt > 300) this.openPause();
     });
   }
 
@@ -51,9 +70,47 @@ export class FlowDirector {
 
   showTitle(): void {
     this.endMission();
-    this.stopAll();
-    const data: TitleSceneData = { store: this.store, onNewGame: (state) => this.play(state), onContinue: (state) => this.play(state) };
-    this.scenes.start(SceneKeys.Title, data);
+    this.transition(() => {
+      this.stopAll();
+      audio.music('menu');
+      const data: TitleSceneData = { store: this.store, onNewGame: (state) => this.play(state), onContinue: (state) => this.play(state) };
+      this.startScene(SceneKeys.Title, data);
+    });
+  }
+
+  /**
+   * Fundido a negro de lo que se ve y, al terminar, el cambio de pantalla; la escena nueva aparece con otro fundido
+   * (`startScene`). Mientras dura no se abre la pausa.
+   */
+  private transition(change: () => void): void {
+    const visible = this.scenes.getScenes(true).filter((scene) => scene.cameras?.main);
+    if (!visible.length || this.switching) {
+      change();
+      return;
+    }
+    this.switching = true;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      // El fundido avisa a mitad del cuadro de la escena: detenerla ahí congela el juego. El cambio va al terminar.
+      queueMicrotask(() => {
+        this.switching = false;
+        change();
+      });
+    };
+    // Todas las cámaras de la escena (la de la maniobra tiene una aparte para la ilustración).
+    for (const scene of visible) for (const camera of scene.cameras.cameras) camera.fadeOut(FADE.out, ...FADE.color);
+    visible[0]!.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, finish);
+    // Por si la escena se pausa o se apaga en medio del fundido.
+    window.setTimeout(finish, FADE.out + 200);
+  }
+
+  /** Arranca una escena con fundido de entrada. */
+  private startScene(key: SceneKey, data: object): void {
+    this.scenes.start(key, data);
+    const scene = this.scenes.getScene(key);
+    scene?.events.once(Phaser.Scenes.Events.CREATE, () => scene.cameras.cameras.forEach((camera) => camera.fadeIn(FADE.in, ...FADE.color)));
   }
 
   /** Empieza (o retoma) una partida: la guarda enseguida para que "Continuar" ya esté disponible. */
@@ -90,18 +147,25 @@ export class FlowDirector {
   private startStep(step: FlowStep): void {
     const { flow, bus } = this;
     if (!flow || !bus) return;
-    const state = flow.state;
-    this.stopAll();
-    if (step.kind === 'report') {
-      this.finishMission(state, step.outcome);
-      const report: ReportData = { state, bus, outcome: step.outcome, onExit: () => this.showTitle() };
-      this.scenes.start(SceneKeys.Report, report);
-      return;
-    }
-    const { key, data } = sceneForStep(step, state, bus);
-    this.scenes.start(key, data);
-    // `phase:started` cuando la escena ya está creada, para que pueda escucharlo.
-    this.scenes.getScene(key)?.events.once('create', () => bus.emit('phase:started', { phase: state.phase }));
+    audio.sfx('whoosh');
+    this.transition(() => {
+      if (this.flow !== flow) return;
+      const state = flow.state;
+      this.stopAll();
+      audio.music(musicFor(step));
+      audio.ambience(null);
+      if (step.kind === 'report') {
+        audio.sfx(step.outcome === 'completed' ? 'missionVictory' : 'missionSuspended');
+        this.finishMission(state, step.outcome);
+        const report: ReportData = { state, bus, outcome: step.outcome, onExit: () => this.showTitle() };
+        this.startScene(SceneKeys.Report, report);
+        return;
+      }
+      const { key, data } = sceneForStep(step, state, bus);
+      this.startScene(key, data);
+      // `phase:started` cuando la escena ya está creada, para que pueda escucharlo.
+      this.scenes.getScene(key)?.events.once('create', () => bus.emit('phase:started', { phase: state.phase }));
+    });
   }
 
   /** Fin de la misión: suma a la progresión, guarda los logros y borra la partida guardada. */
@@ -133,18 +197,20 @@ export class FlowDirector {
 
   private openPause(): void {
     const { flow, bus } = this;
-    if (!flow || !bus || this.overlay || flow.step.kind === 'report') return;
+    if (!flow || !bus || this.overlay || this.switching || flow.step.kind === 'report') return;
     const data: PauseSceneData = {
       state: flow.state,
       bus,
       onResume: () => this.closeOverlay(),
       onExit: () => this.showTitle(),
-      onLocaleChange: (locale) => saveSettings(this.store, { locale }),
+      store: this.store,
+      onLocaleChange: () => undefined,
     };
     this.openOverlay(SceneKeys.Pause, data);
   }
 
   private openOverlay(key: SceneKey, data: object): void {
+    audio.sfx(key === SceneKeys.Pause ? 'open' : 'card');
     const paused = this.runningScenes().filter((k) => k !== key);
     paused.forEach((k) => this.scenes.pause(k));
     this.overlay = { key, paused };
@@ -157,6 +223,7 @@ export class FlowDirector {
     const overlay = this.overlay;
     if (!overlay) return;
     this.overlay = null;
+    this.overlayClosedAt = performance.now();
     overlay.paused.forEach((k) => this.scenes.resume(k));
     if (this.cards.length) return this.openNextCard();
     const step = this.pendingStep;
