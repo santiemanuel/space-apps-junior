@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { EXTERIOR, isWalkable, zoneAt, type Point, type ShipLayout } from '../../../core/habitat/layout';
+import { baseFootprint, EXTERIOR, isPassage, isWalkable, zoneAt, type Point, type ShipLayout } from '../../../core/habitat/layout';
 
 /** Colores del minimapa: piso de la nave o la base, paredes, suelo de afuera y lo que no se pisa afuera. */
 const COLOR = { floor: 0x6b6390, corridor: 0x544c78, wall: 0x1e162d, ground: 0xa0603a, rock: 0x4e2c1e } as const;
@@ -47,28 +47,16 @@ export class Minimap {
     this.origin = { x: Math.round(area.x + (area.width - this.width) / 2), y: area.y };
     const stat = scene.add.graphics().setDepth(52);
     this.dynamic = scene.add.graphics().setDepth(53);
-    const base = this.baseBounds();
+    const base = baseFootprint(layout);
     const { x, y } = this.origin;
     for (let row = 0; row < layout.rows; row++)
       for (let col = 0; col < layout.cols; col++) {
         const zone = zoneAt(layout, { x: col + 0.5, y: row + 0.5 });
-        const inBase = col >= base.left && col <= base.right && row >= base.top && row <= base.bottom;
         const color = isWalkable(layout, col, row)
-          ? zone === EXTERIOR ? COLOR.ground : zone === 'corridor' ? COLOR.corridor : COLOR.floor
-          : inBase ? COLOR.wall : COLOR.rock;
+          ? zone === EXTERIOR ? COLOR.ground : isPassage(layout, zone) ? COLOR.corridor : COLOR.floor
+          : base[row * layout.cols + col] ? COLOR.wall : COLOR.rock;
         stat.fillStyle(color).fillRect(x + col * this.scale, y + row * this.scale, this.scale, this.scale);
       }
-  }
-
-  /** Rectángulo de la base (tiles, con sus paredes): una alrededor de los cuartos y, arriba, el techo y el frente. */
-  private baseBounds() {
-    const rects = [...this.layout.zones.map((z) => z.rect), this.layout.corridor];
-    return {
-      left: Math.min(...rects.map((r) => r.col)) - 1,
-      right: Math.max(...rects.map((r) => r.col + r.cols)),
-      top: Math.min(...rects.map((r) => r.row)) - 2,
-      bottom: Math.max(...rects.map((r) => r.row + r.rows)),
-    };
   }
 
   /** Posición en pantalla de un punto del plano (tiles). */

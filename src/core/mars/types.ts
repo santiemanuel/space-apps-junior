@@ -1,4 +1,4 @@
-import type { TileRect } from '../habitat/layout';
+import type { Point, TileRect } from '../habitat/layout';
 import type { RealEvent } from '../events/RealEvent';
 import type { HabitatContent } from '../habitat/types';
 
@@ -17,6 +17,20 @@ export interface MarsContent extends HabitatContent {
    * reloj a su fecha se publican como tarjeta "Esto pasó de verdad" y quedan en el historial.
    */
   realMoments: readonly RealEvent[];
+  /**
+   * Red eléctrica de la base (docs/mision_a_marte_referencias_topdown/plano-base-marte.png): tramos de cable entre los
+   * paneles (`solar`), la base (`base`), la batería (`battery`), la nave y las cajas de empalme. Un tramo cortado no
+   * lleva energía; si no queda camino de los paneles a la base o a la batería, no se carga nada, y si la batería no
+   * llega a la base, de noche falta energía [regla].
+   */
+  grid: {
+    /** `at`: donde se empalma el tramo cortado (tiles, afuera). */
+    cables: readonly { id: string; from: string; to: string; at: Point }[];
+    /** Lo que se pierde por cada tramo cortado mientras la energía da la vuelta por otro (0..1) [regla]. */
+    lossPerCut: number;
+    /** Hasta dónde llega la mano para reparar un tubo o un cable (tiles) [regla]. */
+    repairReach: number;
+  };
   /** Hora local de salida y puesta del Sol (se aproxima con la hora UTC del dato). La EVA es de día. */
   daylight: { sunriseHour: number; sunsetHour: number };
   samples: {

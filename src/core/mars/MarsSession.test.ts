@@ -9,6 +9,7 @@ import type { GameEvents } from '../events/GameEvents';
 import type { HabitatInput } from '../habitat/HabitatSession';
 import { EXTERIOR, isWalkable, pathLength, pointAlong, route, routeToPoint, zoneAt, zoneById, zoneSpot, type Point } from '../habitat/layout';
 import { marsRadiationTimeline } from '../incidents/timeline';
+import type { IncidentState } from '../incidents/types';
 import type { GameState } from '../state/types';
 import { MarsSession, sampleSites } from './MarsSession';
 import type { MarsContent } from './types';
@@ -110,7 +111,7 @@ describe('Mars: puntos de muestreo', () => {
 
   it('un aterrizaje lejos de la base deja las muestras más lejos (§4.3)', () => {
     const closest = (km: number) => Math.min(...sampleSites(CONTENT, 7, km).map((s) => s.distance));
-    expect(closest(8)).toBeGreaterThan(closest(0));
+    expect(closest(20)).toBeGreaterThan(closest(0));
   });
 
   it('lo que pasó de verdad en Gale sale como tarjeta al llegar su fecha, una sola vez, y queda en el historial', () => {
@@ -215,11 +216,26 @@ describe('Mars: tormenta de radiación', () => {
     expect(mars({ meters: shipBattery, simDate: at(10) }).session.state.meters.energy).toEqual(shipBattery.energy);
   });
 
-  it('al terminar la estancia emite phase:completed con las muestras', () => {
+  it('al terminar el tiempo empieza el embarque: se lleva la carga del depósito a la nave, suben todos y termina', () => {
     const { session, bus } = mars();
     const done: string[] = [];
     bus.on('phase:completed', (r) => done.push(`${r.phase}:${r.outcome}:${r.state.inventory.samples.length}`));
-    runUntil(session, () => false);
+    runUntil(session, () => session.departing !== null);
+    expect(session.departing).toMatchObject({ cargo: 'stored', aboard: 0, total: 4 });
+    expect(session.evaOpen).toBe(true);
+    // Sin la carga no se puede guardar nada en la nave, y el tiempo ya no corre.
+    const end = session.simDate;
+    session.update(0.25, { activeZone: 'ship', interacting: false });
+    expect(session.actionAt('ship')).toBeNull();
+    expect(session.doAction('storage')).toBe(false);
+    session.update(0.25, { activeZone: 'storage', interacting: false });
+    expect(session.doAction('storage')).toBe(true);
+    expect(session.departing).toMatchObject({ cargo: 'carried', carrier: 'vega' });
+    session.update(0.25, { activeZone: 'ship', interacting: false });
+    expect(session.doAction('ship')).toBe(true);
+    // Los demás caminan solos hasta la nave.
+    runUntil(session, () => false, { activeZone: 'ship', interacting: false });
+    expect(session.simDate).toBe(end);
     expect(done).toEqual(['mars:completed:0']);
   });
 });
@@ -239,8 +255,117 @@ describe('minijuegos de la base (E)', () => {
       radio: 'radio',
       moxie: 'moxie',
       airlock: 'seals',
+      energy: 'fuses',
+      // La cocina abre el menú junto a la mesada (sin posición, se está junto a ella).
+      pantry: 'meal',
+      workshop: null,
+      storage: null,
+      battery: null,
+      ship: null,
     });
     expect(session.finishTask('airlock')).toBe(true);
     expect(session.state.systems.airlock).toBe('green');
+  });
+});
+
+/** Incidente ya en impacto, con o sin respuesta elegida. */
+const broken = (definitionId: string, id: string, responseId?: string): IncidentState => ({
+  id,
+  definitionId,
+  phase: 'mars',
+  status: 'active',
+  impactAt: START,
+  ...(responseId ? { responseId, progress: 0 } : {}),
+});
+
+describe('Mars: base con tubos, cables y fusibles', () => {
+  it('un tubo roto se cierra: los automáticos dan la vuelta por otro y se repara desde su puerta', () => {
+    const { session } = mars({ length: 'long', activeIncidents: [broken('tubeBreach', 'tube-1', 'patchTube')] });
+    const tube = session.tubeOf('tube-1');
+    expect([...session.closedPassages()]).toEqual([tube]);
+    const passage = GALE_LAYOUT.passages.find((p) => p.id === tube)!;
+    const door = passage.doorTiles![0]!;
+    // Parado junto a la puerta (de este lado), E abre el parche; adentro del tubo no se llega.
+    const outside = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+      .map(([dx, dy]) => ({ x: door.col + 0.5 + dx!, y: door.row + 0.5 + dy! }))
+      .find((p) => { const z = zoneAt(GALE_LAYOUT, p); return z !== null && z !== tube; })!;
+    const zone = zoneAt(GALE_LAYOUT, outside);
+    expect(session.minigameAt(zone, outside)?.id).toBe('patch');
+    expect(session.minigameAt(zone, outside)?.zone).toBe(tube);
+    // Ningún recorrido de la base pasa por el tubo roto.
+    const closed = session.closedPassages();
+    for (const z of GALE_LAYOUT.zones) {
+      const path = route(GALE_LAYOUT, zoneSpot(zoneById(GALE_LAYOUT, 'command')), z.id, false, closed);
+      for (let d = 0; d <= pathLength(path); d += 0.2) expect(zoneAt(GALE_LAYOUT, pointAlong(path, d))).not.toBe(tube);
+    }
+    expect(session.finishTask(tube)).toBe(true);
+    expect(session.closedPassages().size).toBe(0);
+  });
+
+  it('el fusible quemado corta los paneles: la base pasa a la batería, que baja', () => {
+    const { session } = mars({ length: 'long', activeIncidents: [broken('fuseBlown', 'fuse-1')] });
+    expect(session.grid).toMatchObject({ fuseBlown: true, solarLinked: false, solarFactor: 0 });
+    session.respond('fuse-1', 'replaceFuse');
+    expect(session.minigameAt('energy')?.id).toBe('fuses');
+    const before = session.state.meters.energy.batteryKwh;
+    runUntil(session, () => Date.parse(session.simDate) >= Date.parse(at(12)));
+    expect(session.state.meters.energy.batteryKwh).toBeLessThan(before);
+    expect(session.finishTask('energy')).toBe(true);
+    expect(session.grid.solarLinked).toBe(true);
+  });
+
+  it('con un cable cortado la energía da la vuelta y se pierde una parte; sin camino, la batería no llega a la base', () => {
+    const content: MarsContent = {
+      ...CONTENT,
+      grid: { ...CONTENT.grid, cables: CONTENT.grid.cables.filter((c) => ['cable-solar-base', 'cable-battery-base'].includes(c.id)) },
+    };
+    const { session } = mars({ length: 'long', activeIncidents: [broken('cableCut', 'cut-1', 'spliceCable')] }, { content });
+    const cable = session.cableOf('cut-1');
+    expect(session.grid.cutCables).toEqual([cable.id]);
+    if (cable.id === 'cable-battery-base') expect(session.grid).toMatchObject({ batteryLinked: false, solarLinked: true, solarFactor: 0.75 });
+    else expect(session.grid).toMatchObject({ batteryLinked: true, solarLinked: true, solarFactor: 0.75 });
+    // Se empalma afuera, parado junto al corte.
+    expect(zoneAt(GALE_LAYOUT, cable.at)).toBe(EXTERIOR);
+    expect(session.minigameAt(EXTERIOR, cable.at)?.id).toBe('wires');
+    expect(session.finishTask(`cable:${cable.id}`)).toBe(true);
+    expect(session.grid.cutCables).toEqual([]);
+  });
+
+  it('la batería sin conexión no se usa: de noche falta energía y MOXIE se apaga, pero la batería queda como estaba', () => {
+    const content: MarsContent = { ...CONTENT, grid: { ...CONTENT.grid, cables: CONTENT.grid.cables.filter((c) => c.id === 'cable-solar-base') } };
+    const { session } = mars({}, { content });
+    expect(session.grid.batteryLinked).toBe(false);
+    const battery = session.state.meters.energy.batteryKwh;
+    runUntil(session, () => Date.parse(session.simDate) >= Date.parse(at(3)));
+    expect(session.snapshot().power.blackout).toBe(true);
+    expect(session.state.meters.energy.batteryKwh).toBe(battery);
+  });
+
+  it('cada cable se empalma afuera, en terreno que se pisa', () => {
+    for (const c of CONTENT.grid.cables) expect(zoneAt(GALE_LAYOUT, c.at), c.id).toBe(EXTERIOR);
+  });
+
+  it('el tablero de energía sólo se toca desde su sala', () => {
+    const { session } = mars({ length: 'long' });
+    session.setLoadsOff(['radio']);
+    expect(session.isLoadOn('radio')).toBe(true);
+    expect(session.snapshot().power.panelBlocked).toBe(true);
+    session.update(0.1, { activeZone: 'energy', interacting: false });
+    session.setLoadsOff(['radio']);
+    expect(session.isLoadOn('radio')).toBe(false);
+  });
+
+  it('las muestras que lleva alguien se guardan al entrar al depósito, y se conservan al guardar la partida', () => {
+    const { session } = mars({ length: 'long' });
+    runUntil(session, () => session.daylight);
+    const site = session.sites[0]!;
+    const near = { x: site.x, y: site.y };
+    runUntil(session, () => session.state.inventory.samples.length > 0, { activeZone: EXTERIOR, activePosition: near, interacting: true });
+    expect(session.sampleStorage).toEqual({ stored: 0, carried: 1 });
+    expect(session.savedState.habitat?.mars?.carried).toEqual({ [site.id]: 'vega' });
+    session.update(0.1, { activeZone: 'storage', interacting: false });
+    expect(session.sampleStorage).toEqual({ stored: 1, carried: 0 });
+    const resumed = mars(session.savedState).session;
+    expect(resumed.sampleStorage).toEqual({ stored: 1, carried: 0 });
   });
 });

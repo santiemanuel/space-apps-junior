@@ -20,7 +20,7 @@ import { Minimap, MINIMAP_FRAME, type MinimapFrame } from './Minimap';
 import { PanelColumn, type PanelRow } from './PanelColumn';
 import { MinigameView } from './minigames/MinigameView';
 import { formatDate, healthLights, LIGHT, lightFor, NAMES, StatusView, supplies } from './StatusView';
-import { toggleOverlay, type SimulationSceneData } from './simulationData';
+import { gridWarningKey, locationKey, toggleOverlay, type SimulationSceneData } from './simulationData';
 
 /** La vista del mapa ocupa 21 tiles; el resto de la pantalla es el tablero (como en las referencias, angosto). */
 export const VIEW_WIDTH = 21 * TILE;
@@ -410,6 +410,15 @@ export class HudScene extends Phaser.Scene {
         color: evaOpen ? LIGHT.green : LIGHT.yellow,
         size: 11,
       });
+      // La red eléctrica y los tubos: sólo si algo anda mal.
+      const grid = gridWarningKey(s);
+      if (grid) rows.push({ icon: this.icon('energy'), text: tr(grid), color: s.power.blackout || s.mars.grid.fuseBlown ? LIGHT.red : LIGHT.yellow, size: 11 });
+      if (s.mars.grid.brokenTubes.length) rows.push({ icon: this.icon('warning'), text: t('mars.panel.tubes', { count: s.mars.grid.brokenTubes.length }), color: LIGHT.yellow, size: 11 });
+      if (s.departure) {
+        const d = s.departure;
+        const key = d.cargo === 'stored' ? 'mars.task.goStorage' : d.cargo === 'carried' ? 'mars.task.goShip' : 'mars.task.boardWait';
+        rows.push({ icon: this.icon('target'), text: t(key as 'mars.task.boardWait', { aboard: d.aboard, total: d.total }), color: '#fbd38d', size: 11 });
+      }
     }
     return rows;
   }
@@ -553,7 +562,7 @@ export class HudScene extends Phaser.Scene {
       b.face.setPosition(BADGE.x + 10 - FACE.x * FACE.scale, BADGE.y + 10 - FACE.y * FACE.scale);
     }
     b.name.setText(NAMES[m.id]);
-    const where = m.location === 'corridor' || m.location === 'exterior' ? `hud.zone.${m.location}` : `${this.data_.namespace}.zone.${m.location}`;
+    const where = locationKey(this.data_.namespace, m.location);
     b.place.setText(m.resting ? t('hud.panel.resting') : tr(where)).setX(b.name.x + b.name.width + 8);
     healthLights(m).forEach((light, i) => {
       const icon = b.icons[i]!;

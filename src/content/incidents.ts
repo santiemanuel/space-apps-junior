@@ -17,7 +17,8 @@ const CRUISE = ['cruiseOut', 'cruiseBack'] as const;
 const ALL = ['cruiseOut', 'mars', 'cruiseBack'] as const;
 
 /**
- * Los 10 incidentes del diseño (§4.2, §4.4) en el formato único de §3.4. Textos en `src/i18n/*\/incidents.json`
+ * Los 10 incidentes del diseño (§4.2, §4.4), más las averías de la base nueva de Gale (tubos, cables y fusibles,
+ * docs/mision_a_marte_referencias_topdown/plano-base-marte.png), en el formato único de §3.4. Textos en `src/i18n/*\/incidents.json`
  * bajo `textKey` (`.title`, `.alert`, `.impact`, `.explanation`) y `textKey.response.<id>.title/.cost`.
  */
 export const INCIDENTS: readonly IncidentDefinition[] = [
@@ -173,5 +174,55 @@ export const INCIDENTS: readonly IncidentDefinition[] = [
     responses: [{ id: 'decideAlone', risk: 'yellow', cost: {}, resolves: false }],
     source: { kind: 'dataset', ref: 'Moratorias de comandos de la NASA (datasets/curated/mars-conjunctions.json)' },
     textKey: 'incidents.solarConjunction',
+  },
+  {
+    // Un tubo de plástico aislado entre dos módulos se raja (frío, polvo o un golpe): sus puertas se sellan solas y
+    // hay que dar la vuelta por otro tubo hasta repararlo (src/core/mars/MarsSession.ts, `brokenTubes`).
+    id: 'tubeBreach',
+    phases: ['mars'],
+    unlockLevel: 2,
+    triggers: [{ kind: 'random', chancePerDay: 0.03 }],
+    warningHours: 0,
+    end: 'response',
+    effect: {},
+    responses: [
+      { id: 'patchTube', risk: 'green', cost: { spares: 1 }, work: { task: 'leak', hours: 2 }, resolves: true },
+      { id: 'tapeTube', risk: 'yellow', cost: { fatigue: 0.1 }, work: { task: 'leak', hours: 5 }, resolves: true },
+    ],
+    source: { kind: 'rule', ref: 'Falla aleatoria con semilla en los tubos de la base' },
+    textKey: 'incidents.tubeBreach',
+  },
+  {
+    // Un tramo de cable (verde en el plano) se corta: la energía busca otro camino por la red y se pierde una parte;
+    // si no queda camino, los paneles no cargan o la batería no llega a la base. Se empalma afuera, de día.
+    id: 'cableCut',
+    phases: ['mars'],
+    unlockLevel: 3,
+    triggers: [{ kind: 'random', chancePerDay: 0.025 }],
+    warningHours: 0,
+    end: 'response',
+    effect: {},
+    responses: [
+      { id: 'spliceCable', risk: 'green', cost: { spares: 1 }, work: { task: 'energy', hours: 2 }, resolves: true },
+      { id: 'bypassCable', risk: 'yellow', cost: { fatigue: 0.1 }, work: { task: 'energy', hours: 5 }, resolves: true },
+    ],
+    source: { kind: 'rule', ref: 'Falla aleatoria con semilla en la red de cables' },
+    textKey: 'incidents.cableCut',
+  },
+  {
+    // Se quema el fusible de la entrada de los paneles en la sala de energía: la base pasa a la batería, que dura poco.
+    id: 'fuseBlown',
+    phases: ['mars'],
+    unlockLevel: 2,
+    triggers: [{ kind: 'random', chancePerDay: 0.03 }],
+    warningHours: 0,
+    end: 'response',
+    effect: {},
+    responses: [
+      { id: 'replaceFuse', risk: 'green', cost: { spares: 1 }, work: { task: 'energy', hours: 1 }, resolves: true },
+      { id: 'rewireFuse', risk: 'yellow', cost: { fatigue: 0.05 }, work: { task: 'energy', hours: 3 }, resolves: true },
+    ],
+    source: { kind: 'rule', ref: 'Falla aleatoria con semilla en los tableros de energía' },
+    textKey: 'incidents.fuseBlown',
   },
 ];

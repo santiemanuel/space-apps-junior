@@ -1,7 +1,7 @@
-import { GALE_LANDMARKS, GALE_MAP, GALE_TERRAIN, MARS_CONTENT } from '../../../content/gale';
+import { GALE_CABLES, GALE_LANDMARKS, GALE_MAP, GALE_TERRAIN, MARS_CONTENT } from '../../../content/gale';
 import { INCIDENTS } from '../../../content/incidents';
 import { earthMarsDelaySeconds } from '../../../core/environment/orbits';
-import { EXTERIOR, exteriorDoorPoint, zoneAt, type Point } from '../../../core/habitat/layout';
+import { baseFootprint, doorPoint, EXTERIOR, exteriorDoorPoint, zoneAt, zoneById, type Point } from '../../../core/habitat/layout';
 import type { SystemId } from '../../../core/systems/types';
 import { MarsSession } from '../../../core/mars/MarsSession';
 import { Rng } from '../../../core/rng/Rng';
@@ -22,6 +22,8 @@ import { depthAt, MapDepth, type MapAssets, type MapView } from './TiledMapView'
 
 /** Paisaje de Gale que se ve por los ventanales de la base (`art/prompts/vista-marte.txt`). */
 const VISTA = 'mars-vista';
+/** Colores de la red eléctrica: el verde del plano, el amarillo de las cajas de empalme y el rojo de un corte. */
+const CABLE = { outline: 0x1a2a12, wire: 0x5fbf3a, light: 0x9be36b, box: 0xf2d24b, cut: 0xfc8181 } as const;
 
 /**
  * Estancia en el cráter Gale (game-design §4.4): la base, la esclusa y el exterior con los puntos de muestreo.
@@ -55,7 +57,11 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   private sampleSprites = new Map<string, Phaser.GameObjects.Image>();
   private samplesTaken = 0;
   private weather: MarsWeatherFx | null = null;
-  private interior: PxRect | null = null;
+  private interior: PxRect[] | null = null;
+  /** Muestras guardadas en el depósito en el cuadro anterior (para avisar al dejar más). */
+  private stored = 0;
+  /** Ya se avisó que empezó el embarque. */
+  private departureShown = false;
   /** Zona del jugador en el cuadro anterior: al cruzar la puerta exterior de la esclusa la vista hace un fundido. */
   private lastZone: string | null = null;
   /** Próxima ráfaga que sacude la cámara en el pico de la tormenta (ms de la escena). */
@@ -74,6 +80,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
    * invernadero), recortado al vidrio y corrido según dónde está la ventana para que no se vean todas iguales.
    */
   protected mapCreated(view: MapView): void {
+    this.drawGrid();
+    this.drawShip();
     const source = this.textures.get(VISTA).getSourceImage();
     this.vistas = view.decor.flatMap((w) => {
       if (!w.glass) return [];
@@ -140,7 +148,9 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.visited = new Set();
     this.weather = null;
     this.lastZone = null;
+    this.departureShown = false;
     super.create();
+    this.stored = this.session.sampleStorage.stored;
     // Curiosity, el vecino robot (§4.4, §5.3): estacionado en el canal Gediz Vallis, donde estaba de verdad en mayo
     // de 2024 (src/content/galeTerrain.ts). El sprite (con polvo: está ahí desde 2012) es un objeto del mapa; acá van
     // su nombre y el globo con el dato real del día.
@@ -172,16 +182,20 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   }
 
   /**
-   * La base con sus paredes (px): una alrededor de los cuartos y, arriba, el techo y el frente de la pared. En un
-   * corte de energía se oscurece sólo esto; afuera sigue la luz del cielo.
+   * La base con sus paredes (px), en tramos de una fila que no se superponen: los módulos, los tubos y los módulos
+   * sueltos de afuera. En un corte de energía se oscurece sólo esto; afuera sigue la luz del cielo.
    */
   protected fxOutdoor(view: MapView): Pick<HabitatFxOptions, 'interior' | 'beacons'> {
-    const rects = [...this.layout.zones.map((z) => z.rect), this.layout.corridor];
-    const left = Math.min(...rects.map((r) => r.col)) - 1;
-    const right = Math.max(...rects.map((r) => r.col + r.cols));
-    const top = Math.min(...rects.map((r) => r.row)) - 2;
-    const bottom = Math.max(...rects.map((r) => r.row + r.rows));
-    this.interior = { x: left * TILE, y: top * TILE, w: (right - left + 1) * TILE, h: (bottom - top + 1) * TILE };
+    const base = baseFootprint(this.layout);
+    const { cols, rows } = this.layout;
+    this.interior = [];
+    for (let row = 0; row < rows; row++)
+      for (let col = 0; col < cols; col++) {
+        if (!base[row * cols + col] || (col > 0 && base[row * cols + col - 1])) continue;
+        let end = col;
+        while (end + 1 < cols && base[row * cols + end + 1]) end++;
+        this.interior.push({ x: col * TILE, y: row * TILE, w: (end - col + 1) * TILE, h: TILE });
+      }
     return {
       interior: this.interior,
       beacons: view.props.filter((p) => p.key === 'beacon').map((p) => ({ x: p.x, y: p.bottom - p.image.height + 6 })),
@@ -234,6 +248,14 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
 
   protected renderPlace(): void {
     const s = this.session;
+    this.renderGrid();
+    if (s.departing && !this.departureShown) {
+      this.departureShown = true;
+      this.showToast(t('mars.departure.start'));
+    }
+    const { stored } = s.sampleStorage;
+    if (stored > this.stored) this.showToast(t('mars.samples.stored', { count: stored - this.stored }));
+    this.stored = stored;
     const { ambient } = skyLight(this.marsSky);
     for (const vista of this.vistas) vista.setTint(ambient);
     if (this.bubbleDay !== s.simDate.slice(0, 10)) {
@@ -261,11 +283,111 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   protected placePrompt(position: Point, zone: string | null): string | null {
     const s = this.session;
     if (zone === 'airlock' && !s.evaOpen) return t(s.daylight ? 'mars.task.doorStorm' : 'mars.task.doorNight');
+    const departing = s.departing;
+    if (departing) return this.departurePrompt(zone, departing);
+    // Junto a un tubo roto sin reparación elegida: hay que dar la vuelta (o elegir repararlo).
+    const task = s.taskAt(zone, position);
+    if (!task && s.closedPassages().size > 0 && this.nearClosedDoor(position)) return t('mars.task.tubeClosed');
+    if (zone === 'energy' && (!task || (task.kind === 'task' && task.upToDate))) return t('mars.task.panel');
+    if (zone === 'battery') return t('mars.task.batteryRoom', { kwh: Math.round(s.state.meters.energy.batteryKwh) });
     if (zone !== EXTERIOR) return null;
     this.enterStrip(position);
+    if (task) return null;
     const site = s.siteAt(position);
     if (!site) return '';
     return s.manual ? t('mars.task.sample', { kg: site.massKg, value: site.value }) : t('hud.task.fastForward');
+  }
+
+  /** Qué hacer en el embarque: buscar la carga en el depósito, llevarla a la nave o esperar a los demás. */
+  private departurePrompt(zone: string | null, d: NonNullable<MarsSession['departing']>): string {
+    const action = this.session.actionAt(zone);
+    if (action) return t(action === 'loadCargo' ? 'mars.task.loadCargo' : 'mars.task.stowCargo');
+    if (d.cargo === 'stored') return t(zone === 'ship' ? 'mars.task.cargoFirst' : 'mars.task.goStorage');
+    if (d.cargo === 'carried') return t('mars.task.goShip');
+    return t('mars.task.boardWait', { aboard: d.aboard, total: d.total });
+  }
+
+  /** El jugador está junto a la puerta de un tubo roto. */
+  private nearClosedDoor(p: Point): boolean {
+    const closed = this.session.closedPassages();
+    return this.layout.passages.some(
+      (tube) => closed.has(tube.id) && (tube.doorTiles ?? []).some((d) => Math.hypot(d.col + 0.5 - p.x, d.row + 0.5 - p.y) <= MARS_CONTENT.grid.repairReach),
+    );
+  }
+
+  /**
+   * Red eléctrica en el suelo (verde, como en el plano): cada cable con su contorno oscuro y una línea de luz, y las
+   * cajas de empalme en amarillo con un rayo. Va debajo de las paredes: los cables entran a los módulos.
+   */
+  private drawGrid(): void {
+    const g = this.add.graphics().setDepth(MapDepth.floorDecal);
+    const even = (v: number) => Math.round(v / 2) * 2;
+    for (const cable of GALE_CABLES) {
+      const pts = cable.points.map((p) => ({ x: even(p.x * TILE), y: even(p.y * TILE) }));
+      for (const [width, color] of [[10, CABLE.outline], [6, CABLE.wire], [2, CABLE.light]] as const) {
+        g.lineStyle(width, color, 1).beginPath().moveTo(pts[0]!.x, pts[0]!.y);
+        for (const p of pts.slice(1)) g.lineTo(p.x, p.y);
+        g.strokePath();
+      }
+    }
+    for (const id of ['j1', 'j2']) {
+      const { x, y } = toPx(GALE_LANDMARKS[id]!);
+      const [bx, by] = [even(x - 14), even(y - 14)];
+      g.fillStyle(CABLE.outline).fillRect(bx - 2, by - 2, 32, 32).fillStyle(CABLE.box).fillRect(bx, by, 28, 28).fillStyle(0xfff3a0).fillRect(bx, by, 28, 4);
+      // Rayo de 2 px: zigzag de arriba a la derecha hacia abajo a la izquierda.
+      g.fillStyle(CABLE.outline);
+      for (const [dx, dy] of [[16, 4], [14, 6], [12, 8], [10, 10], [10, 12], [12, 12], [14, 12], [16, 12], [14, 14], [12, 16], [10, 18], [8, 20], [6, 22]]) g.fillRect(bx + dx!, by + dy!, 4, 2);
+    }
+  }
+
+  /**
+   * La nave estacionada (abajo a la izquierda, como en el plano): dos motores detrás de la cabina y patas de
+   * aterrizaje. La cabina es el cuarto `ship` del mapa; esto la hace parecer una nave desde afuera.
+   */
+  private drawShip(): void {
+    const { rect } = zoneById(this.layout, 'ship');
+    const left = (rect.col - 1) * TILE;
+    const top = (rect.row - 2) * TILE;
+    const bottom = (rect.row + rect.rows + 1) * TILE;
+    const g = this.add.graphics().setDepth(depthAt(bottom - 4));
+    for (const y of [top + 30, bottom - 58]) {
+      // Motor: cuerpo gris con contorno, tobera hacia atrás y un brillo naranja apagado.
+      g.fillStyle(0x1a1420).fillRect(left - 62, y - 2, 66, 32);
+      g.fillStyle(0x8d8aa0).fillRect(left - 60, y, 62, 28).fillStyle(0xb8b5c8).fillRect(left - 60, y, 62, 6).fillStyle(0x5d5a70).fillRect(left - 60, y + 22, 62, 6);
+      g.fillStyle(0x1a1420).fillRect(left - 74, y + 4, 14, 20).fillStyle(0x3a3448).fillRect(left - 72, y + 6, 10, 16).fillStyle(0xd9792b).fillRect(left - 70, y + 10, 4, 8);
+    }
+    // Patas de aterrizaje debajo de la cabina.
+    for (const x of [left + TILE * 2, left + TILE * (rect.cols - 1)]) g.fillStyle(0x1a1420).fillRect(x - 2, bottom - 8, 8, 14).fillStyle(0x8d8aa0).fillRect(x, bottom - 6, 4, 10).fillStyle(0x1a1420).fillRect(x - 8, bottom + 4, 20, 6);
+  }
+
+  /** Cables cortados (rojo que titila con chispas en el corte) y la carga de la batería sobre su puerta. */
+  private renderGrid(): void {
+    const s = this.session;
+    const grid = s.grid;
+    const g = this.markers;
+    const blink = Math.floor(this.time.now / 250) % 2 === 0;
+    for (const id of grid.cutCables) {
+      const cable = MARS_CONTENT.grid.cables.find((c) => c.id === id);
+      const path = GALE_CABLES.find((c) => c.id === id);
+      if (!cable || !path) continue;
+      g.lineStyle(4, CABLE.cut, blink ? 0.9 : 0.4).beginPath().moveTo(path.points[0]!.x * TILE, path.points[0]!.y * TILE);
+      for (const p of path.points.slice(1)) g.lineTo(p.x * TILE, p.y * TILE);
+      g.strokePath();
+      const at = toPx(cable.at);
+      g.lineStyle(3, 0xfefcbf, 0.9).strokeCircle(at.x, at.y, 16 + (blink ? 4 : 0));
+      for (let k = 0; k < 5; k++) {
+        const a = (this.time.now / 90 + k * 1.7) % (Math.PI * 2);
+        g.fillStyle(0xfff3a0, 0.9).fillRect(Math.round(at.x + Math.cos(a) * 12), Math.round(at.y + Math.sin(a) * 8 - 6), 4, 4);
+      }
+    }
+    // Barra de carga de la batería, sobre la puerta de su módulo: en rojo si no llega a la base.
+    const door = toPx(doorPoint(zoneById(this.layout, 'battery')));
+    const { batteryKwh, capacityKwh } = s.state.meters.energy;
+    const k = capacityKwh > 0 ? batteryKwh / capacityKwh : 0;
+    const [bx, by] = [Math.round(door.x - 40), Math.round(door.y + 30)];
+    g.fillStyle(0x1a1420, 0.9).fillRect(bx - 2, by - 2, 84, 14).fillStyle(0x2d3748).fillRect(bx, by, 80, 10);
+    g.fillStyle(k < 0.25 ? CABLE.cut : CABLE.wire).fillRect(bx, by, Math.round(80 * k), 10);
+    if (!grid.batteryLinked) g.lineStyle(2, CABLE.cut, blink ? 1 : 0.4).strokeRect(bx - 3, by - 3, 86, 16);
   }
 
   /** Al entrar por primera vez a una franja del exterior, un aviso cuenta qué enseña ese terreno. */

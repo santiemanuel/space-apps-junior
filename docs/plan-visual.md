@@ -184,6 +184,11 @@ primer punto que no esté hecho.
 3. ~~**Tablero e interfaz (Fase 6)**~~: hecho (ver "Fase 6: tablero e interfaz").
 4. ~~**Rework según los recortes (Fase 7)**~~: hecho (ver "Fase 7: rework según los recortes de las referencias").
 5. **Cierre:** comparar con los recortes que faltan (enfermería, MOXIE, exterior), medir rendimiento.
+6. **Base nueva de Gale — arte propio** (la base ya sigue el plano, ver "Base nueva según plano-base-marte.png"): piso
+   y paredes de plástico para los tubos (hoy usan los tiles del pasillo), hojas de puerta para las puertas de los
+   costados (hoy son un hueco con franja de peligro), la nave estacionada como sprite (hoy es una cabina de tiles con
+   motores dibujados por código en `MarsScene.drawShip`), tableros de fusibles y celdas de batería (hoy monitores y
+   tanques) e íconos del tablero para energía, taller, depósito, batería y nave (hoy usan otros del atlas).
 
 Detalles sueltos:
 - Tripulantes automáticos que quedan encimados en el mismo cuarto (posiciones de `SLOTS` en `HabitatSession`).
@@ -616,3 +621,48 @@ Hecho el 15/11/2026. Capturas en `art/capturas/minijuegos/` (`antes-scrubber.png
   32 colores; atlas `public/assets/minigames/items` (`atlas.py minigames`) con normal map, iluminado por una luz que
   sigue lo que se está tocando.
 - **Tablero:** la tripulación pasó a 2 × 2 (filas `half` de `PanelColumn`; los íconos de salud van debajo del nombre).
+
+---
+
+## Base nueva según plano-base-marte.png
+
+Hecho el 15/11/2026, a pedido: la base de Gale deja de ser un rectángulo con pasillo y sigue el plano
+[`plano-base-marte.png`](mision_a_marte_referencias_topdown/plano-base-marte.png). El exterior (franjas, dunas, cerros,
+canal y Curiosity) es el mismo de antes, corrido 26 filas al sur: el mapa pasa de 72 × 72 a 72 × 98 tiles. Capturas en
+`art/capturas/base-nueva-*.png` y vista general en `art/capturas/gale-base-nueva.png`.
+
+### Qué quedó
+
+- **Módulos con forma propia** (polígonos en `scripts/maps/build-gale.mjs`, zonas `zone` con `polygon` en Tiled):
+  invernadero en cúpula y escudo de radiación (`shelter`) en un módulo; energía (`energy`, tableros) con MOXIE al lado;
+  central (`command`) con el rincón del depurador (`scrubber`, la llave del plano); reservas (`pantry`, la cocina con su
+  receta en la pantalla de la pared) y comunicaciones (`radio`) pegadas a la central; hospital (`infirmary`) y gimnasio
+  (`exercise`) en un módulo; el taller (`workshop`) con la esclusa en su rincón, que sale hacia la nave.
+- **Tubos aislados con plástico** (`tube` en Tiled, `Passage` en `core/habitat/layout.ts`): seis, con una puerta en
+  cada punta que es del tubo. Entre ellos quedan patios de suelo marciano que se ven pero no se pisan
+  (`tiledLayout.withoutCourtyards`).
+- **Afuera y sueltos:** depósito (`storage`), batería (`battery`) y la nave estacionada (`ship`, abajo a la izquierda);
+  se llega con traje desde la esclusa. Paneles solares en dos filas a la derecha de energía.
+- **Cables** (verdes, `cable` con `polyline` y propiedades `from`/`to`): paneles → base (por el invernadero), paneles →
+  caja de empalme 1 → batería, batería → base (por comunicaciones), batería → caja de empalme 2 → taller y → nave →
+  hospital. Se dibujan en el suelo debajo de las paredes (`MarsScene.drawGrid`).
+- **Caminos por grilla:** `route`/`routeToPoint` buscan el camino más corto por tiles (cuartos, tubos, puertas y
+  exterior), esquivan los muebles (`ShipLayout.obstacles`) y los tubos cerrados, y suavizan el recorrido con un margen a
+  las paredes. La nave (`Voyage`) usa lo mismo con su pasillo como único `Passage`.
+
+### Reglas nuevas (todas [regla], en `content/gale.ts` y `content/incidents.ts`)
+
+| Qué | Cómo |
+|---|---|
+| Tubo roto (`tubeBreach`, nivel 2) | Sus puertas se sellan: nadie pasa (bloqueos en `SimulationMapScene`, recorridos que lo esquivan). Se repara con E junto a una de sus puertas (minijuego `patch`) |
+| Cable cortado (`cableCut`, nivel 3) | La red busca otro camino: cada tramo cortado pierde un 25 % del sol. Sin camino de los paneles a la base o a la batería, no carga nada; si la batería no llega a la base, la batería queda quieta y de noche falta energía (MOXIE y el invernadero se apagan). Se empalma afuera, junto al corte (minijuego `wires`) |
+| Fusible quemado (`fuseBlown`, nivel 2) | Corta la entrada de los paneles: la base vive de la batería. Se cambia en la sala de energía (minijuego `fuses`), que además tiene su revisión diaria (`fuseCheck`) |
+| Tablero de energía | Desenchufar sistemas (p. ej. la radio, en casos extremos) sólo se puede estando en la sala de energía (`power.panelZone`) |
+| Depósito | Las muestras que se juntan las lleva quien las juntó hasta que entra al depósito (se guarda en `HabitatSave.mars`) |
+| Embarque | Al terminar el tiempo de la estancia no termina la fase: la puerta de la esclusa se abre aunque sea de noche, los automáticos caminan a la nave, el jugador carga el depósito (E) y lo guarda en la nave (E). Con la carga a bordo y todos en la nave, `phase:completed` |
+
+### Para probar
+
+`?scene=Mars&incident=tubeBreach,cableCut:2,fuseBlown&level=3` (averías ya en curso; el número cambia qué tubo o cable),
+`&where=storage|ship|battery|energy` (dónde arranca el jugador) y `&from=2024-06-03T20` (a horas del embarque).
+

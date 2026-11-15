@@ -101,8 +101,11 @@ export interface MapView {
   /** Tiles de frente de pared y de piso transitable (col, fila), para repartir adornos. */
   faceTiles: Point[];
   floorTiles: Point[];
-  /** Abre las puertas a las que se acerca alguien (`feet`: pies de la tripulación, px). */
-  update(feet: readonly Point[], dt: number): void;
+  /**
+   * Abre las puertas a las que se acerca alguien (`feet`: pies de la tripulación, px). Las de `locked` (por el nombre
+   * de su dueño, p. ej. un tubo roto) quedan cerradas.
+   */
+  update(feet: readonly Point[], dt: number, locked?: ReadonlySet<string>): void;
 }
 
 /** Alto (px) de la franja de luz dentro del tile de frente de pared. */
@@ -159,6 +162,8 @@ export function preloadMap(scene: Phaser.Scene, assets: MapAssets): void {
 
 /** Puerta corrediza de dos hojas: cada hoja se esconde en su marco recortando lo que entra en la pared. */
 interface Door {
+  /** Dueño de la puerta (cuarto o tubo). */
+  name: string;
   cx: number;
   cy: number;
   x: number;
@@ -271,7 +276,9 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
   }
   for (const p of props) if (p.key === 'lamp') lights.push({ x: p.x, y: p.bottom - p.image.height + 14, kind: 'lamp' });
 
-  // Puertas: las hojas son tiles del tileset, que se agregan como cuadros de su textura.
+  // Puertas: las hojas son tiles del tileset, que se agregan como cuadros de su textura. Sólo las de las paredes de
+  // arriba o de abajo (más anchas que altas) tienen hojas: las de los costados, en la vista 3/4, son un hueco.
+
   const texture = scene.textures.get(tilesKey);
   const columns = Math.floor(texture.getSourceImage().width / T);
   const frameOf = (index: number) => {
@@ -280,8 +287,9 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
     return name;
   };
   const doors: Door[] = (assets.map.layers.find((l) => l.name === 'zonas')?.objects ?? [])
-    .filter((o) => o.type === 'door' && o.name !== 'exterior')
+    .filter((o) => o.type === 'door' && o.name !== 'exterior' && o.width > o.height)
     .map((o) => ({
+      name: o.name,
       cx: o.x + o.width / 2,
       cy: o.y + o.height / 2,
       x: o.x,
@@ -307,9 +315,9 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
     lights,
     faceTiles,
     floorTiles,
-    update(feet, dt) {
+    update(feet, dt, locked) {
       for (const door of doors) {
-        const near = feet.some((f) => Math.abs(f.x - door.cx) < DOOR_REACH.x && Math.abs(f.y - door.cy) < DOOR_REACH.y);
+        const near = !locked?.has(door.name) && feet.some((f) => Math.abs(f.x - door.cx) < DOOR_REACH.x && Math.abs(f.y - door.cy) < DOOR_REACH.y);
         const step = (dt / DOOR_OPEN_S) * T;
         const open = Phaser.Math.Clamp(door.open + (near ? step : -step), 0, T);
         if (open === door.open) continue;

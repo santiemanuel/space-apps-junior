@@ -6,7 +6,7 @@ import type { CrewId, CrewMemberState } from '../../../core/crew/types';
 import { EventBus } from '../../../core/events/EventBus';
 import type { SimulationEvents } from '../../../core/habitat/events';
 import type { HabitatSession, ZoneMinigame } from '../../../core/habitat/HabitatSession';
-import { doorPoint, EXTERIOR, zoneAt, zoneById, zoneSpot, type Point, type ShipLayout } from '../../../core/habitat/layout';
+import { areaCells, EXTERIOR, pathLength, pointAlong, routeToPoint, zoneAt, zoneById, zoneSpot, type Point, type ShipLayout } from '../../../core/habitat/layout';
 import type { HabitatContent, HabitatTask } from '../../../core/habitat/types';
 import { definitionOf } from '../../../core/incidents/planner';
 import type { SystemId, SystemStatus } from '../../../core/systems/types';
@@ -57,6 +57,9 @@ const CREW_COLOR: Record<CrewId, number> = { vega: 0x63b3ed, miga: 0xf6ad55, bro
 
 export const LIGHT: Record<SystemStatus, string> = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' };
 
+/** Ícono del tablero de los cuartos que no tienen uno propio (los de la base nueva de Gale). */
+const ZONE_ICON: Record<string, string> = { energy: 'energy', workshop: 'spares', storage: 'samples', battery: 'energy', ship: 'earthSignal' };
+
 export const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
 export const toPx = (p: Point) => ({ x: p.x * TILE, y: p.y * TILE });
 
@@ -96,6 +99,10 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private cameraGlide: { x: number; y: number; t: number } | null = null;
   /** Zona del minijuego abierto: mientras tanto el mapa no lee la entrada. */
   private playing: string | null = null;
+  /** Bloqueos de las puertas de cada pasillo o tubo (se activan cuando se rompe). */
+  private passageBlocks = new Map<string, Phaser.Physics.Arcade.StaticBody[]>();
+  /** Camino al refugio que marcan las flechas del piso (se recalcula al cambiar de tile). */
+  private shelterPath: { from: string; points: Point[] } | null = null;
 
   protected constructor(key: SceneKey, private readonly namespace: 'voyage' | 'mars') {
     super(key);
@@ -117,6 +124,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.headings = new Map();
     this.cameraGlide = null;
     this.playing = null;
+    this.passageBlocks = new Map();
+    this.shelterPath = null;
   }
 
   /** Opciones de vista de prueba (zoom y mapa agrandado); vacío en la partida normal. */
@@ -196,6 +205,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const walls = this.drawMap();
     if (this.mapView) this.createFx(this.mapView);
     const doorBlock = this.outerDoorBlock();
+    const passageBlocks = this.createPassageBlocks();
     this.markers = this.add.graphics().setDepth(5);
     const start = this.startPoint();
     for (const m of this.session.state.crew) {
@@ -204,7 +214,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       // Con luz dinámica los trajes toman relieve con su normal map.
       if (this.mapView?.lit) sprite.sprite.setLighting(true);
       this.sprites.set(m.id, sprite);
-      this.colliders.set(m.id, this.physics.add.collider(sprite.sprite, (doorBlock ? [...walls, doorBlock] : walls) as Solid));
+      this.colliders.set(m.id, this.physics.add.collider(sprite.sprite, [...walls, ...(doorBlock ? [doorBlock] : []), passageBlocks] as Solid));
       this.labels.set(m.id, this.add.text(p.x, p.y + 6, NAMES[m.id], { fontFamily: 'monospace', fontSize: '11px', color: '#e2e8f0' }).setOrigin(0.5, 0).setDepth(41).setResolution(2).setVertexRoundMode('full'));
     }
     this.selectActive();
@@ -275,10 +285,18 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const activeZone = zoneAt(this.layout, activePosition);
     if (this.doorBody) this.doorBody.enable = this.outerDoorClosed() && activeZone !== EXTERIOR;
 
-    // En las salas, E abre su minijuego; mantenerla apretada sólo sirve afuera (juntar muestras en Marte).
-    const minigame = this.playing ? null : s.minigameAt(activeZone, activePosition);
-    if (minigame && this.controls.interactJustPressed() && this.canPlay()) this.openMinigame(minigame);
-    const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone) === null;
+    // Los tubos rotos se cierran (salvo para quien quedó adentro: puede salir).
+    const closed = s.closedPassages();
+    for (const [id, bodies] of this.passageBlocks) for (const body of bodies) body.enable = closed.has(id) && activeZone !== id;
+    // En las salas, E abre su minijuego (o carga y guarda la carga en el embarque); mantenerla apretada sólo sirve
+    // afuera (juntar muestras en Marte).
+    const action = this.playing ? null : s.actionAt(activeZone);
+    const minigame = this.playing || action ? null : s.minigameAt(activeZone, activePosition);
+    if ((action || minigame) && this.controls.interactJustPressed() && this.canPlay()) {
+      if (action) s.doAction(activeZone);
+      else this.openMinigame(minigame!);
+    }
+    const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone, activePosition) === null;
     s.update(dt, { activeZone, activePosition, interacting });
 
     const choice = this.playing ? null : this.controls.choiceJustPressed();
@@ -373,7 +391,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const s = this.session;
     const active = this.sprites.get(s?.state.activeCrewId)?.sprite;
     if (!active) return;
-    this.mapView?.update([...this.sprites.values()].map(({ sprite }) => ({ x: sprite.x, y: sprite.y })), deltaMs / 1000);
+    this.mapView?.update([...this.sprites.values()].map(({ sprite }) => ({ x: sprite.x, y: sprite.y })), deltaMs / 1000, s.closedPassages());
     for (const m of s.state.crew) {
       const view = this.sprites.get(m.id)!;
       view.sync(m);
@@ -469,17 +487,36 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     return zone;
   }
 
+  /** Bloqueos (apagados) de las puertas de cada pasillo o tubo: se encienden cuando el tubo se rompe. */
+  private createPassageBlocks(): Phaser.Physics.Arcade.StaticGroup {
+    const group = this.physics.add.staticGroup();
+    for (const passage of this.layout.passages) {
+      const bodies = (passage.doorTiles ?? []).map((d) => {
+        const zone = this.add.zone((d.col + 0.5) * TILE, (d.row + 0.5) * TILE, TILE, TILE);
+        this.physics.add.existing(zone, true);
+        group.add(zone);
+        const body = zone.body as Phaser.Physics.Arcade.StaticBody;
+        body.enable = false;
+        return body;
+      });
+      this.passageBlocks.set(passage.id, bodies);
+    }
+    return group;
+  }
+
   /** Pinta el mapa de Tiled y devuelve lo que choca. */
   private drawMap(): Solid[] {
     this.mapView = createMap(this, this.mapAssets());
     const solid = this.mapView.solids;
     const icons = this.textures.exists(HUD_ICONS);
+    const iconOf = (id: string) => (icons && this.textures.get(HUD_ICONS).has(id) ? id : ZONE_ICON[id]);
     for (const zone of this.layout.zones) {
-      const { col, row } = zone.rect;
-      // Ícono del cuarto en su esquina de arriba (×2: un píxel de arte = 2 px, como el mapa); el nombre aparece al
-      // lado sólo cuando el jugador está adentro.
-      const corner = { x: col * TILE + 22, y: row * TILE + 22 };
-      if (icons) this.add.image(corner.x, corner.y, HUD_ICONS, zone.id).setScale(2).setDepth(39).setAlpha(0.9).setVertexRoundMode('full');
+      // Ícono del cuarto en su primer tile de arriba a la izquierda (×2: un píxel de arte = 2 px, como el mapa); el
+      // nombre aparece al lado sólo cuando el jugador está adentro.
+      const first = areaCells(zone)[0] ?? zone.rect;
+      const corner = { x: first.col * TILE + 22, y: first.row * TILE + 22 };
+      const icon = iconOf(zone.id);
+      if (icons && icon) this.add.image(corner.x, corner.y, HUD_ICONS, icon).setScale(2).setDepth(39).setAlpha(0.9).setVertexRoundMode('full');
       this.zoneNames.set(
         zone.id,
         this.add
@@ -487,7 +524,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
           .setOrigin(0, 0.5)
           .setDepth(39)
           .setResolution(2)
-          .setVisible(!icons),
+          .setVisible(!icons || !icon),
       );
       const task = this.content.tasks.find((t) => t.zone === zone.id);
       if (!task) continue;
@@ -496,8 +533,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       const spot = toPx(zoneSpot(zone));
       const at = { x: spot.x, y: spot.y + 58 };
       const frame = this.add.rectangle(at.x, at.y, 40, 40, 0x1a202c, 0.85).setStrokeStyle(2, 0x68d391).setDepth(40);
-      const label = icons
-        ? this.add.image(at.x, at.y, HUD_ICONS, zone.id).setScale(2).setDepth(41).setVertexRoundMode('full')
+      const label = icons && icon
+        ? this.add.image(at.x, at.y, HUD_ICONS, icon).setScale(2).setDepth(41).setVertexRoundMode('full')
         : this.add.text(at.x, at.y, tr(`${this.namespace}.station.${task.id}`), { fontFamily: 'monospace', fontSize: '10px', color: '#e2e8f0' }).setOrigin(0.5).setDepth(41).setResolution(2);
       const track = this.add.rectangle(at.x - 20, at.y + 26, 40, 4, 0x2d3748).setOrigin(0, 0.5).setDepth(40);
       const bar = this.add.rectangle(at.x - 20, at.y + 26, 0, 4, 0x63b3ed).setOrigin(0, 0.5).setDepth(41);
@@ -516,13 +553,17 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       return prop ? [{ system, at: { x: prop.x, y: prop.bottom - prop.image.height + 18 } }] : [];
     });
     this.fxStations = placed.map((p) => p.system);
-    // Una luz de techo por cuarto y por tramo de pasillo (de unos 10 tiles).
+    // Una luz de techo por cuarto y por tramo de pasillo o tubo (de unos 10 tiles).
     const px = (r: { col: number; row: number; cols: number; rows: number }) => ({ x: r.col * TILE, y: r.row * TILE, w: r.cols * TILE, h: r.rows * TILE });
-    const { corridor } = this.layout;
-    const segments = Math.max(1, Math.round(corridor.cols / 10));
     const areas = [
       ...this.layout.zones.map((z) => px(z.rect)),
-      ...Array.from({ length: segments }, (_, i) => px({ ...corridor, col: corridor.col + (i * corridor.cols) / segments, cols: corridor.cols / segments })),
+      ...this.layout.passages.flatMap(({ rect }) => {
+        const long = Math.max(rect.cols, rect.rows);
+        const segments = Math.max(1, Math.round(long / 10));
+        return Array.from({ length: segments }, (_, i) =>
+          px(rect.cols >= rect.rows ? { ...rect, col: rect.col + (i * rect.cols) / segments, cols: rect.cols / segments } : { ...rect, row: rect.row + (i * rect.rows) / segments, rows: rect.rows / segments }),
+        );
+      }),
     ];
     this.fx = new HabitatFx(this, view, { stations: placed.map((p) => p.at), worn: this.worn(), seed: this.session.state.seed, areas, ...this.fxOutdoor(view) });
     this.life = new MapLife(this, view, this.session.state.seed);
@@ -551,7 +592,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     for (const p of leaks) this.markers.lineStyle(3, 0xfc8181, pulse).strokeCircle(p.x, p.y, 10 + 4 * pulse);
     const sky = this.sky();
     const walkers = sky ? this.walkers() : [];
-    const powerOut = this.view.fx?.powerOut ?? s.cascade.emergencies.some((e) => e.meter === 'energy');
+    const powerOut = this.view.fx?.powerOut ?? (s.blackoutNow || s.cascade.emergencies.some((e) => e.meter === 'energy'));
+    this.drawClosedPassages(pulse);
     this.fx?.update(
       {
         level: this.view.fx?.level ?? s.level,
@@ -567,7 +609,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const shelter = zoneById(this.layout, this.content.shelterZone);
     const toShelter = this.radiationAlert();
     if (toShelter) {
-      this.floorChevrons(shelter);
+      this.floorChevrons(activePosition, shelter);
       const { col, row, cols, rows } = shelter.rect;
       this.markers.lineStyle(3, 0xf6e05e, pulse).strokeRect(col * TILE + 2, row * TILE + 2, cols * TILE - 4, rows * TILE - 4);
       if (activeZone !== shelter.id) this.shelterArrow(activePosition, zoneSpot(shelter), pulse);
@@ -624,26 +666,51 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   }
 
   /**
-   * Flechas en el piso del pasillo hacia la puerta del refugio, como en las referencias: chevrones ámbar que se
-   * encienden en cadena desde los dos extremos del pasillo hacia la puerta.
+   * Flechas en el piso hacia el refugio, como en las referencias: chevrones ámbar a lo largo del camino que lleva
+   * (esquivando los tubos rotos), que se encienden en cadena hacia el refugio.
    */
-  private floorChevrons(shelter: ReturnType<typeof zoneById>): void {
-    const { corridor } = this.layout;
-    const door = doorPoint(shelter);
-    const cy = (corridor.row + corridor.rows / 2) * TILE;
-    const doorX = door.x * TILE;
+  private floorChevrons(from: Point, shelter: ReturnType<typeof zoneById>): void {
+    const tile = `${Math.floor(from.x)},${Math.floor(from.y)}`;
+    if (this.shelterPath?.from !== tile) this.shelterPath = { from: tile, points: routeToPoint(this.layout, from, zoneSpot(shelter), false, this.session.closedPassages()) };
+    const path = this.shelterPath.points;
+    const length = pathLength(path);
     const step = Math.floor(this.time.now / 140);
     const g = this.markers;
-    for (let col = corridor.col; col < corridor.col + corridor.cols; col++) {
-      const cx = (col + 0.5) * TILE;
-      const dist = Math.abs(cx - doorX);
-      if (dist < TILE * 1.2) continue;
-      const dir = cx < doorX ? 1 : -1;
-      const n = Math.round(dist / TILE);
-      const alpha = (n + step) % 4 === 0 ? 0.95 : 0.3;
+    for (let d = 1.5, n = 0; d < length - 1; d += 1, n++) {
+      const a = pointAlong(path, d - 0.2);
+      const b = pointAlong(path, d + 0.2);
+      if (zoneAt(this.layout, b) === shelter.id) break;
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
+      const [c, alpha] = [toPx(pointAlong(path, d)), (n - step) % 4 === 0 ? 0.95 : 0.3];
       // Un chevrón de 3 píxeles de arte de grosor, con contorno oscuro.
-      for (const [color, w, a] of [[0x1a120a, 8, alpha * 0.6], [0xf6ad55, 4, alpha]] as const) {
-        g.lineStyle(w, color, a).beginPath().moveTo(cx - dir * 10, cy - 14).lineTo(cx + dir * 6, cy).lineTo(cx - dir * 10, cy + 14).strokePath();
+      for (const [color, w, k] of [[0x1a120a, 8, alpha * 0.6], [0xf6ad55, 4, alpha]] as const) {
+        g.lineStyle(w, color, k)
+          .beginPath()
+          .moveTo(c.x - dx * 10 - dy * 14, c.y - dy * 10 + dx * 14)
+          .lineTo(c.x + dx * 6, c.y + dy * 6)
+          .lineTo(c.x - dx * 10 + dy * 14, c.y - dy * 10 - dx * 14)
+          .strokePath();
+      }
+    }
+  }
+
+  /** Tubos rotos: el piso rayado en rojo y una cruz en cada puerta sellada. */
+  private drawClosedPassages(pulse: number): void {
+    const g = this.markers;
+    for (const id of this.session.closedPassages()) {
+      const passage = this.layout.passages.find((p) => p.id === id);
+      if (!passage) continue;
+      for (const c of areaCells(passage)) {
+        const [x, y] = [c.col * TILE, c.row * TILE];
+        g.fillStyle(0x9b2c2c, 0.28).fillRect(x, y, TILE, TILE);
+        // Rayas diagonales de 2 px (un píxel de arte) cada 12 px.
+        for (let k = 0; k < TILE; k += 12) g.fillStyle(0xfc8181, 0.35).fillRect(x + k, y + TILE - k - 2, 2, 2).fillRect(x + k + 2, y + TILE - k - 4, 2, 2);
+      }
+      for (const d of passage.doorTiles ?? []) {
+        const [cx, cy] = [(d.col + 0.5) * TILE, (d.row + 0.5) * TILE];
+        g.lineStyle(6, 0x1a120a, 0.8).lineBetween(cx - 12, cy - 12, cx + 12, cy + 12).lineBetween(cx + 12, cy - 12, cx - 12, cy + 12);
+        g.lineStyle(3, 0xfc8181, 0.6 + 0.4 * pulse).lineBetween(cx - 12, cy - 12, cx + 12, cy + 12).lineBetween(cx + 12, cy - 12, cx - 12, cy + 12);
       }
     }
   }
@@ -670,7 +737,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     if (member.resting) return t('hud.crew.resting', { name: NAMES[member.id] });
     const place = this.placePrompt(position, zone);
     if (place !== null) return place;
-    const task = s.taskAt(zone);
+    const task = s.taskAt(zone, position);
     if (!task) return '';
     if (task.kind === 'task' && task.upToDate) return t(task.task.kind === 'maintenance' ? 'hud.task.upToDate' : 'hud.task.doneToday');
     if (task.kind === 'task' && task.blockedKey) return tr(task.blockedKey);

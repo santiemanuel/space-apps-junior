@@ -1,6 +1,7 @@
 import type { BikeGame, MoxieGame, PulseGame, RadioGame, ScrubberGame } from '../../../../core/minigames/arcade';
 import type { Minigame, MinigameId } from '../../../../core/minigames/Minigame';
 import type { PatchGame, StarsGame, WaterGame } from '../../../../core/minigames/puzzles';
+import { FUSE_TYPES, type FusesGame, type WireColor, type WiresGame } from '../../../../core/minigames/power';
 import { SIDE } from '../../../../core/minigames/puzzles';
 import { PLANT_TOOLS, type MealGame, type PlantsGame, type SealsGame, type ShieldGame } from '../../../../core/minigames/rooms';
 import { t, type TranslationKey, type TranslationParams } from '../../../../i18n';
@@ -488,6 +489,94 @@ const patch: Renderer<PatchGame> = (p, game, a, now) => {
   p.top.fillStyle(blink ? RED : 0x4a1c1c).fillCircle(dx + 10, a.y + 64, 10);
 };
 
+/** Colores de los fusibles (por tipo, en `FUSE_TYPES`) y de los cables. */
+const FUSE_COLOR = { green: GREEN, amber: AMBER, red: RED } as const;
+const WIRE_COLOR: Record<WireColor, number> = { red: 0xe53e3e, blue: 0x3182ce, yellow: 0xecc94b, green: 0x38a169, white: 0xedf2f7 };
+
+const fuses: Renderer<FusesGame> = (p, game, a, now) => {
+  // Tablero: cada lugar con el número que va ahí y su fusible (de color si está sano, negro si se quemó).
+  const cw = 110;
+  const ch = 130;
+  const gx = a.x + 40;
+  const gy = a.y + (a.h - ch * game.rows) / 2;
+  screen(p, gx - 16, gy - 16, cw * game.cols + 32, ch * game.rows + 32, 0x2a2f45);
+  game.slots.forEach((slot, i) => {
+    const x = gx + (i % game.cols) * cw;
+    const y = gy + Math.floor(i / game.cols) * ch;
+    const type = FUSE_TYPES[slot.type]!;
+    p.g.fillStyle(EDGE).fillRect(x + 8, y + 8, cw - 16, ch - 16);
+    p.g.fillStyle(METAL).fillRect(x + 10, y + 10, cw - 20, ch - 20);
+    p.text(`${type.amps} A`, x + cw / 2, y + 16, { size: 16, color: '#f7fafc', originX: 0.5 });
+    // Fusible: cápsula con dos tapas de metal; quemado, negro con una mancha.
+    const fx = x + cw / 2 - 16;
+    const fy = y + 44;
+    p.g.fillStyle(EDGE).fillRect(fx - 2, fy - 2, 36, 64);
+    p.g.fillStyle(METAL_LIGHT).fillRect(fx, fy, 32, 10).fillRect(fx, fy + 50, 32, 10);
+    p.g.fillStyle(slot.burnt ? 0x1a1a1a : FUSE_COLOR[type.color]).fillRect(fx, fy + 10, 32, 40);
+    if (slot.burnt) {
+      p.g.fillStyle(0x4a4a4a).fillRect(fx + 8, fy + 22, 16, 4).fillRect(fx + 12, fy + 26, 8, 8);
+      // Humito que sube.
+      const k = (now / 1200 + i * 0.3) % 1;
+      p.top.fillStyle(0xa0aec0, 0.4 * (1 - k)).fillCircle(fx + 16 + (noise(i, 2) - 0.5) * 20 * k, fy - 10 - 30 * k, 4 + 6 * k);
+    } else p.g.fillStyle(0xffffff, 0.35).fillRect(fx + 4, fy + 12, 6, 34);
+  });
+  cursor(p, gx + game.cursor.col * cw + 6, gy + game.cursor.row * ch + 6, cw - 12, ch - 12, now);
+  // Repuestos: uno de cada amperaje, con su tecla.
+  const rx = a.x + a.w - 170;
+  screen(p, rx, a.y + 20, 140, a.h - 40, 0x0b1020);
+  p.text(tr('hud.minigame.fuses.spares'), rx + 70, a.y + 30, { size: 13, color: '#90cdf4', originX: 0.5 });
+  FUSE_TYPES.forEach((type, i) => {
+    const y = a.y + 70 + i * 92;
+    p.g.fillStyle(EDGE).fillRect(rx + 22, y - 2, 28, 52);
+    p.g.fillStyle(METAL_LIGHT).fillRect(rx + 24, y, 24, 8).fillRect(rx + 24, y + 40, 24, 8);
+    p.g.fillStyle(FUSE_COLOR[type.color]).fillRect(rx + 24, y + 8, 24, 32);
+    p.text(`${type.amps} A`, rx + 60, y + 6, { size: 15, color: '#f7fafc' });
+    p.key(String(i + 1), rx + 76, y + 36, false, 30);
+  });
+};
+
+const wires: Renderer<WiresGame> = (p, game, a, now) => {
+  // Dos regletas: a la izquierda las puntas de un lado del corte, a la derecha las del otro.
+  const rows = game.left.length;
+  const gap = Math.min(70, (a.h - 40) / rows);
+  const top = a.y + (a.h - gap * (rows - 1)) / 2;
+  const lx = a.x + 160;
+  const rx = a.x + a.w - 260;
+  screen(p, lx - 70, top - 40, 90, gap * (rows - 1) + 80, 0x2a2f45);
+  screen(p, rx - 20, top - 40, 90, gap * (rows - 1) + 80, 0x2a2f45);
+  const end = (x: number, y: number, color: WireColor, glow: boolean) => {
+    p.g.fillStyle(EDGE).fillRect(x - 14, y - 10, 28, 20);
+    p.g.fillStyle(WIRE_COLOR[color]).fillRect(x - 12, y - 8, 24, 16);
+    p.g.fillStyle(0xd69e2e).fillRect(x + 12, y - 3, 10, 6);
+    if (glow) p.top.lineStyle(3, 0xf6e05e, 0.6 + 0.4 * Math.sin(now / 130)).strokeRect(x - 18, y - 14, 36, 28);
+  };
+  game.left.forEach((color, i) => {
+    const y = top + i * gap;
+    p.g.fillStyle(WIRE_COLOR[color]).fillRect(lx - 70, y - 4, 56, 8);
+    end(lx - 10, y, color, i === game.current);
+  });
+  game.right.forEach((color, i) => {
+    const y = top + i * gap;
+    p.g.fillStyle(WIRE_COLOR[color]).fillRect(rx + 20, y - 4, 50, 8);
+    end(rx, y, color, false);
+  });
+  // Empalmes hechos: una línea del color que une las dos puntas.
+  game.joined.forEach((j, i) => {
+    if (j === null) return;
+    const color = WIRE_COLOR[game.left[i]!];
+    const [y1, y2] = [top + i * gap, top + j * gap];
+    p.g.lineStyle(10, EDGE).lineBetween(lx + 12, y1, rx - 22, y2);
+    p.g.lineStyle(6, color).lineBetween(lx + 12, y1, rx - 22, y2);
+  });
+  cursor(p, rx - 30, top + game.cursor.row * gap - 20, 60, 40, now);
+  // La que toca unir, del lado izquierdo, con una flecha hacia la elegida.
+  if (game.current >= 0) {
+    const y1 = top + game.current * gap;
+    const y2 = top + game.cursor.row * gap;
+    for (let k = 0.15; k < 0.9; k += 0.12) p.top.fillStyle(0xf6e05e, 0.5).fillCircle(lx + 12 + (rx - lx - 34) * k, y1 + (y2 - y1) * k, 3);
+  }
+};
+
 const RENDERERS: Record<MinigameId, Renderer<never>> = {
   bike,
   scrubber,
@@ -501,6 +590,8 @@ const RENDERERS: Record<MinigameId, Renderer<never>> = {
   moxie,
   seals,
   patch,
+  fuses,
+  wires,
 } as Record<MinigameId, Renderer<never>>;
 
 /** Dibuja el minijuego en su zona. */
@@ -522,4 +613,6 @@ export const MINIGAME_ICON: Record<MinigameId, string> = {
   moxie: 'o2',
   seals: 'brush',
   patch: 'patch',
+  fuses: 'heater',
+  wires: 'filter',
 };

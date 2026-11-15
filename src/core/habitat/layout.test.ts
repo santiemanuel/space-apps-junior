@@ -17,7 +17,7 @@ const blocked = Array.from({ length: COLS * ROWS }, (_, i) => {
 const LAYOUT: ShipLayout = {
   cols: COLS,
   rows: ROWS,
-  corridor: { col: 2, row: 2, cols: 4, rows: 1 },
+  passages: [{ id: 'corridor', rect: { col: 2, row: 2, cols: 4, rows: 1 } }],
   zones: [{ id: 'airlock', rect: { col: 3, row: 4, cols: 2, rows: 1 }, door: { col: 3, row: 3 }, doorTiles: [{ col: 4, row: 3 }] }],
   exterior: { rect: { col: 0, row: 0, cols: COLS, rows: ROWS }, airlock: 'airlock', door: { col: 3, row: 5 }, doorTiles: [{ col: 4, row: 5 }], blocked },
   spawnZone: 'airlock',
@@ -53,7 +53,14 @@ describe('exterior con terreno que no se pisa', () => {
     const target = { x: 2.5, y: 8.5 };
     const out = routeToPoint(LAYOUT, { x: 3.5, y: 2.5 }, target);
     expect(walkable(out)).toBe(true);
-    expect(out.some((p) => zoneAt(LAYOUT, p) === 'airlock')).toBe(true);
+    expect(Array.from({ length: 200 }, (_, i) => zoneAt(LAYOUT, pointAlong(out, (pathLength(out) * i) / 199))).includes('airlock')).toBe(true);
     expect(walkable(route(LAYOUT, target, 'airlock'))).toBe(true);
+  });
+
+  it('un pasillo cerrado no se pisa: sin otro camino no se llega', () => {
+    const from = { x: 2.5, y: 2.5 };
+    expect(route(LAYOUT, { x: 3.5, y: 4.5 }, 'airlock')).toHaveLength(2);
+    expect(routeToPoint(LAYOUT, { x: 3.5, y: 4.5 }, from, false, new Set(['corridor']))).toEqual([{ x: 3.5, y: 4.5 }]);
+    expect(walkable(routeToPoint(LAYOUT, { x: 3.5, y: 4.5 }, from))).toBe(true);
   });
 });

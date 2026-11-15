@@ -62,6 +62,8 @@ export interface HabitatPower {
   essentialLoads: readonly string[];
   /** Potencia que representa cada enchufe del tablero (kW) [regla]: con menos luz hay menos enchufes (§3.2). */
   socketKw: number;
+  /** Sala del tablero: desenchufar sistemas sólo se puede estando ahí (en Marte, la de energía). Sin sala, desde cualquier lado. */
+  panelZone?: string;
 }
 
 /** Contenido común de la nave y de la base; se inyecta para probar las sesiones con dobles. */
@@ -89,4 +91,9 @@ export interface HabitatContent {
   cascadeRules: CascadeRules;
   incidents: readonly IncidentDefinition[];
   incidentRules: IncidentRules;
+  /**
+   * Embarque al terminar el tiempo de la fase: hay que llevar la carga del depósito (`cargoZone`) a la nave
+   * (`shipZone`) y que toda la tripulación suba. Sin esto, la fase termina con el tiempo.
+   */
+  departure?: { shipZone: string; cargoZone: string };
 }

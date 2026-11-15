@@ -72,7 +72,7 @@ const viewOf = (params: URLSearchParams): MapViewData => ({
 /**
  * Datos de prueba para abrir las escenas de simulación con `?scene=`. Dueño: Santiago.
  * `?scene=Voyage&leg=back&where=shelter&broken=scrubber&battery=0` · `?scene=Mars&km=6&where=airlock` (distancia del aterrizaje a la base y cuarto donde
- * arranca el jugador) · más los de `phaseState` y `viewOf`.
+ * arranca el jugador) · `?scene=Mars&incident=tubeBreach,cableCut:2,fuseBlown` (averías de la base) · más los de `phaseState` y `viewOf`.
  */
 export const simulationDevData: DevDataBuilders = {
   Voyage: (base, params): VoyageSceneData & MapViewData => {
@@ -97,12 +97,19 @@ export const simulationDevData: DevDataBuilders = {
   },
   Mars: (base, params): PhaseSceneData & MapViewData => {
     const state = phaseState(base.state, 'mars', params);
+    // `incident=tubeBreach,cableCut,fuseBlown`: averías de la base ya en curso (tubo roto, cable cortado, fusible
+    // quemado), esperando qué hacer; `tubeBreach:3` elige otro tubo (o cable) cambiando el id del incidente.
+    const incidents = (params.get('incident') ?? '').split(',').filter(Boolean).map((spec) => {
+      const [definitionId, n = '0'] = spec.split(':');
+      return { id: `dev-${definitionId}-${n}`, definitionId: definitionId!, phase: 'mars' as const, status: 'active' as const, impactAt: state.simDate };
+    });
     return {
       ...base,
       ...viewOf(params),
       state: {
         ...state,
         landingDistanceKm: Number(params.get('km') ?? 2),
+        activeIncidents: [...state.activeIncidents, ...incidents],
         meters: { ...state.meters, energy: { batteryKwh: GALE_POWER.capacityKwh, capacityKwh: GALE_POWER.capacityKwh } },
         // Llegan del viaje de ida con algo de dosis; `where` elige dónde arranca el jugador.
         crew: state.crew.map((m) => ({

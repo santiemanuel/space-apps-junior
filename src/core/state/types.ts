@@ -40,6 +40,8 @@ export interface MissionLogEntry {
 export interface HabitatSave {
   planner: IncidentPlannerState;
   cascade: CascadeState;
+  /** Marte: muestras guardadas en el depósito y quién lleva cada una de las que todavía no se guardaron. */
+  mars?: { stored: string[]; carried: Record<string, string> };
 }
 
 /**

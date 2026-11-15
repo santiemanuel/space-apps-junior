@@ -7,7 +7,8 @@ import type { AlertLevel } from '../meters/types';
 import type { GameState } from '../state/types';
 import type { Point } from './layout';
 import type { HabitatTask } from './types';
-import type { PendingDecision, ZoneMinigame } from './HabitatSession';
+import type { Departure, PendingDecision, ZoneMinigame } from './HabitatSession';
+import type { MarsGrid } from '../mars/MarsSession';
 
 /** Pedido a Control de Misión (§3.7): la respuesta llega tras la demora de ida y vuelta de la señal. */
 export interface MissionControlRequest {
@@ -59,7 +60,14 @@ export interface SimSnapshot {
     loadKw: number;
     /** Enchufes libres para los sistemas que se pueden desenchufar: los que alcanza a dar el sol de hoy. */
     sockets: number;
+    /** Sala del tablero y si el jugador está lejos de ella (no puede desenchufar nada). */
+    panelZone?: string;
+    panelBlocked?: boolean;
+    /** Falta energía ahora: la batería no está conectada y el sol no alcanza. */
+    blackout: boolean;
   };
+  /** Embarque final: la carga del depósito y quiénes ya subieron a la nave. */
+  departure?: Departure;
   missionControl: {
     /** Clave del motivo por el que no se puede pedir nada ahora, o null. */
     blockedKey: string | null;
@@ -75,7 +83,10 @@ export interface SimSnapshot {
     forecast: MarsWeather;
     daylight: boolean;
     evaOpen: boolean;
-    samples: { count: number; total: number; kg: number; value: number };
+    /** `stored`: en el depósito · `carried`: las lleva alguien encima (se dejan al entrar al depósito). */
+    samples: { count: number; total: number; kg: number; value: number; stored: number; carried: number };
+    /** Red eléctrica: tubos rotos, cables cortados, fusible y cómo llega la energía. */
+    grid: MarsGrid;
   };
 }
 

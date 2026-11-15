@@ -58,11 +58,12 @@ export class MarsWeatherFx {
   private wind: number = WIND.calm;
   private readonly rng: Rng;
 
-  constructor(private readonly scene: Phaser.Scene, interior: PxRect, seed: number) {
+  constructor(private readonly scene: Phaser.Scene, interior: readonly PxRect[], seed: number) {
     makeTextures(scene);
     this.rng = new Rng(seed ^ 0xd0577);
     const cam = scene.cameras.main;
-    const base = new Phaser.Geom.Rectangle(interior.x, interior.y, interior.w, interior.h);
+    // La base: varios rectángulos (los módulos y los tubos con sus paredes).
+    const base = { contains: (x: number, y: number) => interior.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) };
     // El polvo nace en lo que se ve de la cámara, nunca adentro de la base, y se muere si entra.
     const source = {
       getRandomPoint: (point: Phaser.Types.Math.Vector2Like) => {
@@ -75,7 +76,7 @@ export class MarsWeatherFx {
         return point;
       },
     };
-    const deathZone = { type: 'onEnter' as const, source: base };
+    const deathZone = { type: 'onEnter' as const, source: base as Phaser.Types.GameObjects.Particles.DeathZoneSource };
     this.motes = scene.add
       .particles(0, 0, Tex.mote, {
         emitZone: { type: 'random', source },

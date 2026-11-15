@@ -146,7 +146,11 @@ describe('Mars con los datos reales de 2024', () => {
     });
     for (let i = 0; i < 60_000 && !session.outcome; i++) {
       for (const d of session.pendingDecisions()) session.respond(d.incident.id, d.options[0]!.response.id);
-      session.update(0.25, { activeZone: 'shelter', interacting: false });
+      // Al final, el embarque: la carga del depósito a la nave.
+      const departing = session.departing;
+      const zone = departing ? (departing.cargo === 'stored' ? 'storage' : 'ship') : 'shelter';
+      session.update(0.25, { activeZone: zone, interacting: false });
+      if (departing) session.doAction(zone);
     }
     expect(shown).toEqual(['mars-storm-2024-05-20', 'dust-2024-05-28', 'curiositySulfur2024']);
     expect(completed).toEqual(['completed']);

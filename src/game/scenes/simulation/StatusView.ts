@@ -12,6 +12,7 @@ import { crewTextureKey } from '../../assets';
 import { GAME_HEIGHT } from '../../display';
 import { HUD_ICONS } from '../../hudIcons';
 import { VIEW_WIDTH } from './HudScene';
+import { gridWarningKey, locationKey } from './simulationData';
 
 export const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 export const LIGHT: Record<SystemStatus, string> = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' };
@@ -135,7 +136,7 @@ export class StatusView {
 
     let y = this.resources(g, s, TOP);
     y = this.systems(g, s, y + 14);
-    if (s.mars) this.marsToday(g, s.mars, y + 14);
+    if (s.mars) this.marsToday(g, s, s.mars, y + 14);
     y = this.crew(g, s, TOP);
     this.outside(g, s, y + 14);
     this.keys(g, !!s.mars);
@@ -184,7 +185,7 @@ export class StatusView {
   }
 
   /** En Marte: el tiempo real que midió Curiosity, si se puede salir y las muestras. */
-  private marsToday(g: Phaser.GameObjects.Graphics, mars: NonNullable<SimSnapshot['mars']>, top: number): void {
+  private marsToday(g: Phaser.GameObjects.Graphics, s: SimSnapshot, mars: NonNullable<SimSnapshot['mars']>, top: number): void {
     const w = mars.weather;
     let y = this.section(g, LEFT, top, 'hud.info.marsToday');
     const line = (value: string, color: string) => (y += this.text(LEFT.x, y, value, 12, color, LEFT.width).height + 4);
@@ -195,6 +196,10 @@ export class StatusView {
       mars.evaOpen ? LIGHT.green : LIGHT.yellow,
     );
     line(t('mars.panel.samples', mars.samples), TEXT.color);
+    line(t('mars.panel.samplesStored', mars.samples), SOFT);
+    const grid = gridWarningKey(s);
+    if (grid) line(tr(grid), LIGHT.yellow);
+    if (mars.grid.brokenTubes.length) line(t('mars.panel.tubes', { count: mars.grid.brokenTubes.length }), LIGHT.yellow);
   }
 
   /** Tripulación: cara, dónde está y las cuatro barras de la salud con su nombre. */
@@ -205,7 +210,7 @@ export class StatusView {
       const key = crewTextureKey(m.id);
       if (this.scene.textures.exists(key))
         this.add(this.scene.add.image(RIGHT.x - PORTRAIT.x, y - PORTRAIT.y, key, 0).setOrigin(0, 0).setCrop(PORTRAIT.x, PORTRAIT.y, PORTRAIT.w, PORTRAIT.h).setAlpha(m.resting ? 0.6 : 1));
-      const where = m.location === 'corridor' || m.location === 'exterior' ? `hud.zone.${m.location}` : `${this.namespace}.zone.${m.location}`;
+      const where = locationKey(this.namespace, m.location);
       const color = m.resting ? SOFT : lightFor(efficiency(m, st.meters.lifeSupport.co2MmHg), 0.8, 0.6);
       this.text(RIGHT.x + 84, y + 4, `${m.id === st.activeCrewId ? '▶ ' : ''}${NAMES[m.id]}`, 15, color);
       this.text(RIGHT.x + 84, y + 26, tr(where), 11, SOFT, 126);

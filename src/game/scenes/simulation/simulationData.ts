@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import type { SimulationEvents } from '../../../core/habitat/events';
+import type { SimSnapshot, SimulationEvents } from '../../../core/habitat/events';
 import type { MinigameId } from '../../../core/minigames/Minigame';
 import type { EventBus } from '../../../core/events/EventBus';
 import type { SceneKey } from '../../sceneKeys';
@@ -35,4 +35,23 @@ export interface MapViewOptions {
 /** Datos de escena con las opciones de vista: los agrega `simulationDev.ts`. */
 export interface MapViewData {
   view?: MapViewOptions;
+}
+
+/** Clave del nombre de una ubicación: pasillos y tubos son todos "pasillo"; afuera, "afuera"; si no, el cuarto. */
+export const locationKey = (namespace: 'voyage' | 'mars', location: string): string =>
+  location === 'exterior' ? 'hud.zone.exterior' : location === 'corridor' || location.startsWith('tube-') ? 'hud.zone.corridor' : `${namespace}.zone.${location}`;
+
+/**
+ * Lo más grave de la red eléctrica de la base en Gale, para una línea del tablero (clave de texto), o null si todo
+ * anda: sin energía, fusible quemado, sin paneles, batería desconectada o un cable cortado.
+ */
+export function gridWarningKey(s: SimSnapshot): string | null {
+  const grid = s.mars?.grid;
+  if (!grid) return null;
+  if (s.power.blackout) return 'mars.panel.blackout';
+  if (grid.fuseBlown) return 'mars.panel.gridFuse';
+  if (!grid.solarLinked) return 'mars.panel.gridSolarOff';
+  if (!grid.batteryLinked) return 'mars.panel.gridBatteryOff';
+  if (grid.cutCables.length) return 'mars.panel.gridLoss';
+  return null;
 }

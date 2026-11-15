@@ -38,6 +38,8 @@ export const TUTORIALS: Record<MinigameId, readonly TutorialStep[]> = {
   moxie: [{ icons: ['heater'], keys: ['E'] }, { gauge: true }, { icons: ['heater'], mark: 'no' }],
   seals: [{ icons: ['brush'], keys: ['←', '→'] }, { icons: ['dust'], keys: ['E'] }],
   patch: [{ keys: ARROWS }, { glyph: '♪' }, { icons: ['patch'], keys: ['E'] }],
+  fuses: [{ glyph: '▮', keys: ARROWS }, { glyph: '10 A' }, { keys: ['1', '2', '3'] }],
+  wires: [{ glyph: '●' }, { keys: ['↑', '↓'] }, { glyph: '⟷', keys: ['E'] }],
 };
 
 const GAP = 14;

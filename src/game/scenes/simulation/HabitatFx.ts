@@ -44,8 +44,8 @@ export interface HabitatFxOptions {
   seed: number;
   /** Cuartos y tramos de pasillo (px): cada uno con su luz de techo, si el mapa recibe luz dinámica. */
   areas: readonly PxRect[];
-  /** Lugar con exterior: el rectángulo de la base, lo único que se oscurece en un corte de energía. */
-  interior?: PxRect;
+  /** Lugar con exterior: los rectángulos de la base (sin superponerse), lo único que se oscurece en un corte de energía. */
+  interior?: readonly PxRect[];
   /** Balizas del exterior (px, donde va su luz): se encienden cuando oscurece. */
   beacons?: readonly Point[];
 }
@@ -212,7 +212,7 @@ export class HabitatFx {
   private readonly glows: { glow: Phaser.GameObjects.Image; light?: Phaser.GameObjects.Light; spec: GlowSpec; phase: number }[] = [];
   private readonly stations: Station[];
   private readonly leaks = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
-  private readonly darkness: Phaser.GameObjects.Rectangle;
+  private readonly darkness: Phaser.GameObjects.Graphics;
   private readonly beacons: { glow: Phaser.GameObjects.Image; beam: Phaser.GameObjects.Image; light?: Phaser.GameObjects.Light }[] = [];
   /** Linternas de casco, una por tripulante afuera (se crean al hacer falta). */
   private readonly helmets: Phaser.GameObjects.Light[] = [];
@@ -235,7 +235,7 @@ export class HabitatFx {
       // Sólo lo que está afuera: adentro la luz viene del techo. El apoyo queda un poco arriba del borde del sprite.
       for (const item of [...view.props, ...view.decor.filter((d) => d.key.startsWith('rock'))]) {
         const { x, y, height } = item.image;
-        if (NO_SHADOW.has(item.key) || (x >= inside.x && x < inside.x + inside.w && y >= inside.y && y < inside.y + inside.h)) continue;
+        if (NO_SHADOW.has(item.key) || inside.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)) continue;
         this.casters.push({ x, y: y - Math.min(12, Math.round(height * 0.15)), frame: item.key });
       }
     }
@@ -272,8 +272,8 @@ export class HabitatFx {
       const light = this.lit && spec.light ? lights.addLight(at.x, at.y + 24, spec.light.radius, spec.color, spec.light.intensity, 60) : undefined;
       this.glows.push({ glow: add(at, spec.scale).setTint(spec.color).setAlpha(spec.alpha), ...(light ? { light } : {}), spec, phase: this.rng.between(0, Math.PI * 2) });
     }
-    const dark = options.interior ?? { x: 0, y: 0, w: view.width, h: view.height };
-    this.darkness = scene.add.rectangle(dark.x, dark.y, dark.w, dark.h, 0x060a1a, 0.62).setOrigin(0, 0).setDepth(MapDepth.darkness).setVisible(false);
+    this.darkness = scene.add.graphics().setDepth(MapDepth.darkness).setAlpha(0.62).setVisible(false);
+    for (const r of options.interior ?? [{ x: 0, y: 0, w: view.width, h: view.height }]) this.darkness.fillStyle(0x060a1a, 1).fillRect(r.x, r.y, r.w, r.h);
     for (const at of options.beacons ?? []) {
       const light = this.lit ? lights.addLight(at.x, at.y + 24, BEACON_LIGHT.radius, BEACON_LIGHT.color, 0, BEACON_LIGHT.z).setVisible(false) : undefined;
       // Un haz que gira, como un faro (más corto que el de las alarmas).

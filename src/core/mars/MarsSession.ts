@@ -1,14 +1,16 @@
 import { workSpeed } from '../crew/efficiency';
 import type { CrewId } from '../crew/types';
 import type { MarsWeather } from '../environment/series';
-import { HabitatSession, type HabitatOptions, type StepContext } from '../habitat/HabitatSession';
-import { EXTERIOR, exteriorDoorPoint, zoneAt, type Point } from '../habitat/layout';
+import { hashOf, HabitatSession, type HabitatOptions, type StepContext } from '../habitat/HabitatSession';
+import { EXTERIOR, exteriorDoorPoint, zoneAt, type Closed, type Point } from '../habitat/layout';
+import type { IncidentResponse } from '../incidents/definitions';
+import type { IncidentState } from '../incidents/types';
 import { incidentModifiers } from '../incidents/planner';
 import { dustFactorFromUv, heatingKw, MARS_DISTANCE_AU } from '../meters/energy';
 import type { MeterEnvironment, MeterPlan } from '../meters/step';
 import { realEventLogEntry } from '../report/report';
 import { Rng } from '../rng/Rng';
-import type { GameState, Sample } from '../state/types';
+import type { GameState, HabitatSave, Sample } from '../state/types';
 import type { MarsContent, SampleSite } from './types';
 
 const HOUR_MS = 3_600_000;
@@ -83,6 +85,28 @@ export function sampleSites(content: MarsContent, seed: number, landingDistanceK
   return sites;
 }
 
+/** Nodos de la red eléctrica que importan para las reglas (el resto son cajas de empalme y la nave). */
+const SOLAR = 'solar';
+const BASE = 'base';
+const BATTERY = 'battery';
+/** Prefijo de la zona de trabajo de un cable cortado (`repairZoneAt`). */
+const CABLE = 'cable:';
+
+/** Cómo llega la energía ahora (red de cables y fusible de la sala de energía). */
+export interface MarsGrid {
+  /** Tubos rotos (cerrados) y tramos de cable cortados. */
+  brokenTubes: string[];
+  cutCables: string[];
+  /** Se quemó el fusible de la entrada de los paneles. */
+  fuseBlown: boolean;
+  /** Llega algo del sol a la base o a la batería. */
+  solarLinked: boolean;
+  /** La batería está conectada a la base. */
+  batteryLinked: boolean;
+  /** Parte del sol que llega (1 todo, 0 nada). */
+  solarFactor: number;
+}
+
 /**
  * Escena `Mars` sin motor (§4.4): la base en el cráter Gale con el polvo (UV) y el frío reales de REMS, la luz
  * del sol marciano, MOXIE, el invernadero y las salidas al exterior a juntar muestras.
@@ -92,11 +116,92 @@ export class MarsSession extends HabitatSession<MarsContent> {
   readonly sites: readonly SampleSite[];
   private readonly weatherOf: (date: string) => MarsWeather;
   private readonly sampleProgress = new Map<string, number>();
+  /** Muestras guardadas en el depósito y quién lleva cada una de las que todavía no se guardaron. */
+  private readonly stored = new Set<string>();
+  private readonly carried = new Map<string, CrewId>();
 
   constructor(options: MarsOptions) {
     super({ ...options, phase: 'mars' });
     this.weatherOf = options.weather;
     this.sites = sampleSites(this.content, options.state.seed, options.state.landingDistanceKm);
+    const saved = Date.parse(options.state.simDate) > Date.parse(this.window.start) ? options.state.habitat?.mars : undefined;
+    for (const id of saved?.stored ?? []) this.stored.add(id);
+    for (const [id, crew] of Object.entries(saved?.carried ?? {})) this.carried.set(id, crew as CrewId);
+  }
+
+  /** Tubo que rompió un incidente (fijo para cada uno, sin gastar tiradas del Rng). */
+  tubeOf(incidentId: string): string {
+    const tubes = this.content.layout.passages;
+    return tubes[hashOf(incidentId) % tubes.length]!.id;
+  }
+
+  /** Tramo de cable que cortó un incidente. */
+  cableOf(incidentId: string): MarsContent['grid']['cables'][number] {
+    const { cables } = this.content.grid;
+    return cables[hashOf(incidentId) % cables.length]!;
+  }
+
+  private broken(definitionId: string): IncidentState[] {
+    return this.state.activeIncidents.filter((i) => i.definitionId === definitionId && i.status === 'active');
+  }
+
+  /** Estado de la red: qué está roto y cómo llega la energía. */
+  get grid(): MarsGrid {
+    const brokenTubes = this.broken('tubeBreach').map((i) => this.tubeOf(i.id));
+    const cut = new Set(this.broken('cableCut').map((i) => this.cableOf(i.id).id));
+    const cables = this.content.grid.cables.filter((c) => !cut.has(c.id));
+    const linked = (a: string, b: string) => {
+      const seen = new Set([a]);
+      const queue = [a];
+      for (let i = 0; i < queue.length; i++)
+        for (const c of cables) {
+          const next = c.from === queue[i] ? c.to : c.to === queue[i] ? c.from : null;
+          if (next && !seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      return seen.has(b);
+    };
+    const fuseBlown = this.broken('fuseBlown').length > 0;
+    const solarLinked = !fuseBlown && (linked(SOLAR, BASE) || linked(SOLAR, BATTERY));
+    return {
+      brokenTubes,
+      cutCables: [...cut],
+      fuseBlown,
+      solarLinked,
+      batteryLinked: linked(BATTERY, BASE),
+      solarFactor: solarLinked ? Math.max(0, 1 - this.content.grid.lossPerCut * cut.size) : 0,
+    };
+  }
+
+  closedPassages(): Closed {
+    return new Set(this.grid.brokenTubes);
+  }
+
+  protected batteryLinked(): boolean {
+    return this.grid.batteryLinked;
+  }
+
+  /** Junto a la puerta de un tubo roto (de este lado) o afuera junto al corte de un cable. */
+  protected repairZoneAt(position: Point): string | null {
+    const { layout, grid } = this.content;
+    const reach = grid.repairReach;
+    const here = zoneAt(layout, position);
+    const near = (p: Point) => Math.hypot(p.x - position.x, p.y - position.y) <= reach;
+    for (const id of this.grid.brokenTubes) {
+      const tube = layout.passages.find((p) => p.id === id)!;
+      if (here !== id && (tube.doorTiles ?? []).some((d) => near({ x: d.col + 0.5, y: d.row + 0.5 }))) return id;
+    }
+    if (here !== EXTERIOR) return null;
+    const cable = this.broken('cableCut').map((i) => this.cableOf(i.id)).find((c) => near(c.at));
+    return cable ? CABLE + cable.id : null;
+  }
+
+  protected incidentWorkZone(incident: IncidentState, work: NonNullable<IncidentResponse['work']>): string | undefined {
+    if (incident.definitionId === 'tubeBreach') return this.tubeOf(incident.id);
+    if (incident.definitionId === 'cableCut') return CABLE + this.cableOf(incident.id).id;
+    return super.incidentWorkZone(incident, work);
   }
 
   /** Clima real de Gale de hoy (lo reporta Curiosity, el vecino robot). */
@@ -119,7 +224,28 @@ export class MarsSession extends HabitatSession<MarsContent> {
 
   /** Se puede salir: es de día y ninguna respuesta a un incidente lo impide (tormenta, sellos, §4.4). */
   get evaOpen(): boolean {
+    // En el embarque final la puerta queda abierta: la nave espera.
+    if (this.departure) return true;
     return this.daylight && !incidentModifiers(this.content.incidents, this.state).evaBlocked;
+  }
+
+  /** Muestras juntadas: las del depósito y las que todavía lleva alguien encima. */
+  get sampleStorage(): { stored: number; carried: number } {
+    return { stored: this.stored.size, carried: this.carried.size };
+  }
+
+  /** Quien entra al depósito deja ahí las muestras que lleva. */
+  protected afterUpdate(): void {
+    const storage = this.content.departure?.cargoZone;
+    for (const [site, crewId] of this.carried)
+      if (this.state.crew.find((m) => m.id === crewId)?.location === storage) {
+        this.carried.delete(site);
+        this.stored.add(site);
+      }
+  }
+
+  protected saveExtras(): Partial<HabitatSave> {
+    return { mars: { stored: [...this.stored], carried: Object.fromEntries(this.carried) } };
   }
 
   /** Muestras que siguen en el terreno, con lo que lleva juntado el jugador. */
@@ -140,7 +266,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
   protected averageGenerationKw(): number {
     const { daylight, power, meterRules } = this.content;
     const dayShare = (daylight.sunsetHour - daylight.sunriseHour) / 24;
-    return (power.panelKwAt1Au / MARS_DISTANCE_AU ** 2) * dustFactorFromUv(meterRules, this.weather.uv) * dayShare * (2 / Math.PI);
+    return (power.panelKwAt1Au / MARS_DISTANCE_AU ** 2) * dustFactorFromUv(meterRules, this.weather.uv) * dayShare * (2 / Math.PI) * this.grid.solarFactor;
   }
 
   protected averageHeatingKw(): number {
@@ -166,7 +292,8 @@ export class MarsSession extends HabitatSession<MarsContent> {
         panelKwAt1Au: this.content.power.panelKwAt1Au,
         distanceAu: MARS_DISTANCE_AU,
         dustFactor: adj.dustFactorOverride ?? dustFactorFromUv(this.content.meterRules, weather.uv),
-        lightFactor: this.lightFactor(hours),
+        // Lo que llega por los cables: con el fusible quemado o sin camino, nada.
+        lightFactor: this.lightFactor(hours) * this.grid.solarFactor,
       },
       minTempC: weather.minTempC,
     };
@@ -174,7 +301,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
 
   protected planExtras(s: GameState, hours: number, { adj, mods }: StepContext): Partial<MeterPlan> {
     const moxie = s.systems.moxie;
-    const moxieOn = adj.moxieOn && this.activeLoads({ adj, mods }).includes('moxie');
+    const moxieOn = adj.moxieOn && !this.blackout && this.activeLoads({ adj, mods }).includes('moxie');
     const moxieKgPerDay = moxieOn && moxie !== 'red' ? this.content.moxieOxygenKgPerDay * (moxie === 'yellow' ? 0.5 : 1) : 0;
     return {
       heatingFactor: adj.heatingFactor * mods.heatingFactor,
@@ -200,7 +327,9 @@ export class MarsSession extends HabitatSession<MarsContent> {
           total: this.sites.length,
           kg: Math.round(samples.reduce((sum, x) => sum + x.massKg, 0) * 10) / 10,
           value: samples.reduce((sum, x) => sum + x.value, 0),
+          ...this.sampleStorage,
         },
+        grid: this.grid,
       },
     };
   }
@@ -209,7 +338,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
   protected afterStep(_before: GameState, after: GameState, hours: number, ctx: StepContext): GameState {
     const s = this.realMomentsUntil(after);
     const status = s.systems.greenhouse;
-    if (status === 'red' || !this.activeLoads(ctx).includes('greenhouse')) return s;
+    if (status === 'red' || this.blackout || !this.activeLoads(ctx).includes('greenhouse')) return s;
     const { foodKgPerDay, priorityMultiplier } = this.content.greenhouse;
     const food = ((foodKgPerDay * hours) / 24) * (status === 'yellow' ? 0.5 : 1) * (ctx.adj.greenhousePriority ? priorityMultiplier : 1);
     return { ...s, inventory: { ...s.inventory, foodKg: s.inventory.foodKg + food } };
@@ -244,6 +373,7 @@ export class MarsSession extends HabitatSession<MarsContent> {
       return s;
     }
     this.sampleProgress.delete(site.id);
+    this.carried.set(site.id, crewId);
     const sample: Sample = { id: site.id, siteId: site.id, massKg: site.massKg, value: site.value, ...(site.rock ? { rock: site.rock } : {}) };
     return {
       ...s,

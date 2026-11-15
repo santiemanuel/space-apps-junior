@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { doorPoint, EXTERIOR, exteriorDoorPoint, isWalkable, route, zoneAt, zoneSpot, type ShipLayout } from '../core/habitat/layout';
+import { EXTERIOR, doorPoint, isWalkable, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type ShipLayout } from '../core/habitat/layout';
 import type { HabitatTask } from '../core/habitat/types';
-import { GALE_LANDMARKS, GALE_LAYOUT, GALE_MAP, GALE_TASKS, GALE_TERRAIN } from './gale';
+import { GALE_CABLES, GALE_LANDMARKS, GALE_LAYOUT, GALE_MAP, GALE_TASKS, GALE_TERRAIN } from './gale';
 import { GALE_STRIPS } from './galeTerrain';
 import { SHIP_LAYOUT, SHIP_MAP, VOYAGE_TASKS } from './ship';
 import { layoutFromTiled, propsFromTiled, wallTilesFromTiled, type TiledMap } from './tiledLayout';
@@ -13,14 +13,13 @@ describe.each([
   const walls = wallTilesFromTiled(map);
   const props = propsFromTiled(map);
   const tile = map.tilewidth;
+  /** Suelo encerrado entre los tubos de la base: se ve pero no se pisa. */
+  const courtyard = (col: number, row: number) => !!layout.exterior?.blocked?.[row * layout.cols + col];
   const insideProp = (x: number, y: number) =>
     props.some((p) => x * tile > p.x && x * tile < p.x + p.width && y * tile > p.y && y * tile < p.y + p.height);
 
-  it('cada cuarto tiene su puerta de dos tiles al pasillo', () => {
-    for (const zone of layout.zones) {
-      expect(zone.doorTiles, zone.id).toHaveLength(1);
-      expect(zoneAt(layout, doorPoint(zone)), zone.id).toBe(zone.id);
-    }
+  it('las puertas son de su cuarto y la tripulación aparece en el mando', () => {
+    for (const zone of layout.zones) if (zone.door) expect(zoneAt(layout, doorPoint(zone)), zone.id).toBe(zone.id);
     expect(layout.spawnZone).toBe('command');
   });
 
@@ -29,7 +28,7 @@ describe.each([
       for (let col = 0; col < layout.cols; col++) {
         const walkable = isWalkable(layout, col, row);
         if (walls[row]![col]) expect(walkable, `${col},${row}`).toBe(false);
-        else if (!walkable) expect(!!layout.exterior && insideProp(col + 0.5, row + 0.5), `${col},${row}`).toBe(true);
+        else if (!walkable) expect(!!layout.exterior && (insideProp(col + 0.5, row + 0.5) || courtyard(col, row)), `${col},${row}`).toBe(true);
       }
   });
 
@@ -44,23 +43,19 @@ describe.each([
     }
   });
 
-  it('ningún objeto tapa el lugar de trabajo ni el camino desde la puerta', () => {
+  it('desde el mando se llega a cada cuarto sin atravesar paredes ni muebles', () => {
+    const from = zoneSpot(zoneById(layout, 'command'));
     for (const zone of layout.zones) {
-      const spot = zoneSpot(zone);
-      const door = doorPoint(zone);
-      for (let i = 0; i <= 20; i++) {
-        const x = door.x + ((spot.x - door.x) * i) / 20;
-        const y = door.y + ((spot.y - door.y) * i) / 20;
-        expect(insideProp(x, y), `${zone.id}: ${x},${y}`).toBe(false);
+      const path = route(layout, from, zone.id);
+      expect(path.length, zone.id).toBeGreaterThan(1);
+      expect(insideProp(zoneSpot(zone).x, zoneSpot(zone).y), `${zone.id}: lugar de trabajo`).toBe(false);
+      for (let d = 0.6; d <= pathLength(path) - 0.6; d += 0.1) {
+        const p = pointAlong(path, d);
+        expect(zoneAt(layout, p), `${zone.id}: ${p.x},${p.y}`).not.toBeNull();
+        expect(insideProp(p.x, p.y), `${zone.id}: ${p.x},${p.y}`).toBe(false);
       }
     }
-  });
-
-  it('cada tarea tiene su cuarto y se llega caminando por lugares transitables', () => {
-    const from = zoneSpot(layout.zones.find((z) => z.id === 'command')!);
-    for (const task of tasks) {
-      for (const p of route(layout, from, task.zone)) expect(zoneAt(layout, p), `${task.id}: ${p.x},${p.y}`).not.toBeNull();
-    }
+    for (const task of tasks) expect(layout.zones.some((z) => z.id === task.zone), task.id).toBe(true);
   });
 });
 
@@ -69,22 +64,50 @@ describe('mapa de la nave (Tiled)', () => {
     expect(SHIP_LAYOUT.zones.map((z) => z.id).sort()).toEqual(['command', 'exercise', 'infirmary', 'pantry', 'radio', 'recycler', 'scrubber', 'shelter']);
   });
 
-  it('avisa si al mapa le falta una capa o una puerta', () => {
+  it('avisa si al mapa le falta una capa o el pasillo', () => {
     expect(() => layoutFromTiled({ ...SHIP_MAP, layers: SHIP_MAP.layers.filter((l) => l.name !== 'zonas') })).toThrow(/zonas/);
-    const withoutDoors = SHIP_MAP.layers.map((l) => (l.name === 'zonas' ? { ...l, objects: l.objects!.filter((o) => o.type !== 'door') } : l));
-    expect(() => layoutFromTiled({ ...SHIP_MAP, layers: withoutDoors })).toThrow(/puerta/);
+    const withoutCorridor = SHIP_MAP.layers.map((l) => (l.name === 'zonas' ? { ...l, objects: l.objects!.filter((o) => o.type !== 'corridor') } : l));
+    expect(() => layoutFromTiled({ ...SHIP_MAP, layers: withoutCorridor })).toThrow(/pasillos/);
   });
 });
 
 describe('mapa de la base en Gale (Tiled)', () => {
   const ext = GALE_LAYOUT.exterior!;
 
-  it('tiene los ocho cuartos y la esclusa, con la puerta exterior de dos tiles debajo de la de adentro', () => {
-    expect(GALE_LAYOUT.zones.map((z) => z.id).sort()).toEqual(['airlock', 'command', 'exercise', 'greenhouse', 'infirmary', 'moxie', 'radio', 'scrubber', 'shelter']);
-    const airlock = GALE_LAYOUT.zones.find((z) => z.id === 'airlock')!;
+  it('sigue el plano: módulos con forma propia unidos por tubos, y afuera el depósito, la batería y la nave', () => {
+    expect(GALE_LAYOUT.zones.map((z) => z.id).sort()).toEqual(
+      ['airlock', 'battery', 'command', 'energy', 'exercise', 'greenhouse', 'infirmary', 'moxie', 'pantry', 'radio', 'scrubber', 'shelter', 'ship', 'storage', 'workshop'],
+    );
+    expect(GALE_LAYOUT.passages.map((p) => p.id).every((id) => id.startsWith('tube-'))).toBe(true);
+    expect(GALE_LAYOUT.passages).toHaveLength(6);
+    // Cada tubo tiene una puerta en cada punta, y sus dos puntas dan a cuartos distintos.
+    for (const tube of GALE_LAYOUT.passages) {
+      const ends = new Set(
+        tube.doorTiles!.flatMap((d) =>
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dc, dr]) => zoneAt(GALE_LAYOUT, { x: d.col + dc! + 0.5, y: d.row + dr! + 0.5 })),
+        ).filter((z) => z && z !== tube.id && z !== EXTERIOR),
+      );
+      expect(ends.size, tube.id).toBe(2);
+    }
+    // El invernadero tiene forma de cúpula: no es un rectángulo lleno.
+    expect(zoneById(GALE_LAYOUT, 'greenhouse').mask!.some((m) => !m)).toBe(true);
+    // La puerta exterior de dos tiles está pegada a la esclusa; el depósito, la batería y la nave dan al exterior.
+    const airlock = zoneById(GALE_LAYOUT, 'airlock');
     expect(ext.doorTiles).toHaveLength(1);
-    expect(exteriorDoorPoint(ext).x).toBe(doorPoint(airlock).x);
     expect(ext.door.row).toBe(airlock.rect.row + airlock.rect.rows);
+    for (const id of ['storage', 'battery', 'ship']) {
+      const door = doorPoint(zoneById(GALE_LAYOUT, id));
+      const around = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => zoneAt(GALE_LAYOUT, { x: door.x + dx!, y: door.y + dy! }));
+      expect(around, id).toContain(EXTERIOR);
+    }
+  });
+
+  it('los cables unen los paneles, la base, la batería y la nave, pasando por dos cajas de empalme', () => {
+    const nodes = new Set(GALE_CABLES.flatMap((c) => [c.from, c.to]));
+    expect([...nodes].sort()).toEqual(['base', 'battery', 'j1', 'j2', 'ship', 'solar']);
+    expect(GALE_LANDMARKS.j1).toBeDefined();
+    expect(GALE_LANDMARKS.j2).toBeDefined();
+    for (const c of GALE_CABLES) expect(c.points.length, c.id).toBeGreaterThan(1);
   });
 
   it('todo el exterior transitable se alcanza caminando desde la esclusa', () => {

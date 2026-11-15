@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BikeGame, MoxieGame, PulseGame, RadioGame, ScrubberGame } from './arcade';
 import { createMinigame, MINIGAME_IDS } from './catalog';
 import { NO_KEYS, NO_INPUT, type GridCursor, type Minigame, type MinigameInput, type MinigameKeys, type MinigameSetup } from './Minigame';
+import { FUSE_TYPES, FusesGame, WiresGame } from './power';
 import { PatchGame, rotateSides, StarsGame, WaterGame } from './puzzles';
 import { DISH_IDS, MEAL_DISHES, MEAL_INGREDIENTS, MealGame, PLANT_TOOLS, PlantsGame, SealsGame, ShieldGame } from './rooms';
 
@@ -128,6 +129,21 @@ const POLICIES: { [K in string]: (setup: MinigameSetup) => [Minigame, (g: never,
       return toward(g.cursor, hole.col, hole.row, f) ?? input({}, { action: f % 2 === 0 });
     },
   ],
+  fuses: (s) => [
+    new FusesGame(s),
+    (g: FusesGame, f: number) => {
+      const i = g.slots.findIndex((x) => x.burnt);
+      const choice = (g.slots[i]!.type + 1) as 1 | 2 | 3;
+      return toward(g.cursor, i % g.cols, Math.floor(i / g.cols), f) ?? input({}, f % 2 ? {} : { choice });
+    },
+  ],
+  wires: (s) => [
+    new WiresGame(s),
+    (g: WiresGame, f: number) => {
+      const row = g.right.findIndex((c, i) => c === g.left[g.current] && !g.joined.includes(i));
+      return toward(g.cursor, 0, row, f) ?? input({}, { action: f % 2 === 0 });
+    },
+  ],
 };
 
 describe('minijuegos de las salas', () => {
@@ -232,5 +248,31 @@ describe('minijuegos de las salas', () => {
     const bugs = (pests: boolean) =>
       Array.from({ length: 40 }, (_, seed) => new PlantsGame({ seed, pests }).plants.filter((p) => p.need === 'bugs').length).reduce((a, b) => a + b, 0);
     expect(bugs(true)).toBeGreaterThan(bugs(false) * 2);
+  });
+
+  it('fusibles: uno más fuerte o más débil que el del tablero es un error, y uno sano no se cambia', () => {
+    const game = new FusesGame({ seed: 4 });
+    const i = game.slots.findIndex((x) => x.burnt);
+    const ok = game.slots.findIndex((x) => !x.burnt);
+    const at = (k: number) => {
+      game.cursor.col = k % game.cols;
+      game.cursor.row = Math.floor(k / game.cols);
+    };
+    at(ok);
+    game.update(DT, input({}, { choice: 1 }));
+    expect(game.message).toMatchObject({ key: 'notBurnt', good: false });
+    at(i);
+    const wrong = ((game.slots[i]!.type + 1) % FUSE_TYPES.length) + 1;
+    game.update(DT, input({}, { choice: wrong as 1 | 2 | 3 }));
+    expect(game.mistakes).toBe(2);
+    expect(game.slots[i]!.burnt).toBe(true);
+  });
+
+  it('cables: las puntas de la derecha nunca arrancan en el mismo orden que las de la izquierda', () => {
+    for (let seed = 1; seed <= 100; seed++) {
+      const game = new WiresGame({ seed, easy: seed % 2 === 0 });
+      expect(game.right).not.toEqual(game.left);
+      expect([...game.right].sort()).toEqual([...game.left].sort());
+    }
   });
 });

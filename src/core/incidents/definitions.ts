@@ -14,7 +14,10 @@ export type IncidentId =
   | 'highCo2'
   | 'greenhousePest'
   | 'sealDust'
-  | 'solarConjunction';
+  | 'solarConjunction'
+  | 'tubeBreach'
+  | 'cableCut'
+  | 'fuseBlown';
 
 /** Series reales de las que sale la línea de tiempo (§3.4, fuente 1). */
 export type TimelineKind = 'deepSpaceStorm' | 'marsRadiation' | 'marsDust' | 'marsCold' | 'solarConjunction';

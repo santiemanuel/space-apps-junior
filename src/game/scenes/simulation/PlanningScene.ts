@@ -178,12 +178,13 @@ export class PlanningScene extends Phaser.Scene {
         backgroundColor: extra ? '#9b2c2c' : on ? '#276749' : '#4a5568',
         padding: { x: 8, y: 6 },
       });
-      if (load.essential) continue;
+      // En Marte el tablero está en la sala de energía: lejos de ahí, las fichas no se mueven.
+      if (load.essential || s.power.panelBlocked) continue;
       chip.setData('load', load.id).setInteractive({ draggable: true, useHandCursor: true });
     }
-    text(600, 590, t(overload ? 'hud.planning.overload' : 'hud.planning.powerHint'), {
+    text(600, 590, t(overload ? 'hud.planning.overload' : s.power.panelBlocked ? 'hud.planning.panelAway' : 'hud.planning.powerHint'), {
       fontSize: '11px',
-      color: overload ? '#fc8181' : '#718096',
+      color: overload ? '#fc8181' : s.power.panelBlocked ? '#f6e05e' : '#718096',
       wordWrap: { width: 280 },
     });
   }

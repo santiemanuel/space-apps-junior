@@ -1,4 +1,4 @@
-import type { Point, ShipLayout } from '../core/habitat/layout';
+import { pathLength, pointAlong, type Point, type ShipLayout } from '../core/habitat/layout';
 import type { HabitatTask } from '../core/habitat/types';
 import { DEFAULT_ROUTINE, type RoutinePlan } from '../core/crew/routines';
 import type { MarsContent } from '../core/mars/types';
@@ -10,22 +10,26 @@ import type { RealEvent } from '../core/events/RealEvent';
 import { GALE_FACTS, GALE_ROCKS, type GaleStripId } from './galeTerrain';
 import galeMap from './maps/gale.json';
 import { CARE_TASKS, ROUTINE_OFFSET_HOURS } from './ship';
-import { landmarksFromTiled, layoutFromTiled, terrainFromTiled, type TerrainStrip, type TiledMap } from './tiledLayout';
+import { cablesFromTiled, landmarksFromTiled, layoutFromTiled, terrainFromTiled, type MapCable, type TerrainStrip, type TiledMap } from './tiledLayout';
 
 /**
- * Base en el cráter Gale (game-design §4.4): sale del mapa de Tiled `maps/gale.json` (72 × 72 tiles, lo arma
- * `scripts/maps/build-gale.mjs`). Los mismos cuartos que la nave a los dos lados de un pasillo, una esclusa con una
- * puerta al pasillo y otra al exterior, y afuera un corte comprimido y no a escala del camino real de Curiosity, de
- * norte a sur (`GALE_STRIPS`, fuentes en `galeTerrain.ts`). Lo que no se pisa (acantilados, cerros, crestas de
- * duna, rocas, la base) sale de la capa `paredes`. Nombres en `mars.zone.<id>`; 'exterior' es la ubicación que usan
- * los medidores para la EVA.
+ * Base en el cráter Gale (game-design §4.4): sale del mapa de Tiled `maps/gale.json` (72 × 98 tiles, lo arma
+ * `scripts/maps/build-gale.mjs`) según el plano `docs/mision_a_marte_referencias_topdown/plano-base-marte.png`:
+ * módulos con forma propia unidos por tubos aislados que se pueden romper (`tube-…`), el taller con la esclusa hacia
+ * la nave, y afuera el depósito, la batería y la nave estacionada, a los que se llega con traje. Más al sur, un corte
+ * comprimido y no a escala del camino real de Curiosity, de norte a sur (`GALE_STRIPS`, fuentes en
+ * `galeTerrain.ts`). Lo que no se pisa (acantilados, cerros, crestas de duna, rocas, la base y los patios entre los
+ * tubos) sale de la capa `paredes`. Nombres en `mars.zone.<id>`; 'exterior' es la ubicación que usan los medidores
+ * para la EVA.
  */
 export const GALE_MAP: TiledMap = galeMap;
 export const GALE_LAYOUT: ShipLayout = layoutFromTiled(GALE_MAP);
 /** Franjas del exterior (rectángulos `terrain` del mapa), de norte a sur. */
 export const GALE_TERRAIN: readonly TerrainStrip[] = terrainFromTiled(GALE_MAP);
-/** Puntos con nombre del mapa: `curiosity` es donde está estacionado el rover. */
+/** Puntos con nombre del mapa: `curiosity` (el rover), `recipe` (la receta de las reservas), `j1` y `j2` (cajas de empalme). */
 export const GALE_LANDMARKS: Readonly<Record<string, Point>> = landmarksFromTiled(GALE_MAP);
+/** Cables de la red eléctrica (verdes en el plano), con su recorrido. */
+export const GALE_CABLES: readonly MapCable[] = cablesFromTiled(GALE_MAP);
 
 /**
  * Tarjeta "Esto pasó de verdad" del azufre (galeTerrain.ts, GALE_FACTS.sulfur): sale al mediodía del 30/05/2024 si
@@ -52,8 +56,11 @@ export const GALE_TASKS: readonly HabitatTask[] = [
   { id: 'moxie', zone: 'moxie', kind: 'maintenance', category: 'energy', system: 'moxie', minigame: 'moxie' },
   { id: 'airlock', zone: 'airlock', kind: 'maintenance', category: 'leak', system: 'airlock', resets: 'evaHoursSinceMaintenance', minigame: 'seals' },
   { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms', minigame: 'radio' },
+  // Revisar los tableros de fusibles de la sala de energía una vez por día [regla]: así se aprende a cambiarlos.
+  { id: 'fuseCheck', zone: 'energy', kind: 'care', category: 'energy', minigame: 'fuses', care: { morale: 0.02 } },
   CARE_TASKS.navigate,
   CARE_TASKS.checkup,
+  { ...CARE_TASKS.cook, recipeAt: GALE_LANDMARKS.recipe! },
   CARE_TASKS.shield,
 ];
 
@@ -69,14 +76,23 @@ export const MARS_CONTENT: MarsContent = {
   calendar: CAMPAIGN_2024,
   layout: GALE_LAYOUT,
   tasks: GALE_TASKS,
-  // Las plagas se atienden en el invernadero.
-  workZones: { pests: 'greenhouse' },
+  // Las plagas se atienden en el invernadero y los fusibles quemados en la sala de energía.
+  workZones: { pests: 'greenhouse', energy: 'energy' },
   routines: GALE_ROUTINES,
   routineOffsetHours: ROUTINE_OFFSET_HOURS,
   // [regla] Sin cuidado, MOXIE se gasta en 4 soles.
   wear: { systems: ['moxie'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
-  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, capacityKwh: GALE_POWER.capacityKwh, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'], socketKw: 2 },
-  // Como en la nave: la base mide 48 tiles de largo [regla].
+  // El tablero para desenchufar sistemas está en la sala de energía.
+  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, capacityKwh: GALE_POWER.capacityKwh, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'], socketKw: 2, panelZone: 'energy' },
+  // Como en la nave [regla]: la base mide unos 50 tiles de punta a punta.
+  grid: {
+    // Cada cable se empalma en la mitad de su recorrido.
+    cables: GALE_CABLES.map((c) => ({ id: c.id, from: c.from, to: c.to, at: pointAlong(c.points, pathLength(c.points) / 2) })),
+    lossPerCut: 0.25,
+    repairReach: 1.6,
+  },
+  // Al terminar la estancia hay que llevar la carga del depósito a la nave y subir todos.
+  departure: { shipZone: 'ship', cargoZone: 'storage' },
   crewSpeedTilesPerS: 4.5,
   infirmaryZone: 'infirmary',
   shelterZone: 'shelter',

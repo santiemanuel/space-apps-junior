@@ -42,13 +42,13 @@ import { doseMSv, qualityFactor, shieldingFactor } from '../meters/dose';
 import { stepMeters, type CrewActivity, type MeterEnvironment, type MeterPlan } from '../meters/step';
 import type { AlertLevel } from '../meters/types';
 import { clamp } from '../math';
-import { INCIDENT_MINIGAMES } from '../minigames/catalog';
+import { INCIDENT_MINIGAMES, INCIDENT_MINIGAMES_BY_ID } from '../minigames/catalog';
 import type { MinigameId, MinigameSetup } from '../minigames/Minigame';
 import { DISH_IDS, type DishId, type MealStage } from '../minigames/rooms';
 import { Rng } from '../rng/Rng';
 import type { GameState, HabitatSave } from '../state/types';
 import type { SystemId } from '../systems/types';
-import { EXTERIOR, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type Point } from './layout';
+import { EXTERIOR, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type Closed, type Point } from './layout';
 import type { MissionControlRequest, SimSnapshot, SimulationEvents } from './events';
 import type { HabitatContent, HabitatTask } from './types';
 
@@ -105,6 +105,19 @@ export interface KitchenStep {
   next: MealStage;
 }
 
+/** Lo que hace E fuera de las tareas en el embarque final: cargar el depósito, guardarlo en la nave. */
+export type HabitatAction = 'loadCargo' | 'stowCargo';
+
+/** Embarque al terminar la estancia: dónde está la carga y quiénes subieron. */
+export interface Departure {
+  /** `stored`: en el depósito · `carried`: la lleva el jugador · `aboard`: guardada en la nave. */
+  cargo: 'stored' | 'carried' | 'aboard';
+  /** Quién lleva la carga, si la lleva alguien. */
+  carrier: CrewId | null;
+  aboard: number;
+  total: number;
+}
+
 /** Hasta dónde llega la mano (tiles): al recetario y a la mesada de la cocina [regla]. */
 const KITCHEN_REACH = 1.6;
 
@@ -137,7 +150,9 @@ const SLOTS: readonly Point[] = [
   { x: 0.8, y: 1.2 },
 ];
 
-const hashOf = (text: string): number => [...text].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+const NO_PASSAGES: Closed = new Set();
+
+export const hashOf = (text: string): number => [...text].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
 
 /**
  * Motor común de `Voyage` y `Mars` sin Phaser: junta el reloj, los medidores, la tripulación, la falla en cascada y
@@ -163,6 +178,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   /** Última posición del jugador que pasó la escena (la de la física, no la de la sesión). */
   private activeAt: Point | null = null;
   private readonly travel: Partial<Record<CrewId, Travel>> = {};
+  /** Destino al que un automático no puede llegar ahora (tubos rotos): no se vuelve a buscar hasta que algo cambie. */
+  private readonly unreachable = new Map<CrewId, string>();
   /** Automáticos con orden de ir al refugio. */
   private readonly sheltering = new Set<CrewId>();
   private shelter: { incidentId: string; orderedAtS: number; reached: boolean } | null = null;
@@ -186,6 +203,12 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private readonly achievements = new Set<string>();
   /** Dosis de más en las tormentas por tripulante (mSv); null mientras no haya habido ninguna. */
   private stormExtraMSv: Partial<Record<CrewId, number>> | null = null;
+  /** Pasillos o tubos cerrados con los que se planearon los recorridos (para replanear si cambian). */
+  private closedKey = '';
+  /** En el último paso faltó energía: la batería no llega a la base y el sol no alcanza (o es de noche). */
+  protected blackout = false;
+  /** Embarque final (sólo si el lugar tiene `departure`): empieza cuando se termina el tiempo de la fase. */
+  protected departure: Departure | null = null;
 
   constructor(options: HabitatOptions<C>) {
     const { state, content } = options;
@@ -230,7 +253,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
 
   /** Estado para guardar a mitad de fase: incluye los incidentes ya disparados y la falla en cascada. */
   get savedState(): GameState {
-    const habitat: HabitatSave = { planner: this._planner, cascade: this._cascade };
+    const habitat: HabitatSave = { planner: this._planner, cascade: this._cascade, ...this.saveExtras() };
     return { ...this._state, habitat };
   }
 
@@ -285,6 +308,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
 
   /** El jugador maneja a su tripulante cuando el reloj va a tiempo normal; en avance rápido sigue su rutina. */
   get manual(): boolean {
+    if (this.departure) return !this.clock.isPaused;
     return !this.clock.isPaused && this.clock.hoursPerSecond <= this.content.calendar.playHoursPerSecond[this.phase] + 1e-9;
   }
 
@@ -336,9 +360,17 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
 
   /** Tablero de energía (§3.2): los sistemas desenchufados no consumen. El soporte vital no se desenchufa. */
   setLoadsOff(off: readonly string[]): void {
+    if (this.panelBlocked()) return;
     this.loadsOff.clear();
     for (const id of off) if (!this.content.power.essentialLoads.includes(id) && id in this.content.power.loadsKw) this.loadsOff.add(id);
     this.publishSnapshot();
+  }
+
+  /** El tablero sólo se toca en su sala (la de energía en Marte): el jugador tiene que estar ahí. */
+  panelBlocked(): boolean {
+    const zone = this.content.power.panelZone;
+    if (!zone) return false;
+    return this._state.crew.find((m) => m.id === this._state.activeCrewId)?.location !== zone;
   }
 
   isLoadOn(id: string): boolean {
@@ -443,7 +475,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
         loads: Object.entries(loadsKw).map(([id, kw]) => ({ id, kw, on: !this.loadsOff.has(id), essential: essentialLoads.includes(id) })),
         ...this.lastPower,
         sockets: this.sockets(),
+        ...(this.content.power.panelZone ? { panelZone: this.content.power.panelZone, panelBlocked: this.panelBlocked() } : {}),
+        blackout: this.blackout,
       },
+      ...(this.departure ? { departure: { ...this.departure } } : {}),
       missionControl: {
         blockedKey: this.missionControlBlockedKey(),
         delaySeconds: this.delaySeconds,
@@ -482,8 +517,92 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     if (this._outcome) return;
     this.planRoutes(this.manual);
     this.checkShelter();
+    this.afterUpdate();
+    this.checkDeparture();
+    if (this._outcome) return;
     if (hours > 0) this.publishState();
     this.publishSnapshot();
+  }
+
+  /** Falta energía ahora (la batería no llega a la base y el sol no alcanza). */
+  get blackoutNow(): boolean {
+    return this.blackout;
+  }
+
+  /** Embarque final en curso (null mientras dure la estancia). */
+  get departing(): Readonly<Departure> | null {
+    return this.departure;
+  }
+
+  /** Lo propio del lugar que se guarda a mitad de fase. */
+  protected saveExtras(): Partial<HabitatSave> {
+    return {};
+  }
+
+  /** Después de cada cuadro (lo propio del lugar: p. ej. dejar las muestras en el depósito). */
+  protected afterUpdate(): void {}
+
+  /** Pasillos o tubos cerrados (rotos) que no se pueden cruzar ahora. */
+  closedPassages(): Closed {
+    return NO_PASSAGES;
+  }
+
+  /** La batería está conectada a la base (en Marte, por los cables). */
+  protected batteryLinked(): boolean {
+    return true;
+  }
+
+  /** Reparación que se hace parado junto a algo (un tubo roto, un cable cortado): su zona de trabajo, o null. */
+  protected repairZoneAt(_position: Point): string | null {
+    return null;
+  }
+
+  /** Dónde se trabaja en la respuesta a un incidente (un cuarto, o la zona de una reparación como `repairZoneAt`). */
+  protected incidentWorkZone(incident: IncidentState, work: NonNullable<IncidentResponse['work']>): string | undefined {
+    const { workZones, tasks } = this.content;
+    return workZones?.[work.task] ?? tasks.find((t) => t.category === work.task)?.zone ?? (work.task === 'leak' ? this.leakZone(incident.id) : undefined);
+  }
+
+  /** Lo que haría E fuera de las tareas en el embarque final (cargar el depósito o guardarlo en la nave). */
+  actionAt(zone: string | null): HabitatAction | null {
+    const d = this.departure;
+    const plan = this.content.departure;
+    const here = this._state.crew.find((m) => m.id === this._state.activeCrewId)?.location;
+    if (!d || !plan || !zone || zone !== here || !this.manual) return null;
+    if (zone === plan.cargoZone && d.cargo === 'stored') return 'loadCargo';
+    if (zone === plan.shipZone && d.cargo === 'carried' && d.carrier === this._state.activeCrewId) return 'stowCargo';
+    return null;
+  }
+
+  /** E en el embarque: el jugador carga el depósito o lo guarda en la nave. */
+  doAction(zone: string | null): boolean {
+    const action = this.actionAt(zone);
+    if (!action || !this.departure) return false;
+    this.departure =
+      action === 'loadCargo'
+        ? { ...this.departure, cargo: 'carried', carrier: this._state.activeCrewId }
+        : { ...this.departure, cargo: 'aboard', carrier: null };
+    this.publishSnapshot();
+    return true;
+  }
+
+  /** Se terminó el tiempo de la fase: con embarque, todos van a la nave; sin él, termina. */
+  private windowEnded(): void {
+    if (!this.content.departure) return this.finish('completed');
+    if (this.departure) return;
+    this.departure = { cargo: 'stored', carrier: null, aboard: 0, total: this._state.crew.length };
+    this.sheltering.clear();
+    this.shelter = null;
+    this.planRoutes(true);
+  }
+
+  /** Embarque: con la carga guardada y toda la tripulación en la nave, termina la fase. */
+  private checkDeparture(): void {
+    const plan = this.content.departure;
+    if (!this.departure || !plan) return;
+    const aboard = this._state.crew.filter((m) => m.location === plan.shipZone).length;
+    if (aboard !== this.departure.aboard) this.departure = { ...this.departure, aboard };
+    if (this.departure.cargo === 'aboard' && aboard === this._state.crew.length) this.finish('completed');
   }
 
   /** Cambio de tripulante (Tab): el anterior queda donde lo dejó el jugador y vuelve a su rutina. */
@@ -498,7 +617,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   }
 
   /** Qué puede hacer el jugador en una zona (lo que hace al mantener apretada la tecla de usar). */
-  taskAt(zone: string | null): ZoneTask | null {
+  taskAt(at: string | null, position?: Point): ZoneTask | null {
+    const zone = (position && this.repairZoneAt(position)) || at;
     if (!zone) return null;
     const incident = this.incidentWorkAt(this._state, zone);
     if (incident) {
@@ -506,7 +626,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       return { kind: 'incident', incident, textKey, progress: incident.progress ?? 0 };
     }
     const task = this.content.tasks.find((t) => t.zone === zone);
-    if (!task) return null;
+    if (!task || this.departure) return null;
     const s = this._state;
     if (task.kind === 'maintenance' && !this.needsMaintenance(s, task)) return { kind: 'task', task, progress: 1, upToDate: true };
     if (this.doneOn[this.dailyKey(task)] === s.simDate.slice(0, 10) && !(task.kind === 'callHome' && this.callAnswersIncident(s)))
@@ -537,7 +657,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
    * fácil en modo ayuda o si el tripulante es especialista (§3.3); más difícil si se eligió improvisar. En la
    * cocina depende de dónde está parado (`position`, en tiles; sin ella, junto a la mesada).
    */
-  minigameAt(zone: string | null, position?: Point): ZoneMinigame | null {
+  minigameAt(at: string | null, position?: Point): ZoneMinigame | null {
+    const zone = (position && this.repairZoneAt(position)) || at;
     const task = this.taskAt(zone);
     const s = this._state;
     const member = s.crew.find((m) => m.id === s.activeCrewId);
@@ -550,7 +671,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       const response = def.responses.find((r) => r.id === task.incident.responseId);
       if (!response?.work) return null;
       category = response.work.task;
-      id = def.id === 'micrometeoroid' ? 'patch' : (INCIDENT_MINIGAMES[category] ?? this.content.tasks.find((t) => t.zone === zone)?.minigame ?? 'patch');
+      id = INCIDENT_MINIGAMES_BY_ID[def.id] ?? INCIDENT_MINIGAMES[category] ?? this.content.tasks.find((t) => t.zone === zone)?.minigame ?? 'patch';
       setup.hard = response.risk !== 'green';
       setup.pests = def.id === 'greenhousePest';
     } else {
@@ -821,9 +942,11 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const loadKw = Math.max(0, this.activeLoads(ctx).reduce((sum, k) => sum + (loads[k] ?? 0), 0) + adj.extraLoadKw);
     const evaHours = hours * s.crew.filter((m) => m.location === EXTERIOR).length;
     const env = this.environment(s, hours, ctx);
+    // Sin la batería conectada, la base usa sólo lo que llega del sol en el momento y la batería queda quieta.
+    const linked = this.batteryLinked();
     const step = stepMeters(
       c.meterRules,
-      s,
+      linked ? s : { ...s, meters: { ...s.meters, energy: { batteryKwh: 0, capacityKwh: 0 } } },
       env,
       {
         ...this.planExtras(s, hours, ctx),
@@ -838,8 +961,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       hours,
     );
     this.lastPower = { generationKw: step.generationKw, loadKw: step.loadKw };
+    this.blackout = !linked && step.deficitKwh > 1e-9;
+    const stepped = linked ? step.state : { ...step.state, meters: { ...step.state.meters, energy: s.meters.energy } };
     if (env.sepActive) this.trackStormDose(env, step.doseMSv, s.waterShield * adj.shelterEfficacy, hours);
-    s = applyEmergencyEffects(c.cascadeRules, this._cascade, this.afterStep(s, step.state, hours, ctx), hours);
+    s = applyEmergencyEffects(c.cascadeRules, this._cascade, this.afterStep(s, stepped, hours, ctx), hours);
     const cascade = updateCascade(c.cascadeRules, c.meterRules, this._cascade, s, hours);
     this._cascade = cascade.cascade;
     const activity: IncidentActivity = { callsHome, evaHours };
@@ -902,11 +1027,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     return s.activeIncidents.find((incident) => {
       if (!incident.responseId || (incident.progress ?? 0) >= 1) return false;
       const work = definitionOf(this.content.incidents, incident.definitionId).responses.find((r) => r.id === incident.responseId)?.work;
-      if (!work) return false;
-      const { workZones, tasks } = this.content;
-      const workZone =
-        workZones?.[work.task] ?? tasks.find((t) => t.category === work.task)?.zone ?? (work.task === 'leak' ? this.leakZone(incident.id) : undefined);
-      return workZone === zone;
+      return !!work && this.incidentWorkZone(incident, work) === zone;
     });
   }
 
@@ -951,6 +1072,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   /** Adónde va cada automático: enfermería si reposa, refugio si hay orden, si no lo que marque su rutina. */
   private targetFor(m: CrewMemberState): string {
     const c = this.content;
+    if (this.departure && c.departure) return c.departure.shipZone;
     if (m.resting) return c.infirmaryZone;
     if (this.sheltering.has(m.id)) return c.shelterZone;
     const r = this.routines[m.id] ?? DEFAULT_ROUTINE;
@@ -968,11 +1090,20 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private planRoutes(manual: boolean): void {
     const ship = this.content.layout;
     const co2 = this._state.meters.lifeSupport.co2MmHg;
+    const closed = this.closedPassages();
+    const key = [...closed].sort().join(',');
+    // Se rompió o se arregló un tubo: todos vuelven a buscar camino.
+    if (key !== this.closedKey) {
+      this.closedKey = key;
+      for (const id of Object.keys(this.travel) as CrewId[]) delete this.travel[id];
+      this.unreachable.clear();
+    }
     for (const m of this._state.crew) {
       if (m.id === this._state.activeCrewId) continue;
       const target = this.targetFor(m);
       const current = this.travel[m.id];
       if (current?.to === target || (!current && zoneAt(ship, this.positions[m.id]) === target)) continue;
+      if (this.unreachable.get(m.id) === target) continue;
       const urgent = this.sheltering.has(m.id) && target === this.content.shelterZone;
       if (!manual && !urgent) {
         if (m.resting) {
@@ -983,7 +1114,17 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
         continue;
       }
       const eff = efficiency(m, co2);
-      const path = [...route(ship, this.positions[m.id], target, !usesOptimalRoute(eff)).slice(0, -1), this.spotFor(m.id, target)];
+      // Quien quedó adentro de un tubo que se cerró puede salir por él.
+      const here = zoneAt(ship, this.positions[m.id]);
+      const open = here && closed.has(here) ? new Set([...closed].filter((id) => id !== here)) : closed;
+      const found = route(ship, this.positions[m.id], target, !usesOptimalRoute(eff), open);
+      if (found.length < 2) {
+        // Sin camino (tubos rotos): espera donde está hasta que algo cambie.
+        this.unreachable.set(m.id, target);
+        delete this.travel[m.id];
+        continue;
+      }
+      const path = [...found.slice(0, -1), this.spotFor(m.id, target)];
       this.travel[m.id] = { to: target, route: path, length: pathLength(path), walked: 0, waitS: urgent ? reactionSeconds(eff) : 0 };
     }
   }
@@ -1025,7 +1166,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     for (const e of events) {
       if (e.type === 'day') this.bus.emit('clock:day', { simDate: e.simDate });
       else if (e.type === 'level') this.bus.emit('alert:level', { level: e.level, reasonKey: e.reasonKey });
-      else if (e.type === 'end') this.finish('completed');
+      else if (e.type === 'end') this.windowEnded();
     }
   }
 

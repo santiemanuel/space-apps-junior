@@ -42,7 +42,8 @@ function playManeuver(id: ManeuverId, state: GameState, bus: EventBus<GameEvents
 
 /**
  * Simulación jugada por un jugador prudente: responde cada incidente con la opción verde (o la primera posible) y,
- * con orden de refugio, lleva a su tripulante al refugio. Devuelve cuando la fase emite `phase:completed`.
+ * con orden de refugio, lleva a su tripulante al refugio. En el embarque de Marte va al depósito, carga y la lleva a
+ * la nave. Devuelve cuando la fase emite `phase:completed`.
  */
 function playHabitat(session: HabitatSession, shelterZone: string): void {
   for (let i = 0; i < MAX_STEPS && !session.outcome; i++) {
@@ -51,7 +52,11 @@ function playHabitat(session: HabitatSession, shelterZone: string): void {
       if (option) session.respond(d.incident.id, option.response.id);
     }
     const sheltering = session.state.activeIncidents.some((i) => i.definitionId === 'radiationStorm' && i.responseId === 'goToShelter');
-    session.update(DT, { activeZone: sheltering ? shelterZone : null, interacting: false });
+    const departing = session.departing;
+    const plan = departing && MARS_CONTENT.departure!;
+    const zone = plan ? (departing.cargo === 'stored' ? plan.cargoZone : plan.shipZone) : sheltering ? shelterZone : null;
+    session.update(DT, { activeZone: zone, interacting: false });
+    if (departing) session.doAction(zone);
   }
   if (!session.outcome) throw new Error(`la fase ${session.phase} no terminó`);
 }
