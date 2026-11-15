@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { makeCrew } from '../../test-utils/factories';
 import { CREW_SHEET } from '../assets';
 import { nextCrewId } from '../input/crewSwitch';
-import { animFrames, CREW_DIRECTIONS, crewAnimKey, directionFor, walkTimeScale, WALK_REFERENCE_SPEED } from './crewAnimations';
+import { animFrameDurations, animFrames, CREW_DIRECTIONS, crewAnimKey, directionFor, walkTimeScale, WALK_REFERENCE_SPEED } from './crewAnimations';
 
 describe('animaciones de la tripulación', () => {
   it('cada dirección usa su fila: 3 cuadros de reposo y 6 de caminata', () => {
@@ -12,6 +12,14 @@ describe('animaciones de la tripulación', () => {
     expect(animFrames('walk', 'right')).toEqual([30, 31, 32, 33, 34, 35]);
     const all = CREW_DIRECTIONS.flatMap((d) => [...animFrames('idle', d), ...animFrames('walk', d)]);
     expect(new Set(all).size).toBe(CREW_SHEET.columns * CREW_SHEET.rows);
+  });
+
+  it('el reposo está casi siempre quieto y parpadea un instante', () => {
+    const durations = animFrameDurations('idle')!;
+    expect(durations).toHaveLength(animFrames('idle', 'down').length);
+    const total = durations.reduce((sum, d) => sum + d, 0);
+    expect(durations.at(-1)! / total).toBeLessThan(0.1);
+    expect(animFrameDurations('walk')).toBeUndefined();
   });
 
   it('mira hacia donde se mueve y quieto conserva la dirección', () => {

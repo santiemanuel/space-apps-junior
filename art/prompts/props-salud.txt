@@ -1,0 +1,9 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Quadrants:
+- Top-left: medical bed: space infirmary bed with a white mattress, light blue pillow, lavender metal frame and a small monitor arm with a green heartbeat light
+- Top-right: medical cabinet: white and lavender cabinet with a red cross symbol on the door and a teal status light
+- Bottom-left: sleeping pod: capsule bunk with an open rounded lid, cozy blue blanket and a warm orange reading light
+- Bottom-right: shelter door frame: thick reinforced metal doorway arch with yellow and black hazard stripes on the threshold and a blue drop-shaped emblem light on top

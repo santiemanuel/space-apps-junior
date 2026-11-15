@@ -29,7 +29,7 @@ describe('recursos de Boot', () => {
   });
 
   it.each(CREW_ASSETS.map((entry) => [entry.key, entry] as const))(
-    'la hoja %s mide exactamente 9 × 4 cuadros de 176×216',
+    'la hoja %s mide exactamente 9 × 4 cuadros',
     (_key, entry) => {
       if (entry.kind !== 'spritesheet') throw new Error(`${entry.key} debería ser spritesheet`);
       expect(pngSize(join(PUBLIC_DIR, entry.url))).toEqual({

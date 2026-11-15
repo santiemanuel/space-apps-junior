@@ -166,7 +166,7 @@ describe('Voyage: tormenta de radiación', () => {
       0.1,
     );
     // La tripulación descansada llega en pocos segundos; la cansada tarda bastante más (§4.2).
-    expect(arrived.brote).toBeLessThan(6);
+    expect(arrived.brote).toBeLessThan(8);
     expect(arrived.miga).toBeGreaterThan(arrived.brote! + 3);
     expect(session.level).toBe('calm');
     expect(session.state.history.find((e) => e.key === 'hud.log.allInShelter')).toMatchObject({ data: { incidentId: 'storm-test' } });

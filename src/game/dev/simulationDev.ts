@@ -3,7 +3,9 @@ import { GALE_POWER, METER_RULES } from '../../content/meters';
 import type { TimedPhase } from '../../core/clock/schedule';
 import type { UnlockLevel } from '../../core/flow/types';
 import type { GameState } from '../../core/state/types';
+import type { SystemId, SystemStatus } from '../../core/systems/types';
 import type { PhaseSceneData, VoyageSceneData } from '../scenes/sceneData';
+import type { MapViewData, MapViewOptions } from '../scenes/simulation/simulationData';
 import type { DevDataBuilders } from './devLaunch';
 
 const DAY_MS = 86_400_000;
@@ -14,6 +16,18 @@ const DAY_MS = 86_400_000;
  * margen: la carga real la decide `Loadout` (Facundo).
  */
 function phaseState(base: GameState, phase: TimedPhase, params: URLSearchParams): GameState {
+  const state = calendarState(base, phase, params);
+  // Para ver los efectos: `broken=scrubber,waterRecycler:yellow` (sistemas averiados) y `battery=0` (sin energía).
+  const broken = (params.get('broken') ?? '').split(',').filter(Boolean).map((b) => b.split(':') as [SystemId, SystemStatus?]);
+  const battery = params.get('battery');
+  return {
+    ...state,
+    systems: { ...state.systems, ...Object.fromEntries(broken.map(([id, status]) => [id, status ?? 'red'])) },
+    meters: battery === null ? state.meters : { ...state.meters, energy: { ...state.meters.energy, batteryKwh: Number(battery) } },
+  };
+}
+
+function calendarState(base: GameState, phase: TimedPhase, params: URLSearchParams): GameState {
   const window = CAMPAIGN_2024.windows[phase];
   const from = params.get('from');
   const simDate = from ? new Date(`${from}T00:00:00Z`).toISOString() : window.start;
@@ -34,19 +48,34 @@ function phaseState(base: GameState, phase: TimedPhase, params: URLSearchParams)
   };
 }
 
+/** Opciones de vista: `zoom=2` (zoom de la cámara; por defecto 1,5), `fx=alert|impact,powerOut` (efectos forzados) y, en `Mars`, `layout=large`. */
+const fxOf = (params: URLSearchParams): MapViewOptions['fx'] => {
+  const fx = (params.get('fx') ?? '').split(',');
+  const level = fx.includes('impact') ? 'impact' : fx.includes('alert') ? 'alert' : undefined;
+  return { ...(level ? { level } : {}), ...(fx.includes('powerOut') ? { powerOut: true } : {}) };
+};
+
+const viewOf = (params: URLSearchParams): MapViewData => ({
+  view: { ...(params.get('zoom') ? { zoom: Math.min(3, Math.max(0.5, Number(params.get('zoom')) || 1)) } : {}), largeLayout: params.get('layout') === 'large', fx: fxOf(params) },
+});
+
 /**
  * Datos de prueba para abrir las escenas de simulación con `?scene=`. Dueño: Santiago.
- * `?scene=Voyage&leg=back` · `?scene=Mars&km=6&where=airlock` (distancia del aterrizaje a la base y cuarto donde
- * arranca el jugador) · más los de `phaseState`.
+ * `?scene=Voyage&leg=back&where=shelter&broken=scrubber&battery=0` · `?scene=Mars&km=6&where=airlock` (distancia del aterrizaje a la base y cuarto donde
+ * arranca el jugador) · más los de `phaseState` y `viewOf`.
  */
 export const simulationDevData: DevDataBuilders = {
-  Voyage: (base, params): VoyageSceneData => {
+  Voyage: (base, params): VoyageSceneData & MapViewData => {
     const leg = params.get('leg') === 'back' ? 'back' : 'out';
-    const state = phaseState(base.state, leg === 'out' ? 'cruiseOut' : 'cruiseBack', params);
-    if (leg === 'out') return { ...base, leg, state };
+    const phase = phaseState(base.state, leg === 'out' ? 'cruiseOut' : 'cruiseBack', params);
+    // `where` elige el cuarto donde arranca el jugador.
+    const where = params.get('where');
+    const state = where ? { ...phase, crew: phase.crew.map((m) => (m.id === phase.activeCrewId ? { ...m, location: where } : m)) } : phase;
+    if (leg === 'out') return { ...base, ...viewOf(params), leg, state };
     // Nave gastada y tripulación que arrastra Marte (§4.6).
     return {
       ...base,
+      ...viewOf(params),
       leg,
       state: {
         ...state,
@@ -56,10 +85,11 @@ export const simulationDevData: DevDataBuilders = {
       },
     };
   },
-  Mars: (base, params): PhaseSceneData => {
+  Mars: (base, params): PhaseSceneData & MapViewData => {
     const state = phaseState(base.state, 'mars', params);
     return {
       ...base,
+      ...viewOf(params),
       state: {
         ...state,
         landingDistanceKm: Number(params.get('km') ?? 2),

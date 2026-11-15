@@ -1,0 +1,114 @@
+{
+  "ship-props": {
+    "atlas": "public/assets/ship/props",
+    "sheets": [
+      {
+        "file": "art/snapped/props-base.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "console",
+          "tank",
+          null,
+          "crate"
+        ]
+      },
+      {
+        "file": "art/snapped/props-mando.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "seat",
+          "navtable",
+          "monitors",
+          "helm"
+        ]
+      },
+      {
+        "file": "art/snapped/props-gimnasio.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bike",
+          "treadmill",
+          "scrubber",
+          "canisters"
+        ]
+      },
+      {
+        "file": "art/snapped/props-agua.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "recycler",
+          "pump",
+          "shelf",
+          "crates"
+        ]
+      },
+      {
+        "file": "art/snapped/props-salud.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bed",
+          "medcabinet",
+          "pod",
+          "shelterdoor"
+        ]
+      },
+      {
+        "file": "art/snapped/props-radio.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "radio",
+          "headset",
+          "plant",
+          "lamp"
+        ]
+      },
+      {
+        "file": "art/snapped/props-pared.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "window",
+          "door-closed",
+          "door-open",
+          "alarm"
+        ],
+        "punch": {
+          "window": true
+        }
+      },
+      {
+        "file": "art/snapped/props-desgaste.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "tape",
+          "cables",
+          "scorch",
+          "grime"
+        ]
+      }
+    ]
+  }
+}

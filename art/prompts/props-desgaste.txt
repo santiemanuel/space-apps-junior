@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+These are small WEAR AND TEAR decals that will be placed on top of spaceship walls and floors, seen from straight above. Each one is small: about 14 to 20 big pixels wide.
+Quadrants:
+- Top-left: an X-shaped patch of gray duct tape with slightly frayed ends.
+- Top-right: a bundle of three loose dangling cables (black, red and yellow wires) with exposed copper tips.
+- Bottom-left: a black and dark brown scorch soot mark with a ragged edge.
+- Bottom-right: a small dark oily grime puddle stain with a tiny highlight.

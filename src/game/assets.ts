@@ -12,15 +12,16 @@ export type AssetEntry =
   | { kind: 'audio'; key: string; urls: string[] };
 
 /**
- * Geometría de las hojas de tripulantes (`docs/*-sprites.png`): 9 × 4 cuadros de 176×216 con los pies
- * en y = 208. Filas: frente, espalda, perfil izquierdo, perfil derecho.
+ * Geometría de las hojas de tripulantes (`public/assets/crew/`, pixel art regenerado a partir de
+ * `docs/*-sprites.png`): 9 × 4 cuadros de 80×96 (40×48 px de arte ×2) con los pies en y = 94.
+ * Filas: frente, espalda, perfil izquierdo, perfil derecho.
  */
 export const CREW_SHEET = {
-  frameWidth: 176,
-  frameHeight: 216,
+  frameWidth: 80,
+  frameHeight: 96,
   columns: 9,
   rows: 4,
-  origin: { x: 0.5, y: 208 / 216 },
+  origin: { x: 0.5, y: 94 / 96 },
 } as const;
 
 export const crewTextureKey = (crewId: CrewId): string => `crew-${crewId}`;

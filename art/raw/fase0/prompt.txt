@@ -1,0 +1,14 @@
+Use the built-in image generation tool (image_gen) to create THREE separate game sprites, one image_gen call per sprite. Do not write code to draw them and do not use any CLI/API fallback. The attached image is ONLY a style reference (pixel art, dark outlines, soft shading, lavender-gray metal, blue screens, orange/yellow accents); do not copy its layout.
+
+Common rules for every sprite:
+- Pixel art game prop for a top-down 2D game seen from a high three-quarter overhead angle (camera above and slightly in front, we see the top and the front face).
+- ONE single object, centered, filling about 80% of a square canvas, nothing else in the image.
+- Genuinely TRANSPARENT background (real alpha channel). No floor, no ground shadow, no backdrop, no frame.
+- Crisp chunky pixels, clean 1-pixel dark outline around the whole silhouette, limited palette, no anti-aliasing, no gradients, no glow halos.
+- Absolutely no text, letters, numbers or logos.
+
+Sprite 1 (file name console.png): spaceship command console desk, lavender-gray metal, two blue glowing monitors showing simple abstract shapes, small orange and yellow indicator lights, a keyboard panel.
+Sprite 2 (file name water_tank.png): tall cylindrical water tank for a radiation shelter, glass cylinder full of bright blue water with a few bubbles, lavender-gray metal caps top and bottom, orange pipe fitting on the side.
+Sprite 3 (file name mars_rock.png): Mars sample rock, chunky layered sedimentary boulder in ochre, rust and dusty pink tones, with a few small yellow crystal specks showing in a crack.
+
+After generating, copy each resulting PNG file unchanged (do not re-encode or resize) from the generated images folder into the directory art/raw/fase0/ of this workspace using exactly the file names given above. Finally print the three source paths and report for each whether the PNG has a real alpha channel.

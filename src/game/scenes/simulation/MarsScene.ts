@@ -1,4 +1,4 @@
-import { MARS_CONTENT } from '../../../content/gale';
+import { GALE_LAYOUT_LARGE, MARS_CONTENT } from '../../../content/gale';
 import { INCIDENTS } from '../../../content/incidents';
 import { earthMarsDelaySeconds } from '../../../core/environment/orbits';
 import { EXTERIOR, type Point } from '../../../core/habitat/layout';
@@ -14,8 +14,6 @@ import type Phaser from 'phaser';
 import type { PhaseSceneData } from '../sceneData';
 import { SimulationMapScene, toPx, tr } from './SimulationMapScene';
 
-/** Donde está estacionado Curiosity en el exterior (tiles). */
-const CURIOSITY_SPOT = { x: 43.5, y: 11.5 };
 
 /**
  * Estancia en el cráter Gale (game-design §4.4): la base, la esclusa y el exterior con los puntos de muestreo.
@@ -27,17 +25,18 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   }
 
   protected createSession({ state, bus }: PhaseSceneData) {
-    const window = MARS_CONTENT.calendar.windows.mars;
+    const content = this.view.largeLayout ? { ...MARS_CONTENT, layout: GALE_LAYOUT_LARGE } : MARS_CONTENT;
+    const window = content.calendar.windows.mars;
     const session = new MarsSession({
       state,
       bus,
-      content: MARS_CONTENT,
-      timeline: incidentTimeline('mars', window, INCIDENTS, MARS_CONTENT.incidentRules),
+      content,
+      timeline: incidentTimeline('mars', window, INCIDENTS, content.incidentRules),
       doseRate: (date) => seriesFor('mars', date).dose,
       weather: galeWeatherOn,
       signalDelaySeconds: (date) => earthMarsDelaySeconds(EARTH_ORBIT, MARS_ORBIT, date),
     });
-    return { session, content: MARS_CONTENT };
+    return { session, content };
   }
 
   private curiosityBubble!: Phaser.GameObjects.Text;
@@ -46,7 +45,9 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   create(): void {
     super.create();
     // Curiosity, el vecino robot (§4.4, §5.3): decorado en el exterior que reporta el dato real del día.
-    const { x, y } = toPx(CURIOSITY_SPOT);
+    // Estacionado en la esquina de abajo a la derecha del exterior.
+    const ext = this.layout.exterior!.rect;
+    const { x, y } = toPx({ x: ext.col + ext.cols - 3.5, y: ext.row + ext.rows - 2.5 });
     const g = this.add.graphics().setDepth(6);
     g.fillStyle(0xe2e8f0).fillRect(x - 18, y - 8, 36, 14);
     g.fillStyle(0x2d3748);

@@ -1,0 +1,18 @@
+Use the built-in image generation tool (image_gen) to create ONE image: a sprite sheet. Do not write code to draw it and do not use any CLI/API fallback. The attached image is ONLY a style reference (pixel art, dark outlines, soft shading, lavender-gray metal, blue screens, orange/yellow accents); do not copy its layout.
+
+The image is a square sprite sheet with FOUR small low-resolution pixel art game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins between them (props never touch or overlap).
+
+Rules:
+- Very low resolution retro pixel art, as if the whole sheet were drawn on a 128 x 128 pixel canvas and enlarged: each prop is only about 40 to 48 big chunky pixels wide. Every pixel block is the same size across the whole sheet.
+- Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object).
+- Genuinely TRANSPARENT background (real alpha channel). No floor, no ground shadows, no backdrop, no grid lines, no frames.
+- Clean 1-pixel dark outline around each silhouette, limited shared palette, no anti-aliasing, no gradients, no glow halos.
+- Absolutely no text, letters, numbers or logos.
+
+Quadrants:
+- Top-left: spaceship command console desk, lavender-gray metal, two blue glowing monitors with simple abstract shapes, orange and yellow indicator lights.
+- Top-right: tall cylindrical water tank, glass cylinder full of bright blue water with bubbles, lavender-gray metal caps, orange pipe fitting.
+- Bottom-left: Mars sample rock, layered sedimentary boulder in ochre, rust and dusty pink, small yellow crystal specks in a crack.
+- Bottom-right: supply crate, lavender-gray box with blue straps and a yellow latch.
+
+After generating, copy the resulting PNG unchanged (do not re-encode or resize) from the generated images folder into art/raw/fase0/ of this workspace with the file name sheet_2x2.png. Print the source path.

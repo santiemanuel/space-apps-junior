@@ -19,3 +19,16 @@ export function toggleOverlay(plugin: Phaser.Scenes.ScenePlugin, key: SceneKey, 
   if (plugin.isActive(key)) plugin.stop(key);
   else if (canOpen) plugin.launch(key, data);
 }
+
+/** Opciones de vista del mapa para probar escalas (docs/plan-visual.md, Fase 0): `&zoom=1.5&layout=large`. */
+export interface MapViewOptions {
+  zoom?: number;
+  largeLayout?: boolean;
+  /** Fuerza los efectos del mapa para verlos: nivel de alerta y corte de energía (`&fx=impact,powerOut`). */
+  fx?: { level?: 'alert' | 'impact'; powerOut?: boolean };
+}
+
+/** Datos de escena con las opciones de vista: los agrega `simulationDev.ts`. */
+export interface MapViewData {
+  view?: MapViewOptions;
+}

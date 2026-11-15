@@ -6,7 +6,7 @@ import { CAMPAIGN_2024 } from './campaign';
 import { CASCADE_RULES } from './cascade';
 import { INCIDENT_RULES, INCIDENTS } from './incidents';
 import { GALE_POWER, METER_RULES, MOXIE_OXYGEN_KG_PER_DAY } from './meters';
-import { ROUTINE_OFFSET_HOURS, room } from './ship';
+import { habitatLayout, ROUTINE_OFFSET_HOURS, room } from './ship';
 
 /**
  * Base en el cráter Gale (game-design §4.4): los mismos cuartos alrededor de un pasillo que la nave, una esclusa
@@ -30,6 +30,32 @@ export const GALE_LAYOUT: ShipLayout = {
   ],
   exterior: { rect: { col: 22, row: 1, cols: 25, rows: 13 }, airlock: 'airlock', door: { col: 21, row: 7 } },
   spawnZone: 'command',
+};
+
+const LARGE_BASE = habitatLayout({
+  top: ['command', 'exercise', 'scrubber', 'greenhouse'],
+  bottom: ['infirmary', 'moxie', 'shelter', 'radio'],
+  roomCols: 9,
+  roomRows: 6,
+  originRow: 6,
+});
+
+/**
+ * Gale agrandado de prueba (docs/plan-visual.md, Fase 0): 90 × 31 tiles, con un exterior de 44 × 29 que obliga a
+ * la cámara a moverse en los dos ejes. Se abre con `?scene=Mars&layout=large`.
+ */
+export const GALE_LAYOUT_LARGE: ShipLayout = {
+  ...LARGE_BASE,
+  cols: LARGE_BASE.cols + 49,
+  zones: [
+    ...LARGE_BASE.zones,
+    { id: 'airlock', rect: { col: LARGE_BASE.cols, row: LARGE_BASE.corridor.row, cols: 3, rows: 3 }, door: { col: LARGE_BASE.cols - 1, row: LARGE_BASE.corridor.row + 1 } },
+  ],
+  exterior: {
+    rect: { col: LARGE_BASE.cols + 4, row: 1, cols: 44, rows: LARGE_BASE.rows - 2 },
+    airlock: 'airlock',
+    door: { col: LARGE_BASE.cols + 3, row: LARGE_BASE.corridor.row + 1 },
+  },
 };
 
 /** Tareas de la base (§4.4). Textos en `mars.task.<id>` y `mars.station.<id>`. */

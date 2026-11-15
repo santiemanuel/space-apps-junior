@@ -6,7 +6,9 @@ import type { VoyageContent } from '../core/voyage/types';
 import { CAMPAIGN_2024 } from './campaign';
 import { CASCADE_RULES } from './cascade';
 import { INCIDENT_RULES, INCIDENTS } from './incidents';
+import shipMap from './maps/ship.json';
 import { METER_RULES, SHIP_POWER } from './meters';
+import { layoutFromTiled, type TiledMap } from './tiledLayout';
 
 /** Cuartos de 4 tiles de alto arriba y abajo del pasillo; la puerta queda en la pared, en el medio del cuarto. */
 export const room = (id: string, col: number, cols: number, top: boolean): ShipZone => ({
@@ -16,26 +18,34 @@ export const room = (id: string, col: number, cols: number, top: boolean): ShipZ
 });
 
 /**
- * Plano de la nave (game-design §4.2; referencia visual `docs/ref-nave.png`): 19 × 15 tiles de 48 px, el resto
- * de la pantalla queda para el tablero. Ids de zona = `CrewMemberState.location` ('shelter' e 'infirmary' son
- * los que usan los medidores y la cascada). Nombres en `voyage.zone.<id>`.
+ * Plano de la nave (game-design §4.2): sale del mapa de Tiled `maps/ship.json` (41 × 20 tiles de 48 px, cuartos de
+ * 9 × 6 a los dos lados de un pasillo; la cámara sigue al jugador). Ids de zona = `CrewMemberState.location`
+ * ('shelter' e 'infirmary' son los que usan los medidores y la cascada). Nombres en `voyage.zone.<id>`.
  */
-export const SHIP_LAYOUT: ShipLayout = {
-  cols: 19,
-  rows: 15,
-  corridor: { col: 1, row: 6, cols: 17, rows: 3 },
-  zones: [
-    room('command', 1, 4, true),
-    room('exercise', 6, 3, true),
-    room('scrubber', 10, 3, true),
-    room('recycler', 14, 4, true),
-    room('infirmary', 1, 4, false),
-    room('pantry', 6, 3, false),
-    room('shelter', 10, 3, false),
-    room('radio', 14, 4, false),
-  ],
-  spawnZone: 'command',
-};
+export const SHIP_MAP: TiledMap = shipMap;
+export const SHIP_LAYOUT: ShipLayout = layoutFromTiled(SHIP_MAP);
+
+/**
+ * Plano agrandado con el mismo esquema (docs/plan-visual.md, Fase 0; lo usa el Gale agrandado de prueba): una fila de cuartos arriba y otra abajo de un
+ * pasillo de 3 tiles, con una pared de 1 tile entre cuartos. `originRow` deja filas libres arriba y abajo.
+ */
+export function habitatLayout(o: { top: readonly string[]; bottom: readonly string[]; roomCols: number; roomRows: number; originRow?: number }): ShipLayout {
+  const origin = o.originRow ?? 0;
+  const corridorRow = origin + o.roomRows + 2;
+  const rooms = (ids: readonly string[], row: number, doorRow: number): ShipZone[] =>
+    ids.map((id, i) => {
+      const col = 1 + i * (o.roomCols + 1);
+      return { id, rect: { col, row, cols: o.roomCols, rows: o.roomRows }, door: { col: col + Math.floor(o.roomCols / 2), row: doorRow } };
+    });
+  const cols = 1 + Math.max(o.top.length, o.bottom.length) * (o.roomCols + 1);
+  return {
+    cols,
+    rows: 2 * origin + 2 * o.roomRows + 7,
+    corridor: { col: 1, row: corridorRow, cols: cols - 2, rows: 3 },
+    zones: [...rooms(o.top, origin + 1, corridorRow - 1), ...rooms(o.bottom, corridorRow + 4, corridorRow + 3)],
+    spawnZone: o.top[0]!,
+  };
+}
 
 /** Tareas del viaje (§4.2). Textos en `voyage.task.<id>`. */
 export const VOYAGE_TASKS: readonly HabitatTask[] = [
@@ -68,8 +78,8 @@ export const VOYAGE_CONTENT: VoyageContent = {
   wear: { systems: ['scrubber', 'waterRecycler'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
   back: { wearMultiplier: 2, exerciseMultiplier: 2 },
   power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, capacityKwh: SHIP_POWER.capacityKwh, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'], socketKw: 2 },
-  // Algo más rápido que el jugador (160 px/s ≈ 3,3 tiles/s) [regla].
-  crewSpeedTilesPerS: 3.5,
+  // Algo más rápido que el jugador (210 px/s ≈ 4,4 tiles/s) [regla]: la nave mide 41 tiles de largo.
+  crewSpeedTilesPerS: 4.5,
   infirmaryZone: 'infirmary',
   shelterZone: 'shelter',
   // El comandante pide desde la radio; el diagnóstico acelera ×1,5 (game-design §3.7).

@@ -31,7 +31,7 @@ const FONT = 'monospace';
 const COLOR = { text: '#e2e8f0', focus: '#fbd38d', muted: '#a0aec0', title: '#90cdf4', locked: '#f6ad55' } as const;
 const CENTER = GAME_WIDTH / 2;
 const ROWS = { top: 220, gap: 50 } as const;
-const CREW = { feetY: 560, scale: 0.6, x: [110, 230, 1050, 1170] } as const;
+const CREW = { feetY: 560, scale: 1.5, x: [110, 230, 1050, 1170] } as const;
 
 /** Menú principal (§2.1, §3.3, §8): idioma, campaña o modo libre, corta o larga, modo ayuda y continuar. */
 export class TitleScene extends Phaser.Scene {

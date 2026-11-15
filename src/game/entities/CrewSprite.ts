@@ -5,7 +5,7 @@ import { hasKey, t, type TranslationKey } from '../../i18n';
 import { CREW_SHEET, crewTextureKey } from '../assets';
 import { TextureKeys } from '../textures';
 import {
-  animFrameRate, animFrames, CREW_DIRECTIONS, crewAnimKey, directionFor, walkTimeScale, type CrewAnimKind, type CrewDirection,
+  animFrameDurations, animFrameRate, animFrames, CREW_DIRECTIONS, crewAnimKey, directionFor, walkTimeScale, type CrewAnimKind, type CrewDirection,
 } from './crewAnimations';
 
 /**
@@ -22,10 +22,10 @@ export interface CrewSprite {
   destroy(): void;
 }
 
-/** Escala en pantalla: ~1,7 tiles de 48 px de alto (plan §3.8). */
-export const CREW_SCALE = 0.38;
-/** Cuerpo físico en los pies, en coordenadas del cuadro de 176×216 (pies en y = 208, centro en x ≈ 88). */
-const FEET_BODY = { width: 64, height: 36, offsetX: 56, offsetY: 172 } as const;
+/** Las hojas ya vienen a escala de mundo (1 píxel de arte = 2 px): ~1,6 tiles de alto (docs/plan-visual.md §3). */
+export const CREW_SCALE = 1;
+/** Cuerpo físico en los pies, en coordenadas del cuadro de 80×96 (pies en y = 94, centro en x = 40). */
+const FEET_BODY = { width: 28, height: 14, offsetX: 26, offsetY: 80 } as const;
 const SPRITE_HEIGHT = CREW_SHEET.frameHeight * CREW_SCALE * CREW_SHEET.origin.y;
 const PLACEHOLDER_TINT: Record<CrewId, number> = { vega: 0x63b3ed, miga: 0xf6ad55, brote: 0x68d391, senda: 0xfc8181 };
 const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
@@ -38,9 +38,10 @@ export function ensureCrewAnimations(scene: Phaser.Scene, crewId: CrewId): boole
     for (const kind of ['idle', 'walk'] as const) {
       const key = crewAnimKey(crewId, kind, direction);
       if (scene.anims.exists(key)) continue;
+      const durations = animFrameDurations(kind);
       scene.anims.create({
         key,
-        frames: scene.anims.generateFrameNumbers(texture, { frames: animFrames(kind, direction) }),
+        frames: scene.anims.generateFrameNumbers(texture, { frames: animFrames(kind, direction) }).map((f, i) => ({ ...f, duration: durations?.[i] })),
         frameRate: animFrameRate(kind),
         repeat: -1,
       });
@@ -61,28 +62,38 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
     : scene.physics.add.sprite(x, y, TextureKeys.Player).setTint(PLACEHOLDER_TINT[crewId]);
   if (animated) sprite.setSize(FEET_BODY.width, FEET_BODY.height).setOffset(FEET_BODY.offsetX, FEET_BODY.offsetY);
   else sprite.setCircle(10, 2, 2);
-  sprite.setCollideWorldBounds(true).setDepth(10);
+  // Redondeo de vértices aun con el zoom de la cámara: cada píxel de arte queda entero en pantalla.
+  sprite.setCollideWorldBounds(true).setDepth(10).setVertexRoundMode('full');
 
-  const ring = scene.add.ellipse(x, y, 34, 14).setStrokeStyle(2, 0xfbd38d).setVisible(false).setDepth(9);
+  const ring = scene.add.ellipse(x, y - 2, 44, 16).setStrokeStyle(2, 0xfbd38d).setVisible(false).setDepth(9);
   const arrow = scene.add.triangle(x, y, 0, 0, 12, 0, 6, 8, 0xfbd38d).setVisible(false).setDepth(12);
   const bubble = scene.add
     .text(x, y, '', { fontFamily: 'monospace', fontSize: '11px', color: '#1a202c', backgroundColor: '#fefcbf', padding: { x: 4, y: 2 } })
     .setOrigin(0.5, 1)
     .setVisible(false)
-    .setDepth(13);
+    .setDepth(13)
+    .setVertexRoundMode('full');
   let direction: CrewDirection = 'down';
   let reasonKey: string | undefined;
   let selected = false;
 
+  // Cada tripulante empieza el reposo en otro cuadro: así no parpadean todos a la vez.
+  const idleStart = CREW_ROSTER.findIndex((c) => c.id === crewId) % 2;
   const play = (kind: CrewAnimKind) => {
     const key = crewAnimKey(crewId, kind, direction);
-    if (sprite.anims.currentAnim?.key !== key) sprite.anims.play(key, true);
+    if (sprite.anims.currentAnim?.key !== key) sprite.anims.play({ key, startFrame: kind === 'idle' ? idleStart : 0 }, true);
+  };
+  // Las formas (anillo y flecha) no redondean sus vértices: se ubican en un píxel entero de pantalla, como el sprite.
+  const snap = (v: number) => {
+    const zoom = scene.cameras.main.zoom;
+    return Math.round(v * zoom) / zoom;
   };
   const place = () => {
-    const top = sprite.y - (animated ? SPRITE_HEIGHT : 14);
-    ring.setPosition(sprite.x, sprite.y);
-    arrow.setPosition(sprite.x, top - 6);
-    bubble.setPosition(sprite.x, top - (selected ? 14 : 4));
+    const x = snap(sprite.x);
+    const top = snap(sprite.y - (animated ? SPRITE_HEIGHT : 14));
+    ring.setPosition(x, snap(sprite.y - 2));
+    arrow.setPosition(x, top - 6);
+    bubble.setPosition(x, top - (selected ? 14 : 4));
     sprite.setDepth(10 + sprite.y / 10000);
   };
 

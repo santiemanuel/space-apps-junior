@@ -17,6 +17,10 @@ export interface ShipZone {
   rect: TileRect;
   /** Tile de la puerta (en la pared entre el cuarto y el pasillo). */
   door: { col: number; row: number };
+  /** Otros tiles de la misma puerta, si es más ancha que un tile. */
+  doorTiles?: readonly { col: number; row: number }[];
+  /** Donde se para quien trabaja ahí; por defecto, el centro del cuarto. */
+  spot?: Point;
 }
 
 /** Exterior abierto (Marte, §4.4): se sale por la puerta de afuera de la esclusa. */
@@ -54,8 +58,16 @@ export const zoneById = (layout: ShipLayout, id: string): ShipZone => {
   return zone;
 };
 
-/** Centro del cuarto: donde se para quien trabaja ahí. */
-export const zoneSpot = (zone: ShipZone): Point => ({ x: zone.rect.col + zone.rect.cols / 2, y: zone.rect.row + zone.rect.rows / 2 });
+/** Donde se para quien trabaja en el cuarto: su `spot` o el centro. */
+export const zoneSpot = (zone: ShipZone): Point => zone.spot ?? { x: zone.rect.col + zone.rect.cols / 2, y: zone.rect.row + zone.rect.rows / 2 };
+
+const doorTilesOf = (zone: ShipZone) => [zone.door, ...(zone.doorTiles ?? [])];
+
+/** Centro de la puerta (de todos sus tiles): por ahí pasan los recorridos. */
+export const doorPoint = (zone: ShipZone): Point => {
+  const tiles = doorTilesOf(zone);
+  return { x: tiles.reduce((sum, t) => sum + t.col + 0.5, 0) / tiles.length, y: tiles.reduce((sum, t) => sum + t.row + 0.5, 0) / tiles.length };
+};
 
 /** Se puede caminar por los cuartos, el pasillo y las puertas; el resto es pared. */
 export const isWalkable = (layout: ShipLayout, col: number, row: number): boolean => zoneAt(layout, center(col, row)) !== null;
@@ -67,7 +79,7 @@ const isExteriorTile = (ext: ExteriorLayout | undefined, col: number, row: numbe
 export function zoneAt(layout: ShipLayout, p: Point): string | null {
   const col = Math.floor(p.x);
   const row = Math.floor(p.y);
-  const zone = layout.zones.find((z) => inRect(z.rect, col, row) || (z.door.col === col && z.door.row === row));
+  const zone = layout.zones.find((z) => inRect(z.rect, col, row) || doorTilesOf(z).some((d) => d.col === col && d.row === row));
   if (zone) return zone.id;
   if (isExteriorTile(layout.exterior, col, row)) return EXTERIOR;
   return inRect(layout.corridor, col, row) ? CORRIDOR : null;
@@ -88,11 +100,11 @@ export function route(layout: ShipLayout, from: Point, to: string, blind = false
   if (here === to) return [from, zoneSpot(target)];
   const { corridor } = layout;
   const cy = corridor.row + corridor.rows / 2;
-  const door = center(target.door.col, target.door.row);
+  const door = doorPoint(target);
   const points: Point[] = [from];
   if (here !== null && here !== CORRIDOR) {
     const own = zoneById(layout, here);
-    const ownDoor = center(own.door.col, own.door.row);
+    const ownDoor = doorPoint(own);
     points.push(ownDoor, { x: ownDoor.x, y: cy });
   }
   if (blind) {
