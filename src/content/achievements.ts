@@ -1,0 +1,28 @@
+import type { AchievementDefinition, ReportRules } from '../core/report/report';
+import { CAREER_DOSE_LIMIT_MSV, CHEST_XRAY_MSV } from '../data/curated';
+import { MANEUVER_RULES } from './maneuvers';
+
+/**
+ * Logros del informe (game-design §5). "Refugio a tiempo" y "Cero radiografías extra" los otorga la simulación
+ * en su `PhaseResult`; los otros se deducen del estado final.
+ */
+export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  { id: 'shelterInTime' },
+  // "Como Opportunity": vivir una tormenta de polvo en Marte y seguir adelante.
+  { id: 'likeOpportunity', earned: (state) => state.history.some((e) => e.kind === 'incident' && e.key === 'dustStorm') },
+  { id: 'zeroExtraXrays' },
+  // La campaña vuelve pasando por la llamarada X9.0 del 03/10/2024 (§2.2).
+  { id: 'survivedX9', earned: (state, outcome) => outcome === 'completed' && state.mode === 'campaign2024' },
+];
+
+/**
+ * Umbrales de las estrellas [regla]. Con tramos de 4 meses el fondo de radiación de ida y vuelta suma ~440 mSv
+ * (§2.1): la estrella de dosis baja exige usar bien el refugio en las tormentas.
+ */
+export const REPORT_RULES: ReportRules = {
+  healthyCondition: 0.6,
+  lowDoseMSv: 500,
+  chestXrayMSv: CHEST_XRAY_MSV,
+  careerLimitMSv: CAREER_DOSE_LIMIT_MSV,
+  walkCondition: MANEUVER_RULES.walkCondition,
+};
