@@ -4,7 +4,7 @@ import { createMinigame, MINIGAME_IDS } from './catalog';
 import { NO_KEYS, NO_INPUT, type GridCursor, type Minigame, type MinigameInput, type MinigameKeys, type MinigameSetup } from './Minigame';
 import { FUSE_TYPES, FusesGame, WiresGame } from './power';
 import { PatchGame, rotateSides, StarsGame, WaterGame } from './puzzles';
-import { DISH_IDS, MEAL_DISHES, MEAL_INGREDIENTS, MealGame, PLANT_TOOLS, PlantsGame, SealsGame, ShieldGame } from './rooms';
+import { DISH_IDS, HarvestGame, MEAL_DISHES, MEAL_INGREDIENTS, MealGame, PLANT_TOOLS, PlantsGame, SealsGame, ShieldGame, type HarvestPlant } from './rooms';
 
 const DT = 1 / 30;
 const input = (held: Partial<MinigameKeys> = {}, pressed: Partial<MinigameInput['pressed']> = {}): MinigameInput => ({
@@ -111,6 +111,17 @@ const POLICIES: { [K in string]: (setup: MinigameSetup) => [Minigame, (g: never,
       const i = g.plants.findIndex((p) => p.need);
       const choice = (PLANT_TOOLS.findIndex((t) => t.need === g.plants[i]!.need) + 1) as 1 | 2 | 3;
       return toward(g.cursor, i % g.cols, Math.floor(i / g.cols), f) ?? input({}, f % 2 ? {} : { choice });
+    },
+  ],
+  harvest: (s) => [
+    new HarvestGame(s),
+    // Va a la planta que está a punto (o a la que antes lo va a estar) y la corta sólo cuando está a punto.
+    (g: HarvestGame, f: number) => {
+      const left = (p: HarvestPlant) => Math.max(0, HarvestGame.RIPE.min - p.growth) / p.rate;
+      const ok = g.plants.filter((p) => p.growth < HarvestGame.RIPE.max - 0.08);
+      const best = (ok.length ? ok : g.plants).reduce((a, b) => (left(b) < left(a) ? b : a));
+      const i = g.plants.indexOf(best);
+      return toward(g.cursor, i, 0, f) ?? input({}, { action: g.stageOf(best) === 'ripe' && f % 2 === 0 });
     },
   ],
   seals: (s) => [
@@ -274,5 +285,47 @@ describe('minijuegos de las salas', () => {
       expect(game.right).not.toEqual(game.left);
       expect([...game.right].sort()).toEqual([...game.left].sort());
     }
+  });
+});
+
+describe('radio: flecha hacia donde se corrió la señal', () => {
+  const hold = (left: boolean, right: boolean) => ({ held: { ...NO_KEYS, left, right }, pressed: { ...NO_KEYS, choice: null } });
+
+  it('antes de encontrarla no hay flecha; después, apunta hacia donde se fue', () => {
+    const game = new RadioGame({ seed: 4 });
+    expect(game.hint).toBeNull();
+    for (let i = 0; i < 600 && game.quality <= 0.9; i++) game.update(1 / 60, hold(game.dial > game.target, game.dial < game.target));
+    expect(game.hint).toBeNull();
+    // Se aleja el dial: la flecha señala de vuelta hacia la señal.
+    for (let i = 0; i < 40; i++) game.update(1 / 60, hold(true, false));
+    expect(game.hint).toBe(game.target > game.dial ? 'right' : 'left');
+    expect(game.hint).toBe('right');
+  });
+});
+
+describe('cosecha del invernadero', () => {
+  const press = { held: { ...NO_KEYS }, pressed: { ...NO_KEYS, action: true, choice: null } };
+
+  it('cortar una planta verde o pasada es un error; a punto, suma un brote', () => {
+    const game = new HarvestGame({ seed: 3 });
+    expect(game.stageOf(game.plants[0]!)).toBe('growing');
+    game.update(1 / 30, press);
+    expect(game.mistakes).toBe(1);
+    expect(game.message?.key).toBe('unripe');
+    game.plants[0]!.growth = 0.8;
+    game.update(1 / 30, press);
+    expect(game.collected).toBe(1);
+    expect(game.plants[0]!.growth).toBeLessThan(0.1);
+    game.plants[0]!.growth = 1.2;
+    game.update(1 / 30, press);
+    expect(game.message?.key).toBe('overripe');
+    expect(game.collected).toBe(1);
+  });
+
+  it('una planta pasada del todo se marchita y vuelve a brotar', () => {
+    const game = new HarvestGame({ seed: 3 });
+    game.plants[1]!.growth = HarvestGame.RIPE.wilt - 0.001;
+    game.update(1 / 30, NO_INPUT);
+    expect(game.plants[1]!.growth).toBe(0);
   });
 });

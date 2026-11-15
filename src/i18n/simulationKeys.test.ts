@@ -60,7 +60,6 @@ describe('claves de texto de la simulación', () => {
     SULFUR_EVENT.explanationKey,
     ...['cruise', 'mars'].map((place) => `hud.source.${place}`),
     ...[...new Set([...Object.keys(VOYAGE_CONTENT.power.loadsKw), ...Object.keys(MARS_CONTENT.power.loadsKw)])].map((id) => `hud.load.${id}`),
-    ...['sleepHours', 'exerciseHours', 'workHours'].map((b) => `hud.planning.block.${b}`),
     ...['deepSpace', 'marsCruise', 'marsSurface'].map((site) => `hud.dataPanel.site.${site}`),
     ...['flare', 'sep', 'cmeMars'].map((kind) => `hud.dataPanel.notice.${kind}`),
     ...['offline', 'notCommander', 'notAtConsole'].map((k) => `hud.missionControl.blocked.${k}`),

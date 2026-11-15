@@ -2,6 +2,7 @@ import type { LoadoutProfile } from '../core/flow/types';
 import type { OutboundProfile, ReturnRules } from '../core/loadout/loadout';
 import { LIFE_SUPPORT_RATES } from '../data/curated';
 import { CREW_ROSTER } from './crew';
+import type { CargoGridRules } from '../core/loadout/cargoGrid';
 
 /** Masa de un kit de repuestos y litros (≈ kg) del escudo de agua lleno [regla]: valen para la ida y la vuelta. */
 const SPARE_KG = 25;
@@ -72,4 +73,28 @@ export const RETURN_RULES: ReturnRules = {
     spares: 3,
   },
   steps: { foodKg: FOOD_STEP_KG, waterL: 25, shield: 0.25 },
+};
+
+/**
+ * Bodega de la nave para la vuelta, como un maletín de casilleros [regla]: 8 × 6 = 48 casilleros. Lo recomendado
+ * (4 cajas de comida, 4 tanques de agua, 4 bolsas del escudo y 3 cajas de repuestos) ocupa 42 y deja 6 para las
+ * muestras: una roca chica ocupa 1, una mediana 2 y una grande 4. Traerlas todas obliga a dejar suministros.
+ */
+export const CARGO_GRID: CargoGridRules = {
+  cols: 8,
+  rows: 6,
+  pieces: { food: 4, water: 4, shield: 4 },
+  extra: 1,
+  size: {
+    food: { w: 2, h: 2 },
+    water: { w: 1, h: 2 },
+    shield: { w: 1, h: 3 },
+    spare: { w: 2, h: 1 },
+    plant: { w: 1, h: 1 },
+  },
+  rockSizes: [
+    { maxKg: 7, w: 1, h: 1 },
+    { maxKg: 10.5, w: 1, h: 2 },
+    { maxKg: Infinity, w: 2, h: 2 },
+  ],
 };

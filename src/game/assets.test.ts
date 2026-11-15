@@ -40,6 +40,16 @@ describe('recursos de Boot', () => {
     },
   );
 
+  it.each(BOOT_ASSETS.filter((entry) => entry.kind === 'spritesheet').map((entry) => [entry.key, entry] as const))(
+    'la hoja %s tiene un número entero de cuadros',
+    (_key, entry) => {
+      if (entry.kind !== 'spritesheet') throw new Error(`${entry.key} debería ser spritesheet`);
+      const { width, height } = pngSize(join(PUBLIC_DIR, entry.url));
+      expect(width % entry.frame.frameWidth).toBe(0);
+      expect(height % entry.frame.frameHeight).toBe(0);
+    },
+  );
+
   it('encola cada recurso con el método del loader que corresponde a su tipo', () => {
     const load = { spritesheet: vi.fn(), image: vi.fn(), audio: vi.fn() };
     const frame = { frameWidth: 48, frameHeight: 48 };

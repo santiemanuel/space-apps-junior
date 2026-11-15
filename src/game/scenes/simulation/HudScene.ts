@@ -17,10 +17,11 @@ import { crewTextureKey } from '../../assets';
 import { CraterView, CRATER_TEXTURE } from './CraterView';
 import { HUD_ICONS, preloadHudIcons } from '../../hudIcons';
 import { Minimap, MINIMAP_FRAME, type MinimapFrame } from './Minimap';
-import { PanelColumn, type PanelRow } from './PanelColumn';
+import { PanelColumn, type PanelRow, drawPresence, PRESENCE_COLOR } from './PanelColumn';
 import { MinigameView } from './minigames/MinigameView';
 import { formatDate, healthLights, LIGHT, lightFor, NAMES, StatusView, supplies } from './StatusView';
 import { gridWarningKey, locationKey, toggleOverlay, type SimulationSceneData } from './simulationData';
+import { audio } from '../../audio/audio';
 
 /** La vista del mapa ocupa 21 tiles; el resto de la pantalla es el tablero (como en las referencias, angosto). */
 export const VIEW_WIDTH = 21 * TILE;
@@ -43,7 +44,7 @@ const BUTTON = { size: 46, gap: 6, y: 10 } as const;
 /** Franja de la misión, arriba al centro del mapa (entre la placa y los botones): fase, fecha, avance y semáforo. */
 const STRIP = { x: BADGE.x + BADGE.width + 10, width: 456, y: 10 } as const;
 /** Tarjeta de la decisión pendiente, abajo al centro del mapa. */
-const CARD = { width: 600, bottom: GAME_HEIGHT - 34 } as const;
+const CARD = { width: 780, bottom: GAME_HEIGHT - 34 } as const;
 /** Recorte de la cara en el cuadro de frente de las hojas de la tripulación (px de mundo). */
 const FACE = { x: 4, y: 18, w: 72, h: 52, scale: 0.75 } as const;
 const HEAD = '#90cdf4';
@@ -113,6 +114,9 @@ export class HudScene extends Phaser.Scene {
     name: Phaser.GameObjects.Text;
     place: Phaser.GameObjects.Text;
     icons: { image: Phaser.GameObjects.Image; pip: Phaser.GameObjects.Rectangle }[];
+    /** Estado del jugador (como en Discord): el punto sobre la cara y su nombre. */
+    presence: Phaser.GameObjects.Graphics;
+    presenceText: Phaser.GameObjects.Text;
   };
   private card!: { box: Phaser.GameObjects.Graphics; column: PanelColumn; signature: string };
   /** Lo que el tablero dibuja sobre el mapa (placa, botones, ayuda): se esconde con una pantalla superpuesta abierta. */
@@ -153,6 +157,7 @@ export class HudScene extends Phaser.Scene {
     if (this.minigame?.visible) return;
     if (view && OVERLAYS.some((key) => this.scene.isActive(key))) return;
     const was = !!this.crater?.visible || this.status.visible;
+    if (was !== !!view) audio.sfx(view ? 'open' : 'back');
     this.crater?.setVisible(view === 'crater');
     if (view === 'status') this.status.show(this.snapshot!);
     else this.status.hide();
@@ -192,7 +197,7 @@ export class HudScene extends Phaser.Scene {
 
     const off = sim.on('sim:snapshot', (s) => (this.snapshot = s));
     const keyboard = this.input.keyboard!;
-    keyboard.addKey('M').on('down', () => (this.muted = !this.muted));
+    keyboard.addKey('M').on('down', () => (this.muted = audio.toggleMute()));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
     this.status = new StatusView(this, this.data_.namespace);
     this.minigame = new MinigameView(this, sim);
@@ -222,6 +227,7 @@ export class HudScene extends Phaser.Scene {
   private toggleOverlay(key: SceneKey): void {
     if (this.minigame.visible) return;
     this.show(null);
+    audio.sfx(this.scene.isActive(key) ? 'back' : 'open');
     toggleOverlay(this.scene, key, this.data_);
   }
 
@@ -241,8 +247,10 @@ export class HudScene extends Phaser.Scene {
         pip: this.add.rectangle(x, BADGE.y + 49, 12, 2, 0x68d391).setDepth(51),
       };
     });
-    this.badge = { face, name, place, icons };
-    this.onMap.push(g, name, place, ...icons.flatMap((i) => [i.image, i.pip]));
+    const presence = this.add.graphics().setDepth(53).setScrollFactor(0);
+    const presenceText = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '10px', color: '#a0aec0' }).setDepth(53).setScrollFactor(0);
+    this.badge = { face, name, place, icons, presence, presenceText };
+    this.onMap.push(g, name, place, presence, presenceText, ...icons.flatMap((i) => [i.image, i.pip]));
   }
 
   /** Botones de las pantallas, arriba a la derecha del mapa: ícono y la tecla que hace lo mismo. */
@@ -402,6 +410,25 @@ export class HudScene extends Phaser.Scene {
     ];
     // El ritmo sólo aparece cuando no es el de siempre (manejando a alguien).
     if (s.paused || !s.manual) rows.push({ text: s.paused ? t('hud.panel.paused') : t('hud.panel.paceFast'), color: SOFT, size: 11 });
+    else if (s.idle) rows.push({ text: t('hud.panel.paceIdle'), color: SOFT, size: 11 });
+    // Qué falta hacer para que la jornada avance rápido (así nadie se pierde buscando qué rehacer).
+    if (s.mars?.canLeave) rows.push({ gap: 2, text: t('mars.leave.prompt'), color: '#68d391', size: 11 });
+    if (s.mars?.plants) rows.push({ text: t('mars.panel.plants', { count: s.mars.plants }), color: SOFT, size: 11 });
+    if (!s.paused && s.manual && s.todo.length) {
+      rows.push({ gap: 2, text: t('hud.todo.title'), color: '#fbd38d', size: 11 });
+      for (const item of s.todo.slice(0, 4)) {
+        const text =
+          item.kind === 'task'
+            ? t('hud.todo.task', { place: tr(`${this.data_.namespace}.zone.${item.zone}`) })
+            : item.kind === 'repair'
+              ? item.helper
+                ? t('hud.todo.repairHelper', { title: tr(`${item.textKey}.title`), name: NAMES[item.helper] })
+                : t('hud.todo.repair', { title: tr(`${item.textKey}.title`) })
+              : t(`hud.todo.${item.kind}`);
+        rows.push({ text: `· ${text}`, color: SOFT, size: 11 });
+      }
+      if (s.todo.length > 4) rows.push({ text: t('hud.todo.more', { n: s.todo.length - 4 }), color: SOFT, size: 10 });
+    }
     if (s.mars) {
       const { daylight, evaOpen } = s.mars;
       rows.push({
@@ -458,6 +485,7 @@ export class HudScene extends Phaser.Scene {
     for (const m of st.crew) {
       rows.push({
         portrait: m.id,
+        presence: s.presence[m.id],
         half: true,
         text: `${m.id === st.activeCrewId ? '▶ ' : ''}${NAMES[m.id]}`,
         size: 12,
@@ -564,6 +592,10 @@ export class HudScene extends Phaser.Scene {
     b.name.setText(NAMES[m.id]);
     const where = locationKey(this.data_.namespace, m.location);
     b.place.setText(m.resting ? t('hud.panel.resting') : tr(where)).setX(b.name.x + b.name.width + 8);
+    const presence = s.presence[m.id];
+    b.presence.clear();
+    drawPresence(b.presence, BADGE.x + 10 + FACE.w * FACE.scale - 6, BADGE.y + 10 + FACE.h * FACE.scale - 6, presence, 7);
+    b.presenceText.setText(`● ${t(`hud.presence.${presence}`)}`).setColor(`#${PRESENCE_COLOR[presence].toString(16).padStart(6, '0')}`).setPosition(b.place.x + b.place.width + 8, b.place.y + 1);
     healthLights(m).forEach((light, i) => {
       const icon = b.icons[i]!;
       if (this.hasIcon(light.id)) icon.image.setFrame(light.id);
@@ -586,18 +618,18 @@ export class HudScene extends Phaser.Scene {
     const { sim } = this.data_;
     const hint = s.hints.find((h) => h.incidentId === d.incident.id)?.responseId;
     const rows: PanelRow[] = [
-      { icon: this.icon('warning'), text: tr(`${d.textKey}.title`), color: d.incident.status === 'active' ? LIGHT.red : LIGHT.yellow, size: 15 },
-      { text: t('hud.panel.choose'), color: SOFT, size: 11 },
+      { icon: this.icon('warning'), text: tr(`${d.textKey}.title`), color: d.incident.status === 'active' ? LIGHT.red : LIGHT.yellow, size: 22 },
+      { gap: 4, text: t('hud.panel.choose'), color: SOFT, size: 15 },
     ];
     d.options.forEach(({ response, available }, i) => {
       rows.push({
-        gap: 4,
+        gap: 12,
         text: `[${i + 1}] ● ${tr(`${d.textKey}.response.${response.id}.title`)}${hint === response.id ? ` ${t('hud.panel.hint')}` : ''}`,
         color: available ? LIGHT[response.risk] : '#4a5568',
-        size: 13,
+        size: 19,
         onClick: available ? () => sim.emit('sim:respond', { incidentId: d.incident.id, responseId: response.id }) : undefined,
       });
-      rows.push({ text: `     ${tr(`${d.textKey}.response.${response.id}.cost`)}`, color: DIM, size: 11 });
+      rows.push({ text: `      ${tr(`${d.textKey}.response.${response.id}.cost`)}`, color: SOFT, size: 14 });
     });
     column.render(rows);
     const height = column.height + 24;
@@ -631,7 +663,8 @@ export class HudScene extends Phaser.Scene {
     for (let i = 0; i < length; i++) data[i] = (this.rng.next() * 2 - 1) * (1 - i / length);
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
-    gain.gain.value = 0.25;
+    // El contador de partículas respeta el volumen de los sonidos de las opciones.
+    gain.gain.value = 0.25 * audio.soundVolume;
     source.buffer = buffer;
     source.connect(gain).connect(ctx.destination);
     source.start();

@@ -113,5 +113,12 @@
   "panel.gridBatteryOff": "La batería no llega a la base: de noche no hay energía",
   "panel.gridLoss": "Un cable cortado: la energía da la vuelta y se pierde una parte",
   "panel.blackout": "¡Sin energía! MOXIE y el invernadero se apagaron",
-  "panel.tubes": "Tubos rotos: {count}"
+  "panel.tubes": "Tubos rotos: {count}",
+  "log.plant": "Cosecha del invernadero: una muestra de plantas cultivadas en Marte",
+  "log.leaveEarly": "Todas las rocas juntadas: la tripulación decide volver antes",
+  "plant.collected": "¡Cosecha! Llevá la muestra de plantas al depósito para subirla a la nave.",
+  "leave.prompt": "Ya tenés todas las rocas · F: empezar la vuelta a casa",
+  "leave.confirm": "Apretá F otra vez para empezar el embarque",
+  "leave.started": "¡A casa! Llevá la carga del depósito a la nave.",
+  "panel.plants": "Plantas: {count}"
 }

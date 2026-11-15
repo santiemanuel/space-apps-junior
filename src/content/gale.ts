@@ -52,7 +52,7 @@ export const SULFUR_EVENT: RealEvent = {
 export const GALE_TASKS: readonly HabitatTask[] = [
   { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise', minigame: 'bike' },
   { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber', minigame: 'scrubber' },
-  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare', minigame: 'plants' },
+  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare', minigame: 'plants', daily: true, dailyMinigame: 'harvest' },
   { id: 'moxie', zone: 'moxie', kind: 'maintenance', category: 'energy', system: 'moxie', minigame: 'moxie' },
   { id: 'airlock', zone: 'airlock', kind: 'maintenance', category: 'leak', system: 'airlock', resets: 'evaHoursSinceMaintenance', minigame: 'seals' },
   { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms', minigame: 'radio' },

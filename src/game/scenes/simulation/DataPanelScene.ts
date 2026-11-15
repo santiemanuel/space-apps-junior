@@ -11,6 +11,7 @@ import { GAME_HEIGHT } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
 import { VIEW_WIDTH } from './HudScene';
 import type { SimulationSceneData } from './simulationData';
+import { overlayFade } from '../../ui/ui';
 
 const DAY_MS = 86_400_000;
 /** Días que se muestran antes y después de la fecha del jugador. */
@@ -52,6 +53,7 @@ export class DataPanelScene extends Phaser.Scene {
 
   create(): void {
     const { sim } = this.data_;
+    overlayFade(this);
     this.add.rectangle(0, 0, VIEW_WIDTH, GAME_HEIGHT, 0x05070d, 0.95).setOrigin(0, 0).setInteractive();
     const layer = this.add.container(0, 0);
     const off = sim.on('sim:snapshot', (s) => {

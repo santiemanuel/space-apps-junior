@@ -13,6 +13,7 @@ export type MinigameId =
   | 'meal'
   | 'shield'
   | 'plants'
+  | 'harvest'
   | 'moxie'
   | 'seals'
   | 'patch'

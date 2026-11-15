@@ -19,6 +19,9 @@ import { MarsWeatherFx } from './MarsWeatherFx';
 import { skyLight, type SkyLight } from './marsSky';
 import { SimulationMapScene, toPx, tr } from './SimulationMapScene';
 import { depthAt, MapDepth, type MapAssets, type MapView } from './TiledMapView';
+import { audio } from '../../audio/audio';
+import { PLANT_ROCK } from '../../../core/mars/MarsSession';
+import type { ZoneMinigame } from '../../../core/habitat/HabitatSession';
 
 /** Paisaje de Gale que se ve por los ventanales de la base (`art/prompts/vista-marte.txt`). */
 const VISTA = 'mars-vista';
@@ -107,6 +110,7 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
       propsUrl: 'assets/mars/props.png',
       propsAtlasUrl: 'assets/mars/props.json',
       doorPanels: { left: 18, right: 22 },
+      sideDoors: true,
       lightTiles: [11],
       // Bordes en los techos de la base y en los de los cerros, las crestas de duna y el monte Sharp, con colores de
       // la paleta cálida.
@@ -144,6 +148,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   }
 
   create(): void {
+    this.leaveKey = this.input.keyboard?.addKey('F') ?? null;
+    this.leaveConfirmUntil = 0;
     this.strip = null;
     this.visited = new Set();
     this.weather = null;
@@ -267,7 +273,19 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     const taken = s.state.inventory.samples;
     if (taken.length > this.samplesTaken) {
       const rock = taken.at(-1)?.rock;
-      if (rock) this.showToast(t('mars.rock.collected', { name: tr(`mars.rock.${rock}.name`), fact: tr(`mars.rock.${rock}.fact`) }));
+      if (rock === PLANT_ROCK) this.showToast(t('mars.plant.collected'));
+      else if (rock) this.showToast(t('mars.rock.collected', { name: tr(`mars.rock.${rock}.name`), fact: tr(`mars.rock.${rock}.fact`) }));
+      audio.sfx('success');
+    }
+    // Con todas las rocas, F (dos veces) empieza el embarque sin esperar al último sol.
+    if (this.leaveKey && Phaser.Input.Keyboard.JustDown(this.leaveKey) && s.canLeaveEarly) {
+      if (this.time.now < this.leaveConfirmUntil && s.leaveEarly()) {
+        audio.sfx('select');
+        this.showToast(t('mars.leave.started'));
+      } else {
+        this.leaveConfirmUntil = this.time.now + 4000;
+        this.showToast(t('mars.leave.confirm'));
+      }
     }
     this.samplesTaken = taken.length;
     const remaining = s.remainingSites();
@@ -279,6 +297,15 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
       if (progress > 0) this.markers.lineStyle(3, 0x63b3ed, 1).beginPath().arc(p.x, p.y + 8, 30, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2).strokePath();
     }
   }
+
+  protected minigameReward(m: ZoneMinigame): string | null {
+    if (m.id !== 'harvest') return null;
+    return t(this.session.plantSamplesLeft ? 'hud.minigame.reward.harvest' : 'hud.minigame.reward.harvestFood');
+  }
+
+  /** F: empezar la vuelta a casa cuando ya están todas las rocas (hay que apretarla dos veces). */
+  private leaveKey: Phaser.Input.Keyboard.Key | null = null;
+  private leaveConfirmUntil = 0;
 
   protected placePrompt(position: Point, zone: string | null): string | null {
     const s = this.session;

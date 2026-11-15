@@ -1,45 +1,74 @@
 import Phaser from 'phaser';
 import { CREW_ROSTER } from '../../../content/crew';
 import { MANEUVER_RULES, MANEUVERS, maneuverConditions } from '../../../content/maneuvers';
-import type { EventBus } from '../../../core/events/EventBus';
-import type { GameEvents } from '../../../core/events/GameEvents';
-import { ManeuverRun, precisionLevel } from '../../../core/maneuvers/ManeuverRun';
-import type { ChecklistDecision, ChecklistItem } from '../../../core/maneuvers/types';
 import type { CrewId } from '../../../core/crew/types';
 import type { UvIndex } from '../../../core/environment/series';
+import type { EventBus } from '../../../core/events/EventBus';
+import type { GameEvents } from '../../../core/events/GameEvents';
+import { BoardGame, CountdownGame, createFlightGame, FuelGame, SteerGame, type Arrow, type FlightGame, type FlightInput } from '../../../core/maneuvers/flightGames';
+import { ManeuverRun, precisionLevel } from '../../../core/maneuvers/ManeuverRun';
+import type { ChecklistDecision, ChecklistItem, StageKind } from '../../../core/maneuvers/types';
 import type { SystemStatus } from '../../../core/systems/types';
 import { galeWeatherOn } from '../../../data/series';
 import { VAN_ALLEN } from '../../../data/vanAllen';
-import { t } from '../../../i18n';
-import { GAME_WIDTH } from '../../display';
+import { t, type TranslationKey } from '../../../i18n';
 import { SceneKeys } from '../../sceneKeys';
-import { addButton, addPanel, addText, COLOR, LIGHT_COLOR, LIGHT_CSS, listenUntilShutdown, onKeys, type Button } from '../../ui/ui';
+import { addButton, addText, COLOR, fadeIn, LIGHT_COLOR, LIGHT_CSS, listenUntilShutdown, onKeys, pulse, type Button } from '../../ui/ui';
 import type { ManeuverSceneData } from '../sceneData';
+import { ART_VIEW, FlightArt } from './flightArt';
+import { audio } from '../../audio/audio';
 
-const CENTER = GAME_WIDTH / 2;
-const BAR = { x: 240, y: 380, width: 800, height: 40 } as const;
-const FUEL = { x: 1050, y: 28, width: 200, height: 12 } as const;
-/** Pausa antes de que empiece a moverse la marca y tiempo para leer el resultado de cada etapa (ms). */
+/** Panel translúcido a la derecha, encima de la ilustración: el minijuego de cada etapa y el resultado. */
+const OVERLAY = { x: 830, y: 360, width: 430, height: 186 } as const;
+const PANEL_TOP = OVERLAY.y;
+/** Centro del panel: el cohete queda libre en el medio de la pantalla. */
+const PX = OVERLAY.x + OVERLAY.width / 2;
+const BAR = { x: PX - 180, y: OVERLAY.y + 108, width: 360, height: 26 } as const;
+/** Panel del checklist, a la derecha (el cohete queda a la vista). */
+const CHECK = { x: 838, y: 90, width: 420 } as const;
+const FUEL = { x: 1050, y: 30, width: 200, height: 12 } as const;
+/** Pausa antes de que empiece cada minijuego y tiempo para leer su resultado (ms). */
 const READY_MS = 700;
-const FEEDBACK_MS = 1300;
+const FEEDBACK_MS = 1500;
 const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 const PRECISION_LIGHT: Record<ReturnType<typeof precisionLevel>, SystemStatus> = { great: 'green', good: 'yellow', rough: 'red' };
+const ARROW_GLYPH: Record<Arrow, string> = { up: '↑', down: '↓', left: '←', right: '→' };
+type KeyName = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'A' | 'D' | 'W' | 'S' | 'SPACE';
+
+/** Lo que se repinta en cada cuadro según el minijuego de la etapa. */
+interface StageWidgets {
+  feedback: Phaser.GameObjects.Text;
+  marker?: Phaser.GameObjects.Rectangle;
+  fuelFill?: Phaser.GameObjects.Rectangle;
+  needle?: Phaser.GameObjects.Rectangle;
+  steerTime?: Phaser.GameObjects.Rectangle;
+  arrows?: { box: Phaser.GameObjects.Rectangle; glyph: Phaser.GameObjects.Text }[];
+  countdown?: Phaser.GameObjects.Text;
+}
 
 /**
- * Maniobra genérica (§4.0) configurada por `ManeuverDefinition`: checklist Go / No-Go y una barra por etapa
- * (Espacio en la zona). Las reglas viven en `ManeuverRun`; la escena sólo pinta y lee la entrada.
+ * Maniobra (§4.0) como escena de vuelo de ~30 s a 1 min: arriba, la ilustración animada (abordaje, cuenta regresiva,
+ * despegue, paracaídas…); abajo, el checklist Go / No-Go y un minijuego por etapa: cargar combustible, abordar,
+ * cuenta regresiva T-10, pilotar o apretar en el momento justo. Lo bien que salen define el combustible que se gasta.
+ * Las reglas viven en `ManeuverRun` y en `flightGames`; la escena sólo pinta y lee la entrada.
  */
 export class ManeuverScene extends Phaser.Scene {
   private data_!: ManeuverSceneData;
   private run!: ManeuverRun;
+  private art!: FlightArt;
   private view!: Phaser.GameObjects.Container;
   private fuelFill!: Phaser.GameObjects.Rectangle;
   private header!: { title: Phaser.GameObjects.Text; narrator: Phaser.GameObjects.Text; fuel: Phaser.GameObjects.Text };
-  private stageView: { zone: Phaser.GameObjects.Rectangle; marker: Phaser.GameObjects.Rectangle; feedback: Phaser.GameObjects.Text } | null = null;
+  private widgets: StageWidgets | null = null;
+  private flightGame: FlightGame | null = null;
+  private gameStage = -1;
+  private keys!: Record<KeyName, Phaser.Input.Keyboard.Key>;
   private checklist = { row: 0, option: 0, rows: [] as { buttons: Button[]; status: Phaser.GameObjects.Text }[], start: null as Button | null };
   private result: Button | null = null;
   private readyAt = 0;
   private completed = false;
+  /** Último paso pintado, para animar sólo los cambios de paso. */
+  private lastView = '';
   private dustUv: UvIndex | null = null;
 
   constructor() {
@@ -47,36 +76,52 @@ export class ManeuverScene extends Phaser.Scene {
   }
 
   init(data: ManeuverSceneData): void {
+    this.lastView = '';
     this.data_ = data;
     // Polvo real del día en Gale (REMS) para el aterrizaje.
     this.dustUv = data.maneuverId === 'landing' ? galeWeatherOn(data.state.simDate).uv : null;
     this.run = new ManeuverRun(MANEUVERS[data.maneuverId], data.state, MANEUVER_RULES, maneuverConditions(data.maneuverId, data.state, this.dustUv));
     this.completed = false;
-    this.stageView = null;
+    this.widgets = null;
+    this.flightGame = null;
+    this.gameStage = -1;
     this.result = null;
   }
 
   create(): void {
+    this.art = new FlightArt(this, this.data_.maneuverId);
     this.header = {
-      title: addText(this, CENTER, 46, 32, COLOR.title).setOrigin(0.5),
-      narrator: addText(this, CENTER, 96, 16, COLOR.muted, { align: 'center', wordWrap: { width: 980 } }).setOrigin(0.5, 0),
-      fuel: addText(this, FUEL.x, FUEL.y - 20, 13, COLOR.muted),
+      title: addText(this, 24, 22, 22, COLOR.title).setOrigin(0, 0.5),
+      narrator: addText(this, 24, 40, 13, COLOR.text, { wordWrap: { width: 980 } }),
+      fuel: addText(this, FUEL.x, FUEL.y - 18, 12, COLOR.muted),
     };
-    this.add.rectangle(FUEL.x, FUEL.y, FUEL.width, FUEL.height, 0x2d3748).setOrigin(0, 0);
+    const fuelBack = this.add.rectangle(FUEL.x, FUEL.y, FUEL.width, FUEL.height, 0x2d3748).setOrigin(0, 0);
     this.fuelFill = this.add.rectangle(FUEL.x, FUEL.y, FUEL.width, FUEL.height, 0xf6ad55).setOrigin(0, 0);
+    const frame = this.add.rectangle(0, 0, ART_VIEW.width, 72, 0x05070d, 0.55).setOrigin(0, 0);
     this.view = this.add.container(0, 0);
+    this.art.ignoreUi([this.header.title, this.header.narrator, this.header.fuel, fuelBack, this.fuelFill, frame, this.view]);
+    this.keys = this.input.keyboard!.addKeys('LEFT,RIGHT,UP,DOWN,A,D,W,S,SPACE') as Record<KeyName, Phaser.Input.Keyboard.Key>;
 
     onKeys(this, (code) => this.onKey(code));
     listenUntilShutdown(this, this.input, 'pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (this.run.step === 'stage' && over.length === 0) this.press();
+      if (this.run.step !== 'stage' || over.length) return;
+      if (this.kind === 'timing') this.press();
+      else this.pointerPressed = true;
     });
     listenUntilShutdown(this, this.events, Phaser.Scenes.Events.RESUME, () => this.rebuild());
     this.rebuild();
   }
 
   update(time: number, deltaMs: number): void {
-    if (this.run.step === 'stage' && time >= this.readyAt) this.run.update(deltaMs / 1000);
-    if (this.stageView) this.stageView.marker.setX(BAR.x + this.run.marker * BAR.width);
+    const dt = deltaMs / 1000;
+    const ready = this.run.step === 'stage' && time >= this.readyAt;
+    if (ready && this.kind === 'timing') this.run.update(dt);
+    if (ready && this.flightGame && !this.flightGame.done) {
+      this.flightGame.update(dt, this.readInput());
+      if (this.flightGame.done) this.completeGame();
+    }
+    this.paintWidgets();
+    this.art.update(dt, this.artFrame());
     this.fuelFill.setScale(this.run.step === 'done' ? this.run.finalFuel : this.run.fuel, 1);
   }
 
@@ -84,21 +129,56 @@ export class ManeuverScene extends Phaser.Scene {
     return this.data_.bus;
   }
 
+  private get kind() {
+    return this.run.stage?.kind ?? 'timing';
+  }
+
+  /** Clic sobre la escena (fuera de los botones) desde el último cuadro: cuenta como apretar Espacio. */
+  private pointerPressed = false;
+
+  private takePointerPress(): boolean {
+    const pressed = this.pointerPressed;
+    this.pointerPressed = false;
+    return pressed;
+  }
+
+  private readInput(): FlightInput {
+    const k = this.keys;
+    const pointer = this.input.activePointer;
+    const just = (key: Phaser.Input.Keyboard.Key) => Phaser.Input.Keyboard.JustDown(key);
+    const arrow: Arrow | null = just(k.UP) || just(k.W) ? 'up' : just(k.DOWN) || just(k.S) ? 'down' : just(k.LEFT) || just(k.A) ? 'left' : just(k.RIGHT) || just(k.D) ? 'right' : null;
+    return {
+      held: { left: k.LEFT.isDown || k.A.isDown, right: k.RIGHT.isDown || k.D.isDown, action: k.SPACE.isDown || pointer.isDown },
+      pressed: { action: just(k.SPACE) || this.takePointerPress(), arrow },
+    };
+  }
+
   /** Vuelve a pintar el paso actual (también al volver de la pausa, por si cambió el idioma). */
   private rebuild(): void {
     const id = this.data_.maneuverId;
     this.header.title.setText(t(`maneuvers.name.${id}`));
     const dust = this.dustUv === 'Low' || this.dustUv === 'Moderate' ? ` ${t(`maneuvers.dust.${this.dustUv}`)}` : '';
-    this.header.narrator.setText(`${t('maneuvers.narrator')}: ${t(`maneuvers.intro.${id}`)}${dust}`);
+    const current = this.run.step === 'stage' || this.run.step === 'feedback' ? this.run.stage : undefined;
+    this.header.narrator.setText(
+      current ? t(`maneuvers.stage.${id}.${current.id}.fact` as TranslationKey) : `${t('maneuvers.narrator')}: ${t(`maneuvers.intro.${id}`)}${dust}`,
+    );
     this.header.fuel.setText(t('maneuvers.fuel'));
     this.view.removeAll(true);
-    this.stageView = null;
+    this.widgets = null;
     this.result = null;
     this.checklist.rows = [];
     this.checklist.start = null;
+    const glass = this.add.graphics().fillStyle(0x0b1220, 0.78);
+    if (this.run.step === 'checklist') glass.fillRoundedRect(CHECK.x, CHECK.y, CHECK.width, 110 + this.run.items.length * 48 + 60, 14);
+    else glass.fillRoundedRect(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 14);
+    this.view.add(glass);
     if (this.run.step === 'checklist') this.showChecklist();
     else if (this.run.step === 'done') this.showResult();
     else this.showStage();
+    // Transición sólo al pasar del checklist a una etapa, de una etapa a otra o al resultado.
+    const view = this.run.step === 'feedback' ? `stage:${this.run.stageIndex}` : `${this.run.step}:${this.run.stageIndex}`;
+    if (view !== this.lastView) fadeIn(this, this.view, { duration: 260, rise: 12 });
+    this.lastView = view;
   }
 
   // --- Checklist Go / No-Go ---
@@ -110,42 +190,38 @@ export class ManeuverScene extends Phaser.Scene {
 
   private showChecklist(): void {
     const { run, view } = this;
+    const left = CHECK.x + 18;
+    const right = CHECK.x + CHECK.width - 18;
     view.add([
-      addText(this, CENTER, 160, 24, COLOR.text).setOrigin(0.5).setText(t('maneuvers.checklist.title')),
-      addText(this, CENTER, 192, 15, COLOR.muted, { align: 'center', wordWrap: { width: 900 } }).setOrigin(0.5, 0).setText(t('maneuvers.checklist.hint')),
-      addText(this, 1040, 236, 15, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.checklist.spares', { count: run.spares })),
+      addText(this, left, CHECK.y + 22, 18, COLOR.text).setOrigin(0, 0.5).setText(t('maneuvers.checklist.title')),
+      addText(this, right, CHECK.y + 22, 12, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.checklist.spares', { count: run.spares })),
+      addText(this, left, CHECK.y + 40, 12, COLOR.muted, { wordWrap: { width: CHECK.width - 36 } }).setText(t('maneuvers.checklist.hint')),
     ]);
+    const top = CHECK.y + 110;
     run.items.forEach((item, index) => {
-      const y = 280 + index * 58;
-      view.add(addPanel(this, 240, y - 24, 800, 48));
-      view.add(this.add.circle(268, y, 10, LIGHT_COLOR[item.status]));
-      view.add(addText(this, 292, y, 18).setOrigin(0, 0.5).setText(t(`common.system.${item.systemId}`)));
-      const status = addText(this, 1024, y, 15, COLOR.muted).setOrigin(1, 0.5);
+      const y = top + index * 48;
+      view.add(this.add.circle(left + 8, y - 8, 7, LIGHT_COLOR[item.status]));
+      view.add(addText(this, left + 22, y - 8, 14).setOrigin(0, 0.5).setText(t(`common.system.${item.systemId}`)));
+      const status = addText(this, right, y - 8, 12, COLOR.muted).setOrigin(1, 0.5);
       view.add(status);
       const buttons = this.options(item).map((decision, option, all) => {
-        const x = 1024 - (all.length - 1 - option) * 210 - 95;
-        const button = addButton(this, x, y, () => this.decide(index, decision), {
-          size: 15,
-          onHover: () => this.focusChecklist(index, option),
-        }).setLabel(this.decisionLabel(item, decision));
+        const x = right - (all.length - 1 - option) * 170 - 76;
+        const button = addButton(this, x, y + 12, () => this.decide(index, decision), { size: 12, onHover: () => this.focusChecklist(index, option) }).setLabel(
+          this.decisionLabel(item, decision),
+        );
         if (decision === 'repair' && !run.canRepair(item.systemId)) button.setEnabled(false).setLabel(t('maneuvers.checklist.noSpares'));
         view.add(button.text);
         return button;
       });
-      if (item.decision) {
-        status.setText(t(`maneuvers.checklist.done.${item.decision}`)).setColor(item.decision === 'risk' ? COLOR.warn : COLOR.ok);
-      }
+      if (item.decision) status.setText(t(`maneuvers.checklist.done.${item.decision}`)).setColor(item.decision === 'risk' ? COLOR.warn : COLOR.ok);
       this.checklist.rows.push({ buttons, status });
     });
-    const startY = 280 + run.items.length * 58 + 30;
-    const start = addButton(this, CENTER, startY, () => this.startStages(), {
-      size: 20,
-      onHover: () => this.focusChecklist(run.items.length, 0),
-    })
+    const startY = top + run.items.length * 48 + 14;
+    const start = addButton(this, CHECK.x + CHECK.width / 2, startY, () => this.startStages(), { size: 15, onHover: () => this.focusChecklist(run.items.length, 0) })
       .setLabel(t(run.checklistReady ? 'maneuvers.checklist.start' : 'maneuvers.checklist.pending'))
       .setEnabled(run.checklistReady);
     this.checklist.start = start;
-    view.add([start.text, addText(this, CENTER, 690, 14, COLOR.dim).setOrigin(0.5).setText(t('maneuvers.checklist.controls'))]);
+    view.add([start.text, addText(this, CHECK.x + CHECK.width / 2, startY + 30, 11, COLOR.dim).setOrigin(0.5).setText(t('maneuvers.checklist.controls'))]);
     const firstPending = run.items.findIndex((item) => !item.decision);
     this.focusChecklist(firstPending === -1 ? run.items.length : firstPending, 0);
   }
@@ -193,39 +269,157 @@ export class ManeuverScene extends Phaser.Scene {
     }
   }
 
-  // --- Etapas ---
+  // --- Etapas: un minijuego por etapa ---
 
   private showStage(): void {
     const { run, view } = this;
     const stage = run.stage!;
-    const zone = run.zone!;
     const id = run.definition.id;
     const total = run.definition.stages.length;
+    const kind = this.kind;
+    if (run.step === 'stage' && this.gameStage !== run.stageIndex) {
+      this.gameStage = run.stageIndex;
+      this.flightGame = kind === 'timing' ? null : createFlightGame(kind, run.stageSeed, run.stageFactor);
+      this.art.setStage(stage.id);
+    }
     view.add([
-      addText(this, CENTER, 175, 15, COLOR.muted).setOrigin(0.5).setText(t('maneuvers.stage.counter', { current: run.stageIndex + 1, total })),
-      addText(this, CENTER, 215, 30, COLOR.text).setOrigin(0.5).setText(t(`maneuvers.stage.${id}.${stage.id}`)),
-      addText(this, CENTER, 252, 17, COLOR.muted, { align: 'center', wordWrap: { width: 900 } }).setOrigin(0.5, 0).setText(t(`maneuvers.stage.${id}.${stage.id}.fact`)),
-      this.add.rectangle(BAR.x, BAR.y, BAR.width, BAR.height, 0x1a202c).setOrigin(0, 0.5).setStrokeStyle(2, 0x4a5568),
+      addText(this, OVERLAY.x + OVERLAY.width - 16, PANEL_TOP + 18, 12, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.stage.counter', { current: run.stageIndex + 1, total })),
+      addText(this, PX, PANEL_TOP + 40, 18, COLOR.text).setOrigin(0.5).setText(t(`maneuvers.stage.${id}.${stage.id}` as TranslationKey)),
+      addText(this, PX, PANEL_TOP + 70, 13, COLOR.focus, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5).setText(t(`maneuvers.game.${kind}.help`)),
     ]);
-    const zoneRect = this.add.rectangle(BAR.x + zone.center * BAR.width, BAR.y, zone.width * BAR.width, BAR.height - 6, 0x48bb78, 0.85);
-    const marker = this.add.rectangle(BAR.x, BAR.y, 6, BAR.height + 24, 0xffffff);
-    const feedback = addText(this, CENTER, 500, 22, COLOR.ok, { align: 'center', wordWrap: { width: 900 } }).setOrigin(0.5);
     run.definition.stages.forEach((_s, i) => {
       const done = run.outcomes[i];
-      const color = done ? (done.hit ? LIGHT_COLOR.green : LIGHT_COLOR.yellow) : i === run.stageIndex ? 0xffffff : 0x4a5568;
-      view.add(this.add.circle(CENTER - ((total - 1) * 28) / 2 + i * 28, 590, 8, color));
+      const color = done ? LIGHT_COLOR[PRECISION_LIGHT[precisionLevel(done.precision)]] : i === run.stageIndex ? 0xffffff : 0x4a5568;
+      view.add(this.add.circle(OVERLAY.x + 20 + i * 18, PANEL_TOP + 18, 6, color));
     });
-    view.add([zoneRect, marker, feedback, addText(this, CENTER, 450, 17, COLOR.focus).setOrigin(0.5).setText(t('maneuvers.stage.hint'))]);
-    this.stageView = { zone: zoneRect, marker, feedback };
+    const feedback = addText(this, PX, PANEL_TOP + 160, 14, COLOR.ok, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5);
+    view.add(feedback);
+    this.widgets = { feedback, ...this.buildGameWidgets(kind) };
+  }
+
+  private buildGameWidgets(kind: StageKind): Omit<StageWidgets, 'feedback'> {
+    const { view, run } = this;
+    const track = (width: number) => this.add.rectangle(PX - width / 2, BAR.y, width, BAR.height, 0x1a202c).setOrigin(0, 0.5).setStrokeStyle(2, 0x4a5568);
+    if (kind === 'timing') {
+      const zone = run.zone!;
+      view.add([track(BAR.width), this.add.rectangle(BAR.x + zone.center * BAR.width, BAR.y, zone.width * BAR.width, BAR.height - 6, 0x48bb78, 0.85)]);
+      const marker = this.add.rectangle(BAR.x, BAR.y, 6, BAR.height + 20, 0xffffff);
+      view.add(marker);
+      return { marker };
+    }
+    const game = this.flightGame!;
+    if (game instanceof FuelGame) {
+      const { center, width } = game.target;
+      const fuelFill = this.add.rectangle(BAR.x, BAR.y, BAR.width, BAR.height - 8, 0xf6ad55).setOrigin(0, 0.5).setScale(0, 1);
+      view.add([
+        track(BAR.width),
+        this.add.rectangle(BAR.x + center * BAR.width, BAR.y, width * BAR.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
+        fuelFill,
+        addText(this, BAR.x - 12, BAR.y, 13, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.game.fuel.tank')),
+      ]);
+      return { fuelFill };
+    }
+    if (game instanceof BoardGame) {
+      const size = 40;
+      const left = PX - (game.sequence.length * (size + 10) - 10) / 2;
+      const arrows = game.sequence.map((a, i) => {
+        const box = this.add.rectangle(left + i * (size + 10), BAR.y, size, size, 0x1e293b).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569);
+        const glyph = addText(this, left + i * (size + 10) + size / 2, BAR.y, 24).setOrigin(0.5).setText(ARROW_GLYPH[a]);
+        view.add([box, glyph]);
+        return { box, glyph };
+      });
+      return { arrows };
+    }
+    if (game instanceof CountdownGame) {
+      const countdown = addText(this, PX, BAR.y, 32, COLOR.focus).setOrigin(0.5);
+      view.add(countdown);
+      return { countdown };
+    }
+    const steer = game as SteerGame;
+    const width = 360;
+    const needle = this.add.rectangle(PX, BAR.y, 6, BAR.height + 16, 0xffffff);
+    const steerTime = this.add.rectangle(PX - width / 2, BAR.y + 24, width, 4, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
+    view.add([track(width), this.add.rectangle(PX, BAR.y, steer.zone * width, BAR.height - 6, 0x48bb78, 0.85), needle, steerTime]);
+    return { needle, steerTime };
+  }
+
+  /** Repinta lo que se mueve del minijuego en curso. */
+  private paintWidgets(): void {
+    const w = this.widgets;
+    if (!w) return;
+    if (w.marker) w.marker.setX(BAR.x + this.run.marker * BAR.width);
+    const game = this.flightGame;
+    if (!game) return;
+    if (w.fuelFill && game instanceof FuelGame) w.fuelFill.setScale(game.level, 1);
+    if (w.needle && game instanceof SteerGame) {
+      w.needle.setX(PX + game.position * 180);
+      w.steerTime?.setScale(game.progress, 1);
+    }
+    if (w.arrows && game instanceof BoardGame) {
+      w.arrows.forEach(({ box, glyph }, i) => {
+        const done = i < game.index;
+        const current = i === game.index && !game.done;
+        box.setFillStyle(done ? 0x276749 : current ? 0x2d3748 : 0x1e293b).setStrokeStyle(current ? 3 : 2, done ? 0x68d391 : current ? 0xfbd38d : 0x475569);
+        glyph.setColor(done ? COLOR.ok : current ? COLOR.focus : COLOR.dim);
+      });
+    }
+    if (w.countdown && game instanceof CountdownGame) {
+      if (game.count !== w.countdown.getData('count')) {
+        w.countdown.setData('count', game.count);
+        if (!game.done) audio.sfx('tick', game.count === 0 ? 1.5 : 1);
+      }
+      w.countdown.setText(game.done || game.count === 0 ? t('maneuvers.game.countdown.ignition') : t('maneuvers.game.countdown.number', { n: game.count }));
+    }
+    if (game.message && !game.done && w.feedback.getData('message') !== game.message) {
+      w.feedback.setData('message', game.message);
+      w.feedback.setText(t(`maneuvers.game.${game.kind}.${game.message.key}` as TranslationKey)).setColor(game.message.good ? COLOR.ok : COLOR.warn);
+      pulse(this, w.feedback, { scale: 1.12, duration: 160 });
+    }
+  }
+
+  private artFrame() {
+    const game = this.run.step === 'stage' ? this.flightGame : null;
+    return {
+      boarding: game instanceof BoardGame ? game.index / game.sequence.length : this.run.stageIndex > this.boardIndex() ? 1 : undefined,
+      countdown: game instanceof CountdownGame && !game.done ? game.count : null,
+      ...(game instanceof SteerGame ? { steer: game.position } : {}),
+    };
+  }
+
+  private boardIndex(): number {
+    const index = this.run.definition.stages.findIndex((s) => s.kind === 'board');
+    return index === -1 ? Infinity : index;
+  }
+
+  /** Terminó un minijuego: su puntaje pasa a la maniobra (combustible) y la ilustración reacciona. */
+  private completeGame(): void {
+    const game = this.flightGame!;
+    const outcome = this.run.complete(game.score);
+    if (!outcome || !this.widgets) return;
+    this.bus.emit('maneuver:stage', { maneuverId: this.data_.maneuverId, stage: outcome.stageId, hit: outcome.hit });
+    const message = game.message!;
+    audio.sfx(message.good ? 'success' : 'error');
+    this.widgets.feedback.setText(t(`maneuvers.game.${game.kind}.${message.key}` as TranslationKey)).setColor(message.good ? COLOR.ok : COLOR.warn);
+    pulse(this, this.widgets.feedback, { scale: message.good ? 1.25 : 1.1, duration: 220 });
+    this.afterOutcome(outcome.stageId);
   }
 
   private press(): void {
     if (this.time.now < this.readyAt) return;
     const outcome = this.run.press();
-    if (!outcome || !this.stageView) return;
+    if (!outcome || !this.widgets) return;
     this.bus.emit('maneuver:stage', { maneuverId: this.data_.maneuverId, stage: outcome.stageId, hit: outcome.hit });
     const key = !outcome.hit ? 'maneuvers.stage.miss' : outcome.precision >= 0.9 ? 'maneuvers.stage.perfect' : 'maneuvers.stage.hit';
-    this.stageView.feedback.setText(t(key)).setColor(outcome.hit ? COLOR.ok : COLOR.warn);
+    audio.sfx(outcome.hit ? 'success' : 'error');
+    this.widgets.feedback.setText(t(key)).setColor(outcome.hit ? COLOR.ok : COLOR.warn);
+    pulse(this, this.widgets.feedback, { scale: outcome.hit ? 1.25 : 1.1, duration: 220 });
+    this.afterOutcome(outcome.stageId);
+  }
+
+  private afterOutcome(stageId: string): void {
+    this.art.outcome(stageId);
+    if (stageId === 'countdown') audio.sfx('ignition');
+    if (stageId === 'parachute' || stageId === 'splashdown' || stageId === 'boosterSeparation' || stageId === 'stageSeparation') audio.sfx('whoosh');
     this.time.delayedCall(FEEDBACK_MS, () => {
       this.run.next();
       this.readyAt = this.time.now + READY_MS;
@@ -240,27 +434,21 @@ export class ManeuverScene extends Phaser.Scene {
     const level = precisionLevel(run.precision);
     const lines: string[] = [];
     const effect = run.definition.effect;
-    if (effect === 'landingDistance') {
-      lines.push(t('maneuvers.result.landing', { km: run.landingDistanceKm ?? 0 }), t('maneuvers.result.landingFar'), '', t('maneuvers.result.signal'));
-    } else if (effect === 'returnFuel') {
-      lines.push(t('maneuvers.result.returnFuel'));
-    } else if (effect === 'crewArrival') {
-      for (const [id, arrival] of Object.entries(run.crewArrival)) {
-        lines.push(t(`maneuvers.result.arrival.${arrival}`, { name: NAMES[id as CrewId] }));
-      }
-    } else {
-      lines.push(t('maneuvers.result.vanAllen'));
-    }
+    if (effect === 'landingDistance') lines.push(t('maneuvers.result.landing', { km: run.landingDistanceKm ?? 0 }), t('maneuvers.result.landingFar'), t('maneuvers.result.signal'));
+    else if (effect === 'returnFuel') lines.push(t('maneuvers.result.returnFuel'));
+    else if (effect === 'crewArrival') {
+      lines.push(Object.entries(run.crewArrival).map(([id, arrival]) => t(`maneuvers.result.arrival.${arrival}`, { name: NAMES[id as CrewId] })).join(' · '));
+    } else lines.push(t('maneuvers.result.vanAllen'));
     view.add([
-      addText(this, CENTER, 190, 28, COLOR.text).setOrigin(0.5).setText(t('maneuvers.result.title')),
-      this.add.circle(CENTER - 170, 250, 12, LIGHT_COLOR[PRECISION_LIGHT[level]]),
-      addText(this, CENTER - 145, 250, 22, LIGHT_CSS[PRECISION_LIGHT[level]]).setOrigin(0, 0.5).setText(t(`maneuvers.result.precision.${level}`)),
-      addText(this, CENTER, 296, 16, COLOR.muted).setOrigin(0.5).setText(t('maneuvers.result.fuel')),
-      this.add.rectangle(CENTER - 150, 322, 300, 14, 0x2d3748).setOrigin(0, 0.5),
-      this.add.rectangle(CENTER - 150, 322, 300 * run.finalFuel, 14, 0xf6ad55).setOrigin(0, 0.5),
-      addText(this, CENTER, 360, 18, COLOR.text, { align: 'center', wordWrap: { width: 900 }, lineSpacing: 6 }).setOrigin(0.5, 0).setText(lines.join('\n')),
+      addText(this, PX, PANEL_TOP + 22, 18, COLOR.text).setOrigin(0.5).setText(t('maneuvers.result.title')),
+      this.add.circle(OVERLAY.x + 26, PANEL_TOP + 52, 9, LIGHT_COLOR[PRECISION_LIGHT[level]]),
+      addText(this, OVERLAY.x + 44, PANEL_TOP + 52, 15, LIGHT_CSS[PRECISION_LIGHT[level]]).setOrigin(0, 0.5).setText(t(`maneuvers.result.precision.${level}`)),
+      addText(this, OVERLAY.x + 18, PANEL_TOP + 76, 12, COLOR.muted).setOrigin(0, 0.5).setText(t('maneuvers.result.fuel')),
+      this.add.rectangle(OVERLAY.x + 170, PANEL_TOP + 76, 240, 10, 0x2d3748).setOrigin(0, 0.5),
+      this.add.rectangle(OVERLAY.x + 170, PANEL_TOP + 76, 240 * run.finalFuel, 10, 0xf6ad55).setOrigin(0, 0.5),
+      addText(this, PX, PANEL_TOP + 92, 11, COLOR.text, { align: 'center', wordWrap: { width: OVERLAY.width - 30 }, lineSpacing: 2 }).setOrigin(0.5, 0).setText(lines.join('\n')),
     ]);
-    this.result = addButton(this, CENTER, 620, () => this.finish(), { size: 22 }).setLabel(t('maneuvers.result.continue')).setFocused(true);
+    this.result = addButton(this, PX, PANEL_TOP + OVERLAY.height + 14, () => this.finish(), { size: 16 }).setLabel(t('maneuvers.result.continue')).setFocused(true);
     view.add(this.result.text);
   }
 
@@ -273,7 +461,7 @@ export class ManeuverScene extends Phaser.Scene {
 
   private onKey(code: string): void {
     const step = this.run.step;
-    if (step === 'stage' && code === 'Space') return this.press();
+    if (step === 'stage' && code === 'Space' && this.kind === 'timing') return this.press();
     if (step === 'done' && (code === 'Enter' || code === 'Space' || code === 'NumpadEnter')) return this.finish();
     if (step !== 'checklist') return;
     if (code === 'ArrowUp' || code === 'KeyW') this.moveChecklist(-1);

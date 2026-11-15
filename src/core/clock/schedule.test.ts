@@ -22,6 +22,6 @@ describe('calendario de fases', () => {
   it('empieza jugando la primera jornada', () => {
     const clock = createPhaseClock({ calendar: CAMPAIGN_2024, phase: 'mars', length: 'short' });
     expect(clock.pace).toBe('play');
-    expect(clock.hoursPerSecond).toBeCloseTo(24 / 90);
+    expect(clock.hoursPerSecond).toBeCloseTo(CAMPAIGN_2024.playHoursPerSecond.mars);
   });
 });

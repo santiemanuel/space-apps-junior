@@ -6,6 +6,7 @@ import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { formatDate, formatNumber } from '../../../i18n/format';
 import { GAME_HEIGHT } from '../../display';
 import { VIEW_WIDTH } from './HudScene';
+import { panelIn } from '../../ui/ui';
 
 export const CRATER_TEXTURE = 'gale-crater';
 
@@ -45,6 +46,7 @@ export class CraterView {
   }
 
   setVisible(visible: boolean): void {
+    if (visible && !this.root.visible) panelIn(this.root);
     this.root.setVisible(visible);
   }
 

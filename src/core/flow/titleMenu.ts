@@ -2,8 +2,8 @@ import { isUnlocked, UNLOCK_AT } from '../progression/progression';
 import type { MissionSetup } from './newGame';
 import type { GameMode, MissionLength, UnlockLevel } from './types';
 
-export type TitleRowId = 'continue' | 'newGame' | 'mode' | 'length' | 'helpMode' | 'language';
-export type TitleAction = 'continue' | 'newGame';
+export type TitleRowId = 'continue' | 'newGame' | 'mode' | 'length' | 'helpMode' | 'language' | 'settings';
+export type TitleAction = 'continue' | 'newGame' | 'settings';
 
 export const GAME_MODES: readonly GameMode[] = ['campaign2024', 'free'];
 export const MISSION_LENGTHS: readonly MissionLength[] = ['short', 'long'];
@@ -41,7 +41,7 @@ export class TitleMenu {
   confirmingNewGame = false;
 
   constructor(private readonly options: TitleMenuOptions) {
-    this.rows = [...(options.hasSave ? ['continue' as const] : []), 'newGame', 'mode', 'length', 'helpMode', 'language'];
+    this.rows = [...(options.hasSave ? ['continue' as const] : []), 'newGame', 'mode', 'length', 'helpMode', 'settings'];
     this.locale = options.locale;
   }
 
@@ -92,6 +92,9 @@ export class TitleMenu {
           return null;
         }
         return 'newGame';
+      case 'settings':
+        // Ajustes: volumen de sonidos y música, e idioma.
+        return 'settings';
       default:
         this.change(1);
         return null;

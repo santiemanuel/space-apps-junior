@@ -13,6 +13,7 @@ import { GAME_HEIGHT } from '../../display';
 import { HUD_ICONS } from '../../hudIcons';
 import { VIEW_WIDTH } from './HudScene';
 import { gridWarningKey, locationKey } from './simulationData';
+import { panelIn } from '../../ui/ui';
 
 export const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 export const LIGHT: Record<SystemStatus, string> = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' };
@@ -89,6 +90,7 @@ export class StatusView {
   show(s: SimSnapshot): void {
     this.root.removeAll(true);
     this.draw(s);
+    if (!this.root.visible) panelIn(this.root);
     this.root.setVisible(true);
   }
 

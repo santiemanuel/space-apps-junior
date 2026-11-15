@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { SystemStatus } from '../../core/systems/types';
+import { audio } from '../audio/audio';
 
 /** Paleta y estilos comunes de las pantallas del flujo (menús, maniobras, tarjetas, informe). */
 export const FONT = 'monospace';
@@ -37,7 +38,19 @@ export function addPanel(scene: Phaser.Scene, x: number, y: number, width: numbe
 /** Fondo semitransparente para las pantallas superpuestas (pausa, tarjeta). */
 export function addShade(scene: Phaser.Scene, alpha = 0.75) {
   const { width, height } = scene.scale;
-  return scene.add.rectangle(0, 0, width, height, PANEL.shade, alpha).setOrigin(0, 0).setInteractive();
+  // Un poco más grande que la pantalla: cubre los bordes mientras la ventana se acerca (`overlayIn`).
+  const margin = 80;
+  return scene.add
+    .rectangle(-margin, -margin, width + margin * 2, height + margin * 2, PANEL.shade, alpha)
+    .setOrigin(0, 0)
+    .setInteractive();
+}
+
+/** Entrada de una ventana superpuesta (tarjeta, pausa): toda la escena aparece acercándose desde un poco lejos. */
+export function overlayIn(scene: Phaser.Scene, duration = 230): void {
+  const camera = scene.cameras.main;
+  camera.setAlpha(0).setZoom(0.94);
+  scene.tweens.add({ targets: camera, alpha: 1, zoom: 1, duration, ease: 'Back.Out' });
 }
 
 export interface Button {
@@ -66,8 +79,27 @@ export function addButton(
     text.setColor(!enabled ? COLOR.dim : focused ? '#1a202c' : COLOR.text);
     text.setBackgroundColor(!enabled ? '#1a202c' : focused ? COLOR.focus : '#2d3748');
   };
-  text.on('pointerover', () => onHover?.());
-  text.on('pointerdown', () => enabled && onClick());
+  // Transiciones: crece un poco al pasar el mouse y se hunde al hacer clic.
+  const scaleTo = (scale: number, duration = 110) => {
+    scene.tweens.killTweensOf(text);
+    scene.tweens.add({ targets: text, scale, duration, ease: 'Sine.Out' });
+  };
+  text.once(Phaser.GameObjects.Events.DESTROY, () => scene.tweens.killTweensOf(text));
+  text.on('pointerover', () => {
+    if (enabled) {
+      scaleTo(1.05);
+      audio.sfx('hover');
+    }
+    onHover?.();
+  });
+  text.on('pointerout', () => scaleTo(1));
+  text.on('pointerdown', () => {
+    if (!enabled) return;
+    text.setScale(0.94);
+    scaleTo(1, 160);
+    audio.sfx('select');
+    onClick();
+  });
   const button: Button = {
     text,
     get enabled() {
@@ -90,6 +122,56 @@ export function addButton(
   };
   paint();
   return button;
+}
+
+// --- Transiciones de la interfaz ---
+
+/** Cualquier objeto con transparencia y posición: textos, imágenes, formas o contenedores. */
+type Animated = Phaser.GameObjects.GameObject & {
+  y: number;
+  setAlpha(value: number): unknown;
+  setY(value: number): unknown;
+  setScale(value: number): unknown;
+};
+
+/** Aparece desde transparente, subiendo `rise` píxeles (paneles, páginas, filas). */
+export function fadeIn(scene: Phaser.Scene, targets: Animated | Animated[], { duration = 240, rise = 10, delay = 0 } = {}): void {
+  for (const target of Array.isArray(targets) ? targets : [targets]) {
+    const y = target.y;
+    target.setAlpha(0);
+    target.setY(y + rise);
+    scene.tweens.add({ targets: target, alpha: 1, y, duration, delay, ease: 'Cubic.Out' });
+  }
+}
+
+/** Aparece agrandándose apenas (ventanas superpuestas: tarjeta, pausa). */
+export function popIn(scene: Phaser.Scene, targets: Animated | Animated[], { duration = 220, from = 0.92 } = {}): void {
+  for (const target of Array.isArray(targets) ? targets : [targets]) {
+    target.setAlpha(0);
+    target.setScale(from);
+    scene.tweens.add({ targets: target, alpha: 1, scale: 1, duration, ease: 'Back.Out' });
+  }
+}
+
+/** Entrada de una pantalla de la partida que no ocupa todo (planificación, datos, Control de Misión): aparece suave. */
+export function overlayFade(scene: Phaser.Scene, duration = 180): void {
+  const camera = scene.cameras.main;
+  camera.setAlpha(0);
+  scene.tweens.add({ targets: camera, alpha: 1, duration, ease: 'Sine.Out' });
+}
+
+/** Un contenedor de la interfaz que aparece suave y subiendo un poco (estado completo, mapa del cráter, minijuegos). */
+export function panelIn(container: Phaser.GameObjects.Container, duration = 180): void {
+  container.scene.tweens.killTweensOf(container);
+  container.setAlpha(0).setY(10);
+  container.scene.tweens.add({ targets: container, alpha: 1, y: 0, duration, ease: 'Cubic.Out' });
+}
+
+/** Latido corto para marcar un cambio (un valor que cambió, un acierto). */
+export function pulse(scene: Phaser.Scene, target: Animated, { scale = 1.12, duration = 160 } = {}): void {
+  scene.tweens.killTweensOf(target);
+  target.setScale(scale);
+  scene.tweens.add({ targets: target, scale: 1, duration, ease: 'Sine.Out' });
 }
 
 /** Abre un enlace de una fuente de datos en otra pestaña. */

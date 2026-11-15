@@ -8,6 +8,7 @@ import { getLocale, t, type TranslationKey } from '../../../i18n';
 import { SceneKeys } from '../../sceneKeys';
 import { PanelColumn, type PanelRow } from './PanelColumn';
 import type { SimulationSceneData } from './simulationData';
+import { overlayFade } from '../../ui/ui';
 
 const DAY_MS = 86_400_000;
 /** Mensajes de ánimo y noticias de casa (§3.7): uno cada tres días, en orden [regla]. */
@@ -40,6 +41,7 @@ export class MissionControlScene extends Phaser.Scene {
   }
 
   create(): void {
+    overlayFade(this);
     this.add.rectangle(BOX.x, BOX.y, BOX.width, BOX.height, 0x0b1020, 0.95).setOrigin(0, 0).setStrokeStyle(2, 0x63b3ed);
     this.column = new PanelColumn(this, BOX.x + 16, BOX.y + 12, BOX.width - 32);
     const off = this.data_.sim.on('sim:snapshot', (s) => (this.snapshot = s));

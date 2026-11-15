@@ -20,6 +20,8 @@ export interface CrewSprite {
   sync(state: CrewMemberState): void;
   /** Marca al tripulante que controla el jugador. */
   setSelected(selected: boolean): void;
+  /** Ícono del tablero que muestra el globo cuando el tripulante trabaja solo (null: ninguno). */
+  setActivity(icon: string | null): void;
   destroy(): void;
 }
 
@@ -82,6 +84,17 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
     .fillStyle(0x1a202c).fillRect(-18, -40, 36, 32).fillRect(-4, -8, 8, 4).fillRect(-2, -4, 4, 2)
     .fillStyle(0xfefcbf).fillRect(-16, -38, 32, 28).fillRect(-2, -10, 4, 4);
   const balloonIcon = icons ? scene.add.image(x, y, HUD_ICONS).setScale(2).setDepth(13.1).setVisible(false).setVertexRoundMode('full') : null;
+  let activity: string | null = null;
+  /** El globo muestra la razón de ir lento (si tiene ícono) o, si no, lo que está haciendo el automático. */
+  const paintBalloon = () => {
+    const visible = reasonKey !== undefined && hasKey(reasonKey);
+    const slowIcon = reasonKey && balloonIcon ? SLOW_REASON_ICON[reasonKey] : undefined;
+    bubble.setText(visible && !slowIcon ? t(reasonKey as TranslationKey, { name: NAMES[crewId] }) : '').setVisible(visible && !slowIcon);
+    const icon = slowIcon ?? (visible ? undefined : (activity ?? undefined));
+    balloon.setVisible(!!icon);
+    if (icon) balloonIcon!.setFrame(icon);
+    balloonIcon?.setVisible(!!icon);
+  };
   let direction: CrewDirection = 'down';
   let reasonKey: string | undefined;
   let selected = false;
@@ -124,14 +137,14 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
       sprite.setAlpha(state.resting ? 0.55 : 1);
       if (state.slowReasonKey !== reasonKey) {
         reasonKey = state.slowReasonKey;
-        const visible = reasonKey !== undefined && hasKey(reasonKey);
-        const icon = reasonKey && balloonIcon ? SLOW_REASON_ICON[reasonKey] : undefined;
-        bubble.setText(visible && !icon ? t(reasonKey as TranslationKey, { name: NAMES[crewId] }) : '').setVisible(visible && !icon);
-        balloon.setVisible(!!icon);
-        if (icon) balloonIcon!.setFrame(icon);
-        balloonIcon?.setVisible(!!icon);
+        paintBalloon();
       }
       place();
+    },
+    setActivity(icon) {
+      if (icon === activity) return;
+      activity = icon && scene.textures.exists(HUD_ICONS) && scene.textures.get(HUD_ICONS).has(icon) ? icon : null;
+      paintBalloon();
     },
     setSelected(value) {
       selected = value;

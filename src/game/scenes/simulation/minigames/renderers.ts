@@ -3,7 +3,7 @@ import type { Minigame, MinigameId } from '../../../../core/minigames/Minigame';
 import type { PatchGame, StarsGame, WaterGame } from '../../../../core/minigames/puzzles';
 import { FUSE_TYPES, type FusesGame, type WireColor, type WiresGame } from '../../../../core/minigames/power';
 import { SIDE } from '../../../../core/minigames/puzzles';
-import { PLANT_TOOLS, type MealGame, type PlantsGame, type SealsGame, type ShieldGame } from '../../../../core/minigames/rooms';
+import { PLANT_TOOLS, type MealGame, type PlantsGame, type SealsGame, type ShieldGame, HarvestGame } from '../../../../core/minigames/rooms';
 import { t, type TranslationKey, type TranslationParams } from '../../../../i18n';
 import type { Painter } from './Painter';
 
@@ -171,6 +171,14 @@ const radio: Renderer<RadioGame> = (p, game, a, now) => {
   p.top.fillStyle(AMBER).fillRect(kx - 7, d.y - 19, 14, 38);
   p.key('←', d.x - 44, d.y);
   p.key('→', d.x + d.w + 44, d.y);
+  // La señal se corrió: una flecha que titila señala hacia dónde girar el dial para volver a encontrarla.
+  const hint = game.hint;
+  if (hint && Math.floor(now / 250) % 2 === 0) {
+    const dir = hint === 'right' ? 1 : -1;
+    const ax = kx + dir * 34;
+    p.top.fillStyle(GREEN).fillTriangle(ax + dir * 16, d.y, ax, d.y - 12, ax, d.y + 12);
+    p.top.fillStyle(GREEN).fillRect(dir > 0 ? ax - 14 : ax, d.y - 4, 14, 8);
+  }
 };
 
 const stars: Renderer<StarsGame> = (p, game, a) => {
@@ -391,6 +399,44 @@ const plants: Renderer<PlantsGame> = (p, game, a, now) => {
   });
 };
 
+const harvest: Renderer<HarvestGame> = (p, game, a, now) => {
+  const cw = 150;
+  const gx = a.x + (a.w - cw * game.cols) / 2;
+  const base = a.y + 240;
+  const { min, max, wilt } = HarvestGame.RIPE;
+  p.g.fillStyle(0x6b46c1, 0.18).fillRect(gx - 10, a.y + 40, cw * game.cols + 20, 216);
+  game.plants.forEach((plant, i) => {
+    const stage = game.stageOf(plant);
+    const x = gx + i * cw + cw / 2 + shake(game, plant.wrongAt);
+    // La planta crece: chica y pálida, a punto bien verde, pasada seca.
+    const frame = stage === 'growing' ? 'plant-pale' : stage === 'ripe' ? 'plant-ok' : 'plant-dry';
+    p.image(frame, x - 16, base, { scale: 0.55 + 0.85 * Math.min(1, plant.growth / max), originY: 1 });
+    // Medidor de crecimiento con la franja verde de "a punto".
+    const m = { x: x + 48, y: a.y + 60, w: 14, h: 170 };
+    const at = (g: number) => m.y + m.h - (Math.min(g, wilt) / wilt) * m.h;
+    p.g.fillStyle(EDGE).fillRect(m.x - 2, m.y - 2, m.w + 4, m.h + 4);
+    p.g.fillStyle(0x2d3748).fillRect(m.x, m.y, m.w, m.h);
+    p.g.fillStyle(GREEN, 0.75).fillRect(m.x, at(max), m.w, at(min) - at(max));
+    p.g.fillStyle(stage === 'ripe' ? 0xf0fff4 : stage === 'overripe' ? 0xfc8181 : AMBER).fillRect(m.x - 4, at(plant.growth) - 2, m.w + 8, 4);
+    if (stage === 'ripe' && Math.floor(now / 200) % 2 === 0) p.top.fillStyle(0xf0fff4).fillRect(x - 30, base - 150, 4, 4).fillRect(x + 4, base - 162, 4, 4);
+    if (plant.cutAt !== null && game.elapsed - plant.cutAt < 0.8) {
+      const k = (game.elapsed - plant.cutAt) / 0.8;
+      for (let n = 0; n < 5; n++) p.top.fillStyle(0x9ae6b4, 1 - k).fillRect(x - 40 + n * 16, base - 70 - k * 60 - (n % 2) * 12, 5, 5);
+    }
+  });
+  cursor(p, gx + game.cursor.col * cw + 6, a.y + 46, cw - 12, 204, now);
+  // El frasco de la muestra: un brote por cada corte a punto.
+  for (let i = 0; i < game.need; i++) {
+    const x = a.x + a.w / 2 + (i - (game.need - 1) / 2) * 44;
+    p.g.fillStyle(EDGE).fillRect(x - 18, a.y + 276, 36, 36);
+    p.g.fillStyle(i < game.collected ? 0x276749 : PANEL).fillRect(x - 15, a.y + 279, 30, 30);
+    if (i < game.collected) p.image('plant-ok', x, a.y + 306, { scale: 0.3, originY: 1 });
+  }
+  p.key('←', a.x + 30, a.y + 294);
+  p.key('→', a.x + 70, a.y + 294);
+  p.key('E', a.x + a.w - 40, a.y + 294, game.stageOf(game.plants[game.cursor.index]!) === 'ripe');
+};
+
 const moxie: Renderer<MoxieGame> = (p, game, a, now) => {
   const hx = a.x + a.w / 2 - 60;
   const hy = a.y + a.h / 2 + 20;
@@ -587,6 +633,7 @@ const RENDERERS: Record<MinigameId, Renderer<never>> = {
   meal,
   shield,
   plants,
+  harvest,
   moxie,
   seals,
   patch,
@@ -610,6 +657,7 @@ export const MINIGAME_ICON: Record<MinigameId, string> = {
   meal: 'ing-tortilla',
   shield: 'waterbag',
   plants: 'plant-ok',
+  harvest: 'plant-ok',
   moxie: 'o2',
   seals: 'brush',
   patch: 'patch',

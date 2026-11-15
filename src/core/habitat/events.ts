@@ -9,6 +9,8 @@ import type { Point } from './layout';
 import type { HabitatTask } from './types';
 import type { Departure, PendingDecision, ZoneMinigame } from './HabitatSession';
 import type { MarsGrid } from '../mars/MarsSession';
+import type { CrewPresence } from '../crew/presence';
+import type { CrewId } from '../crew/types';
 
 /** Pedido a Control de Misión (§3.7): la respuesta llega tras la demora de ida y vuelta de la señal. */
 export interface MissionControlRequest {
@@ -32,6 +34,12 @@ export interface PowerLoad {
   essential: boolean;
 }
 
+/** Algo que el jugador tiene que hacer (mientras haya algo, la jornada va a tiempo normal). */
+export type TodoItem =
+  | { kind: 'decision' | 'emergency' | 'shelter' | 'departure' | 'sleep' }
+  | { kind: 'repair'; textKey: string; /** Automático que ya está yendo a repararlo. */ helper?: CrewId }
+  | { kind: 'task'; taskId: string; zone: string };
+
 /** Lo que muestran las escenas superpuestas en cada cuadro (JSON puro). */
 export interface SimSnapshot {
   phase: TimedPhase;
@@ -42,6 +50,14 @@ export interface SimSnapshot {
   level: AlertLevel;
   reasonKey: string;
   manual: boolean;
+  /** Jornada sin nada que hacer: el reloj corre rápido hasta que aparezca algo (§3.1). */
+  idle: boolean;
+  /** Lo que falta hacer para que la jornada avance rápido (tareas del tripulante activo, incidentes…). */
+  todo: TodoItem[];
+  /** El tripulante del jugador duerme en la enfermería hasta el día siguiente. */
+  asleep: boolean;
+  /** Estado de cada tripulante (en línea, ausente, no molestar, desconectado), como en Discord. */
+  presence: Record<CrewId, CrewPresence>;
   paused: boolean;
   state: GameState;
   /** Dónde está el tripulante del jugador (tiles): lo marca "estás acá" en el mapa del cráter. */
@@ -85,6 +101,10 @@ export interface SimSnapshot {
     evaOpen: boolean;
     /** `stored`: en el depósito · `carried`: las lleva alguien encima (se dejan al entrar al depósito). */
     samples: { count: number; total: number; kg: number; value: number; stored: number; carried: number };
+    /** Muestras de plantas del invernadero (van al depósito, como las rocas). */
+    plants: number;
+    /** Ya están todas las rocas: se puede empezar el embarque antes de que termine la estancia (F). */
+    canLeave: boolean;
     /** Red eléctrica: tubos rotos, cables cortados, fusible y cómo llega la energía. */
     grid: MarsGrid;
   };
@@ -99,7 +119,6 @@ export interface SimulationEvents {
   'sim:pause': { paused: boolean };
   'sim:respond': { incidentId: string; responseId: string };
   'sim:sacrifice': { id: SacrificeId };
-  'sim:routines': RoutinePlan;
   /** Tablero de energía: sistemas desenchufados. */
   'sim:loads': { off: string[] };
   'sim:ask': { kind: 'advice' | 'diagnosis'; incidentId: string };

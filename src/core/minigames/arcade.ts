@@ -115,6 +115,8 @@ export class RadioGame extends Minigame {
   private readonly base: number;
   private readonly wobble: number;
   private locked = false;
+  /** Se enganchó la señal al menos una vez. */
+  private found = false;
 
   constructor(setup: MinigameSetup) {
     super(setup);
@@ -133,9 +135,19 @@ export class RadioGame extends Minigame {
     return clamp(1 - Math.abs(this.dial - this.target) * 6);
   }
 
+  /**
+   * Una vez encontrada la señal, hacia dónde se corrió (para volver a sintonizarla): `left` o `right`, o null si el
+   * dial está bien puesto o todavía no se encontró nunca.
+   */
+  get hint(): 'left' | 'right' | null {
+    if (!this.found || this.quality > 0.9) return null;
+    return this.target > this.dial ? 'right' : 'left';
+  }
+
   protected step(dt: number, { held }: MinigameInput): void {
     this.dial = clamp(this.dial + (Number(held.right) - Number(held.left)) * 0.35 * dt);
     const locked = this.quality > 0.75;
+    if (locked) this.found = true;
     if (locked !== this.locked) this.say(locked ? 'locked' : 'lost', locked);
     this.locked = locked;
     this.progress = locked ? this.progress + dt / 4 : Math.max(0, this.progress - dt * 0.03);

@@ -8,6 +8,7 @@ import { SceneKeys } from '../../sceneKeys';
 import { createBrowserSaveStore } from '../../storage/browserSaveStore';
 import { createPlaceholderTextures } from '../../textures';
 import { FlowDirector } from './FlowDirector';
+import { audio } from '../../audio/audio';
 
 const TEXT_STYLE = { fontFamily: 'monospace', fontSize: '18px', color: '#90cdf4' } as const;
 const BAR = { width: 480, height: 24, padding: 4, color: 0x90cdf4 } as const;
@@ -23,8 +24,9 @@ export class BootScene extends Phaser.Scene {
   /** El idioma guardado se aplica antes de pintar la barra de carga. */
   init(): void {
     this.store = createBrowserSaveStore();
-    const { locale } = loadSettings(this.store);
+    const { locale, sound, music } = loadSettings(this.store);
     if (isLocale(locale)) setLocale(locale);
+    audio.setVolumes(sound ?? 0.8, music ?? 0.6);
   }
 
   preload(): void {

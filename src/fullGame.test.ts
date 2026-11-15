@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, REPORT_RULES } from './content/achievements';
 import { MARS_CONTENT } from './content/gale';
 import { INCIDENTS } from './content/incidents';
-import { OUTBOUND_PROFILES, RETURN_RULES } from './content/loadouts';
+import { CARGO_GRID, OUTBOUND_PROFILES, RETURN_RULES } from './content/loadouts';
 import { MANEUVER_RULES, MANEUVERS, maneuverConditions } from './content/maneuvers';
 import { MISSION_START } from './content/missionStart';
 import { VOYAGE_CONTENT } from './content/ship';
@@ -12,7 +12,8 @@ import { MissionFlow, type FlowStep } from './core/flow/MissionFlow';
 import { createNewGame } from './core/flow/newGame';
 import type { ManeuverId, PhaseResult } from './core/flow/types';
 import type { HabitatSession } from './core/habitat/HabitatSession';
-import { availableForReturn, initialReturnCargo, outboundResult, returnResult } from './core/loadout/loadout';
+import { autoPack, cargoItems, gridReturnResult } from './core/loadout/cargoGrid';
+import { availableForReturn, outboundResult } from './core/loadout/loadout';
 import { ManeuverRun } from './core/maneuvers/ManeuverRun';
 import { MarsSession } from './core/mars/MarsSession';
 import { buildReport } from './core/report/report';
@@ -32,8 +33,12 @@ function playManeuver(id: ManeuverId, state: GameState, bus: EventBus<GameEvents
   for (const item of run.items) run.decide(item.systemId, item.status === 'green' ? 'go' : 'risk');
   run.start();
   while (run.step === 'stage') {
-    for (let i = 0; i < 10_000 && Math.abs(run.marker - run.zone!.center) > run.zone!.width / 4; i++) run.update(0.005);
-    run.press();
+    // Los minijuegos de preparación y pilotaje, jugados bien; la barra, cerca del centro.
+    if ((run.stage!.kind ?? 'timing') !== 'timing') run.complete(0.9);
+    else {
+      for (let i = 0; i < 10_000 && Math.abs(run.marker - run.zone!.center) > run.zone!.width / 4; i++) run.update(0.005);
+      run.press();
+    }
     run.next();
   }
   if (run.definition.effect === 'vanAllen') bus.emit('realEvent:shown', VAN_ALLEN.realEvent);
@@ -102,7 +107,11 @@ function playMission(seed: number) {
     const step = flow.step;
     const state = flow.state;
     if (step.kind === 'loadout' && step.mode === 'outbound') results.push(outboundResult(state, OUTBOUND_PROFILES.balanced));
-    else if (step.kind === 'loadout') results.push(returnResult(state, initialReturnCargo(availableForReturn(state, RETURN_RULES), RETURN_RULES), RETURN_RULES));
+    else if (step.kind === 'loadout') {
+      // La vuelta: la bodega de casilleros, con "acomodar solo".
+      const items = cargoItems(state, RETURN_RULES, CARGO_GRID);
+      results.push(gridReturnResult(state, items, autoPack(items, CARGO_GRID, RETURN_RULES, availableForReturn(state, RETURN_RULES).waterPoolL)));
+    }
     else if (step.kind === 'maneuver') results.push(playManeuver(step.maneuverId, state, bus));
     else if (step.kind === 'voyage') playHabitat(voyage(state, bus, step.leg), VOYAGE_CONTENT.shelterZone);
     else playHabitat(mars(state, bus), MARS_CONTENT.shelterZone);

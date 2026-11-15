@@ -11,7 +11,7 @@ import { initialCascade, type ActiveEmergency, type CascadeEvent, type CascadeSt
 import type { ClockEvent, MissionClock } from '../clock/MissionClock';
 import { createPhaseClock, type PhaseWindow, type TimedPhase } from '../clock/schedule';
 import { efficiency, reactionSeconds, ROLE_SPECIALTIES, usesOptimalRoute, withSlowReasons, workSpeed, type TaskCategory } from '../crew/efficiency';
-import { DEFAULT_ROUTINE, isValidRoutine, routineActivities, type RoutinePlan } from '../crew/routines';
+import { DEFAULT_ROUTINE, routineActivities, smartRoutines, type RoutinePlan } from '../crew/routines';
 import type { CrewId, CrewMemberState } from '../crew/types';
 import type { DailyDose } from '../environment/series';
 import type { EventBus } from '../events/EventBus';
@@ -48,13 +48,26 @@ import { DISH_IDS, type DishId, type MealStage } from '../minigames/rooms';
 import { Rng } from '../rng/Rng';
 import type { GameState, HabitatSave } from '../state/types';
 import type { SystemId } from '../systems/types';
-import { EXTERIOR, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type Closed, type Point } from './layout';
-import type { MissionControlRequest, SimSnapshot, SimulationEvents } from './events';
+import { EXTERIOR, pathLength, pointAlong, route, routeToPoint, zoneAt, zoneById, zoneSpot, type Closed, type Point } from './layout';
+import type { MissionControlRequest, SimSnapshot, SimulationEvents, TodoItem } from './events';
 import type { HabitatContent, HabitatTask } from './types';
+import { crewPresence, type CrewPresence } from '../crew/presence';
 
 const HOUR_MS = 3_600_000;
 /** Un cuadro largo (pestaña en segundo plano) no puede saltarse medio día de golpe. */
 const MAX_STEP_S = 0.5;
+/** Lo que devuelve `activityOf` cuando un automático está reparando un incidente. */
+export const REPAIR_ACTIVITY = 'repair';
+/** A menos de esto (tiles) del punto de trabajo, el automático ya llegó. */
+const REPAIR_ARRIVED = 0.6;
+/** Desde cuántas veces hechas una tarea deja de ser fácil para el especialista y pasa a ser difícil para todos [regla]. */
+const PRACTICE = { normalFrom: 2, hardFrom: 3 } as const;
+/** Tareas del día que hay que hacer en cada jornada: unas pocas al principio y una más por cada tormenta, hasta un tope [regla]. */
+const DAILY_TASKS = { base: 2, perStorm: 1, max: 4 } as const;
+/** Si la salud de un tripulante llega a esto, la misión se suspende (evacuación de emergencia) [regla]. */
+const CRITICAL_CONDITION = 0.02;
+/** Horas simuladas como máximo en cada cálculo de medidores (ver `update`). */
+const MAX_SIM_HOURS = 1;
 
 export interface HabitatOptions<C extends HabitatContent = HabitatContent> {
   phase: TimedPhase;
@@ -133,8 +146,21 @@ export interface PendingDecision {
   options: { response: IncidentResponse; available: boolean }[];
 }
 
+/** Reparación de un incidente que hace solo un tripulante automático: dónde tiene que pararse a trabajar. */
+interface RepairJob {
+  incidentId: string;
+  /** Clave del destino (para no replanear en cada cuadro). */
+  key: string;
+  /** Se trabaja dentro de un cuarto… */
+  zone?: string;
+  /** …o parado en un punto (junto a un tubo roto, al lado de un cable cortado). */
+  point?: Point;
+}
+
 interface Travel {
   to: string;
+  /** Dónde queda el tripulante al llegar, si el destino no es un cuarto (un punto de reparación). */
+  arrive?: string;
   route: Point[];
   length: number;
   walked: number;
@@ -180,6 +206,9 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private readonly travel: Partial<Record<CrewId, Travel>> = {};
   /** Destino al que un automático no puede llegar ahora (tubos rotos): no se vuelve a buscar hasta que algo cambie. */
   private readonly unreachable = new Map<CrewId, string>();
+  /** Reparaciones que hacen solos los automáticos (uno por incidente) y con qué situación se repartieron. */
+  private repairJobs = new Map<CrewId, RepairJob>();
+  private repairKey = '';
   /** Automáticos con orden de ir al refugio. */
   private readonly sheltering = new Set<CrewId>();
   private shelter: { incidentId: string; orderedAtS: number; reached: boolean } | null = null;
@@ -189,6 +218,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private pendingCalls = 0;
   /** Día (AAAA-MM-DD) en que se hizo por última vez cada tarea diaria (`exercise:<tripulante>` para el ejercicio). */
   private readonly doneOn: Record<string, string> = {};
+  /** Tormentas (avisos que llegaron a Impacto) vividas en la fase: cada una suma tareas por jornada. */
+  private readonly stormsSeen = new Set<string>();
+  /** Veces que se terminó cada tarea en la fase: la dificultad de su minijuego sube con la práctica. */
+  private readonly doneCount: Record<string, number> = {};
   /** Cocina del día (AAAA-MM-DD): si ya se vio el menú y si ya se leyó la receta. */
   private kitchen = { day: '', menu: false, read: false };
   private realSeconds = 0;
@@ -245,6 +278,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const { habitat: _saved, ...rest } = state;
     this._state = { ...rest, phase: this.phase, simDate: this.clock.simDate, crew, meters: this.placeMeters(state, resume) };
     this._dose = this.doseRate(this.clock.simDate);
+    this.planDay();
   }
 
   get state(): GameState {
@@ -306,14 +340,167 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     return Math.min(1, Math.max(0, (Date.parse(this.clock.simDate) - start) / (Date.parse(this.window.end) - start)));
   }
 
-  /** El jugador maneja a su tripulante cuando el reloj va a tiempo normal; en avance rápido sigue su rutina. */
+  /**
+   * El jugador maneja a su tripulante cuando el reloj va a tiempo normal; en avance rápido sigue su rutina. Una
+   * jornada sin nada que hacer corre más rápido pero sigue siendo manual (`idle`).
+   */
   get manual(): boolean {
     if (this.departure) return !this.clock.isPaused;
-    return !this.clock.isPaused && this.clock.hoursPerSecond <= this.content.calendar.playHoursPerSecond[this.phase] + 1e-9;
+    return !this.clock.isPaused && this.clock.baseHoursPerSecond <= this.content.calendar.playHoursPerSecond[this.phase] + 1e-9;
+  }
+
+  /** El tripulante del jugador duerme en la enfermería hasta mañana. */
+  private sleeping = false;
+
+  get asleep(): boolean {
+    return this.sleeping;
+  }
+
+  /**
+   * En la enfermería se puede dormir para pasar al día siguiente (con calma: sin avisos, decisiones, emergencias,
+   * refugio ni embarque).
+   */
+  canSleep(zone: string | null): boolean {
+    const s = this._state;
+    const member = s.crew.find((m) => m.id === s.activeCrewId);
+    if (this.sleeping || !zone || zone !== this.content.infirmaryZone || !member || member.resting || !this.manual) return false;
+    if (this.departure || this._cascade.emergencies.length || (this.shelter && !this.shelter.reached)) return false;
+    return this.clock.level === 'calm' && this.pendingDecisions().length === 0;
+  }
+
+  /** Dormir hasta mañana: el reloj corre muy rápido y al empezar el día siguiente el tripulante despierta descansado. */
+  sleep(zone: string | null): boolean {
+    if (!this.canSleep(zone)) return false;
+    this.sleeping = true;
+    this.clock.setSleep(true);
+    this.publishSnapshot();
+    return true;
+  }
+
+  /** Se despierta: descansado si llegó el día siguiente; antes de tiempo si apareció un aviso o una decisión. */
+  private wake(rested: boolean): void {
+    if (!this.sleeping) return;
+    this.sleeping = false;
+    this.clock.setSleep(false);
+    if (!rested) return;
+    const s = this._state;
+    this._state = {
+      ...s,
+      crew: s.crew.map((m) => (m.id === s.activeCrewId ? { ...m, fatigue: clamp(m.fatigue - 0.4), morale: clamp(m.morale + 0.03) } : m)),
+    };
+  }
+
+  /** La jornada corre rápido porque el jugador no tiene nada que hacer (ver `hasWork`). */
+  get idle(): boolean {
+    return this.clock.idleBoost;
+  }
+
+  /**
+   * ¿Hay algo que hacer ahora? Decisiones o reparaciones de incidentes, emergencias de la falla en cascada, la orden
+   * de refugio, el embarque o una tarea del día que el tripulante activo todavía puede hacer. Si no hay nada, la
+   * jornada avanza rápido (partidas de ~15 min); apenas aparece algo, vuelve al tiempo normal.
+   */
+  hasWork(): boolean {
+    // Una reparación que ya está haciendo un automático no frena el reloj: el jugador puede ayudar, pero no hace falta.
+    return this.pendingWork().some((item) => !(item.kind === 'repair' && item.helper)) || this.extraWork();
+  }
+
+  /** Lo que falta hacer ahora, en orden de importancia (lo muestra el tablero para no perderse). */
+  pendingWork(): TodoItem[] {
+    const s = this._state;
+    const todo: TodoItem[] = [];
+    if (this.departure) todo.push({ kind: 'departure' });
+    if (this.shelter && !this.shelter.reached) todo.push({ kind: 'shelter' });
+    if (this._cascade.emergencies.length) todo.push({ kind: 'emergency' });
+    if (this.pendingDecisions().length) todo.push({ kind: 'decision' });
+    for (const incident of s.activeIncidents) {
+      if (!incident.responseId || (incident.progress ?? 0) >= 1) continue;
+      const def = definitionOf(this.content.incidents, incident.definitionId);
+      if (!def.responses.find((r) => r.id === incident.responseId)?.work) continue;
+      const helper = [...this.repairJobs].find(([, job]) => job.incidentId === incident.id)?.[0];
+      todo.push({ kind: 'repair', textKey: def.textKey, ...(helper ? { helper } : {}) });
+    }
+    if (s.crew.find((m) => m.id === s.activeCrewId)?.resting) return todo;
+    for (const t of this.content.tasks) {
+      const task = this.taskAt(t.zone);
+      if (task?.kind === 'task' && !task.upToDate && !task.blockedKey && this.taskNeeded(t)) todo.push({ kind: 'task', taskId: t.id, zone: t.zone });
+    }
+    return todo;
+  }
+
+  /**
+   * ¿La tarea del día hace falta hoy? El mantenimiento, si el sistema lo pide (eso ya lo dice `taskAt`); el ejercicio,
+   * si el tripulante perdió forma; la llamada y los cuidados, si el ánimo o la salud bajaron [regla]. Lo demás se puede
+   * hacer igual, pero no frena el avance rápido ni aparece en la lista de pendientes.
+   */
+  private taskNeeded(task: HabitatTask): boolean {
+    const s = this._state;
+    const member = s.crew.find((m) => m.id === s.activeCrewId);
+    if (!member) return false;
+    const morale = Math.min(...s.crew.map((m) => m.morale));
+    // La cosecha diaria es opcional: sólo frena el reloj si el sistema de verdad pide cuidado.
+    if (task.kind === 'maintenance') return !task.daily || this.needsMaintenance(s, task);
+    if (task.kind === 'exercise' && member.condition < 0.95) return true;
+    if (task.kind === 'callHome' && (morale < 0.8 || this.callAnswersIncident(s))) return true;
+    if (task.care?.condition && Math.min(...s.crew.map((m) => m.condition)) < 0.85) return true;
+    if (task.care?.morale && morale < 0.75) return true;
+    // Cada tormenta vivida suma una tarea más por jornada (la nave pide más cuidado); cuáles, rota con el día.
+    const daily = this.content.tasks.filter((t) => t.kind !== 'maintenance');
+    const count = Math.min(daily.length, DAILY_TASKS.max, DAILY_TASKS.base + this.stormsSeen.size * DAILY_TASKS.perStorm);
+    const day = Math.floor(Date.parse(s.simDate) / 86_400_000);
+    const index = daily.indexOf(task);
+    return index !== -1 && (index - (day % daily.length) + daily.length) % daily.length < count;
+  }
+
+  /**
+   * Rutinas del día automáticas según el perfil y el estado de cada tripulante (`smartRoutines`): ya no se planean a
+   * mano. Se rehacen cada día simulado.
+   */
+  protected planDay(): void {
+    const s = this._state;
+    const tasks = this.content.tasks
+      .filter((t) => t.kind === 'maintenance' && t.system)
+      .map((t) => ({ id: t.id, category: t.category, urgent: this.needsMaintenance(s, t) }));
+    this.routines = smartRoutines(s.crew, tasks, ROLE_SPECIALTIES);
+  }
+
+  /** Se terminó una tarea de sala con su minijuego (en Marte, la cosecha del invernadero da una muestra). */
+  protected onTaskDone(_task: HabitatTask, _daily: boolean): void {}
+
+  /** Trabajo propio del lugar (en Marte: una salida con muestras sin guardar). */
+  protected extraWork(): boolean {
+    return false;
   }
 
   get emergencies(): readonly ActiveEmergency[] {
     return this._cascade.emergencies;
+  }
+
+  /**
+   * Qué está haciendo un tripulante automático: el cuarto donde trabaja según su rutina (gimnasio, depurador,
+   * enfermería para dormir, refugio…), sólo cuando ya llegó. Null para el jugador o si va caminando.
+   */
+  activityOf(id: CrewId): string | null {
+    const s = this._state;
+    const m = s.crew.find((c) => c.id === id);
+    if (!m || id === s.activeCrewId || this.travel[id]) return null;
+    const job = this.repairJobs.get(id);
+    if (job) return this.onRepairSite(id, job) ? REPAIR_ACTIVITY : null;
+    const target = this.targetFor(m);
+    return m.location === target ? target : null;
+  }
+
+  /** Estado de un tripulante para el tablero (ver `crewPresence`). */
+  presenceOf(id: CrewId): CrewPresence {
+    const s = this._state;
+    const m = s.crew.find((c) => c.id === id)!;
+    const active = id === s.activeCrewId;
+    const zone = this.activityOf(id);
+    return crewPresence(m, {
+      sleeping: active ? this.sleeping : zone === this.content.infirmaryZone,
+      sheltering: this.sheltering.has(id) || (this.shelter !== null && m.location === this.content.shelterZone),
+      repairing: active ? this.incidentWorkAt(s, m.location) !== undefined : this.repairJobs.has(id),
+    });
   }
 
   /** Posición (tiles) de un tripulante automático; la del jugador la lleva la escena. */
@@ -336,7 +523,6 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       sim.on('sim:pause', ({ paused }) => (paused ? this.clock.pause() : this.clock.resume())),
       sim.on('sim:respond', ({ incidentId, responseId }) => this.respond(incidentId, responseId)),
       sim.on('sim:sacrifice', ({ id }) => this.sacrifice(id)),
-      sim.on('sim:routines', (plan) => this.setRoutines(plan)),
       sim.on('sim:loads', ({ off }) => this.setLoadsOff(off)),
       sim.on('sim:ask', ({ kind, incidentId }) => this.ask(kind, incidentId)),
     ];
@@ -345,17 +531,6 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       offs.forEach((off) => off());
       this.sim = null;
     };
-  }
-
-  /** Rutinas nuevas de la planificación (§3.1); las imposibles (más de 24 h) se ignoran. */
-  setRoutines(plan: RoutinePlan): void {
-    this.routines = Object.fromEntries(
-      Object.entries(this.routines).map(([id, r]) => {
-        const next = plan[id as CrewId];
-        return [id, next && isValidRoutine(next) ? next : r];
-      }),
-    ) as RoutinePlan;
-    this.publishSnapshot();
   }
 
   /** Tablero de energía (§3.2): los sistemas desenchufados no consumen. El soporte vital no se desenchufa. */
@@ -456,6 +631,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       level: this.level,
       reasonKey: this.reasonKey,
       manual: this.manual,
+      idle: this.idle,
+      todo: this.pendingWork(),
+      asleep: this.sleeping,
+      presence: Object.fromEntries(this._state.crew.map((m) => [m.id, this.presenceOf(m.id)])) as Record<CrewId, CrewPresence>,
       paused: this.paused,
       state: this._state,
       activePosition: this.activeAt ?? this.positions[this._state.activeCrewId],
@@ -507,14 +686,35 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const dt = Math.min(realSeconds, MAX_STEP_S);
     this.realSeconds += dt;
     if (input.activeZone) this.setLocation(this._state.activeCrewId, input.activeZone);
+    if (this.sleeping && (this.clock.level !== 'calm' || this.pendingDecisions().length || this._cascade.emergencies.length)) this.wake(false);
+    this.clock.setIdle(!this.hasWork());
     const manual = this.manual;
     this.moveCrew(dt);
-    const before = Date.parse(this.clock.simDate);
-    const clockEvents = this.clock.advance(dt);
-    const hours = (Date.parse(this.clock.simDate) - before) / HOUR_MS;
-    if (hours > 0) this.simulate(hours, manual, manual && input.interacting ? input : null);
-    this.handleClock(clockEvents);
+    // Con el reloj rápido, el paso se parte para que cada tramo simule a lo sumo MAX_SIM_HOURS (que el día y la
+    // noche no se mezclen en un solo cálculo de energía).
+    let hours = 0;
+    for (let left = dt; left > 1e-9 && !this._outcome; ) {
+      const step = Math.min(left, MAX_SIM_HOURS / Math.max(1e-6, this.clock.hoursPerSecond));
+      left -= step;
+      const before = Date.parse(this.clock.simDate);
+      const clockEvents = this.clock.advance(step);
+      const stepHours = (Date.parse(this.clock.simDate) - before) / HOUR_MS;
+      if (stepHours > 0) this.simulate(stepHours, manual, manual && input.interacting ? input : null);
+      hours += stepHours;
+      this.handleClock(clockEvents);
+      if (this.clock.finished || this.clock.isPaused) break;
+    }
     if (this._outcome) return;
+    if (hours === 0 && this.clock.finished && this.departure) this.repairWhileBoarding(dt);
+    if (this._state.crew.some((m) => m.condition <= CRITICAL_CONDITION)) {
+      this._state = {
+        ...this._state,
+        history: [...this._state.history, { simDate: this._state.simDate, phase: this.phase, kind: 'decision', key: 'hud.log.crewCritical' }],
+      };
+      this.bus.emit('cascade:noReturn', { reasonKey: 'hud.log.crewCritical' });
+      this.finish('suspended');
+      return;
+    }
     this.planRoutes(this.manual);
     this.checkShelter();
     this.afterUpdate();
@@ -587,7 +787,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   }
 
   /** Se terminó el tiempo de la fase: con embarque, todos van a la nave; sin él, termina. */
-  private windowEnded(): void {
+  protected windowEnded(): void {
     if (!this.content.departure) return this.finish('completed');
     if (this.departure) return;
     this.departure = { cargo: 'stored', carrier: null, aboard: 0, total: this._state.crew.length };
@@ -628,7 +828,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const task = this.content.tasks.find((t) => t.zone === zone);
     if (!task || this.departure) return null;
     const s = this._state;
-    if (task.kind === 'maintenance' && !this.needsMaintenance(s, task)) return { kind: 'task', task, progress: 1, upToDate: true };
+    if (task.kind === 'maintenance' && !task.daily && !this.needsMaintenance(s, task)) return { kind: 'task', task, progress: 1, upToDate: true };
     if (this.doneOn[this.dailyKey(task)] === s.simDate.slice(0, 10) && !(task.kind === 'callHome' && this.callAnswersIncident(s)))
       return { kind: 'task', task, progress: 1, upToDate: true };
     const progress = task.system ? (this.maintenance[task.system]?.progress ?? 0) : task.kind === 'callHome' ? this.callProgress : 0;
@@ -675,7 +875,9 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       setup.hard = response.risk !== 'green';
       setup.pests = def.id === 'greenhousePest';
     } else {
-      id = task.task.minigame;
+      // Con el sistema sano, la tarea diaria tiene su propio minijuego (la cosecha); si pide cuidado, el de siempre.
+      const healthy = task.task.daily && !this.needsMaintenance(s, task.task);
+      id = healthy ? (task.task.dailyMinigame ?? task.task.minigame) : task.task.minigame;
       category = task.task.category;
       if (id === 'meal') {
         const kitchen = this.kitchenAt(zone, position);
@@ -684,7 +886,11 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       }
     }
     if (!id) return null;
-    setup.easy = s.helpMode || ROLE_SPECIALTIES[member.role].includes(category);
+    // Con la práctica las tareas se ponen más difíciles (§3.3): el especialista deja de tenerla fácil desde la tercera
+    // vez y todos pasan a la versión difícil desde la cuarta. En modo ayuda siguen fáciles.
+    const practice = task.kind === 'task' ? (this.doneCount[task.task.id] ?? 0) : 0;
+    setup.easy = s.helpMode || (ROLE_SPECIALTIES[member.role].includes(category) && practice < PRACTICE.normalFrom);
+    if (!s.helpMode && practice >= PRACTICE.hardFrom) setup.hard = true;
     return { zone, id, setup: { ...setup, seed: hashOf(`${s.seed}|${s.simDate}|${zone}|${s.activeCrewId}`) } };
   }
 
@@ -739,6 +945,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     } else {
       const t = task.task;
       if (task.upToDate || task.blockedKey) return false;
+      const needed = t.kind === 'maintenance' && this.needsMaintenance(s, t);
       if (t.kind === 'maintenance' && t.system) {
         const hours = ((1 - task.progress) * this.content.wear.maintenanceHours) / workSpeed(member, t.category, co2);
         this._state = this.maintained(this.tired(s, member.id, hours), t);
@@ -756,7 +963,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
         const { morale = 0, condition = 0 } = t.care;
         this._state = { ...s, crew: s.crew.map((m) => ({ ...m, morale: clamp(m.morale + morale), condition: clamp(m.condition + condition) })) };
       }
-      this.doneOn[this.dailyKey(t)] = s.simDate.slice(0, 10);
+      // Curar el sistema no gasta la tarea diaria: después todavía se puede cosechar hoy.
+      if (!(t.daily && needed)) this.doneOn[this.dailyKey(t)] = s.simDate.slice(0, 10);
+      this.doneCount[t.id] = (this.doneCount[t.id] ?? 0) + 1;
+      this.onTaskDone(t, !needed);
     }
     this.publishState();
     this.publishSnapshot();
@@ -918,6 +1128,15 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
           }
         }
         activities[m.id] = activity;
+      } else if (!m.resting && !this.sheltering.has(m.id) && this.repairJobs.has(m.id)) {
+        const job = this.repairJobs.get(m.id)!;
+        if (this.onRepairSite(m.id, job)) {
+          const boost = this.diagnosed.has(job.incidentId) ? c.missionControl.diagnosisBoost : 1;
+          const r = workOnIncident(this.ctx, this._planner, s, job.incidentId, m.id, hours * boost);
+          this._planner = r.planner;
+          this.pendingIncidentEvents.push(...r.events);
+          s = r.state;
+        }
       } else if (!m.resting && !this.sheltering.has(m.id)) {
         const task = c.tasks.find((t) => t.id === this.routines[m.id]?.taskId);
         const workHours = activities[m.id]?.workHours ?? 0;
@@ -1069,6 +1288,126 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     };
   }
 
+  // --- Los automáticos reparan solos ---
+
+  /** Puntos (tiles) desde donde se repara un incidente que no está dentro de un cuarto (en Marte: tubos y cables). */
+  protected repairSpots(_incident: IncidentState, _work: NonNullable<IncidentResponse['work']>): Point[] {
+    return [];
+  }
+
+  /**
+   * Reparte las reparaciones en curso (con la respuesta ya elegida por el jugador) entre los automáticos: a cada
+   * incidente va el que mejor lo hace (su especialista, si puede llegar). Sólo se vuelve a repartir cuando cambia algo:
+   * los incidentes, los tubos cerrados, quién está disponible o la hora.
+   */
+  private assignRepairs(closed: Closed): void {
+    const s = this._state;
+    const co2 = s.meters.lifeSupport.co2MmHg;
+    const jobs = s.activeIncidents.flatMap((incident) => {
+      if (!incident.responseId || (incident.progress ?? 0) >= 1) return [];
+      const work = definitionOf(this.content.incidents, incident.definitionId).responses.find((r) => r.id === incident.responseId)?.work;
+      return work ? [{ incident, work }] : [];
+    });
+    const free = s.crew.filter((m) => m.id !== s.activeCrewId && !m.resting && !this.sheltering.has(m.id));
+    const key = [
+      jobs.map(({ incident }) => `${incident.id}:${incident.responseId}`).join(','),
+      free.map((m) => m.id).join(','),
+      [...closed].sort().join(','),
+      s.simDate.slice(0, 13),
+      this.repairContextKey(),
+    ].join('|');
+    if (key === this.repairKey) return;
+    this.repairKey = key;
+    const previous = this.repairJobs;
+    const next = new Map<CrewId, RepairJob>();
+    for (const { incident, work } of jobs) {
+      const zone = this.incidentWorkZone(incident, work);
+      const room = zone && this.content.layout.zones.some((z) => z.id === zone) ? zone : null;
+      const spots = room ? [] : this.repairSpots(incident, work);
+      if (!room && !spots.length) continue;
+      const before = [...previous].find(([, job]) => job.incidentId === incident.id)?.[0];
+      const candidates = free
+        .filter((m) => !next.has(m.id))
+        .sort((a, b) => Number(b.id === before) - Number(a.id === before) || workSpeed(b, work.task, co2) - workSpeed(a, work.task, co2));
+      for (const m of candidates) {
+        const job = this.repairJobFor(m.id, incident.id, room, spots, closed);
+        if (!job) continue;
+        next.set(m.id, job);
+        break;
+      }
+    }
+    this.repairJobs = next;
+  }
+
+  /** Algo propio del lugar que cambia quién puede reparar qué (en Marte: si se puede salir afuera). */
+  protected repairContextKey(): string {
+    return '';
+  }
+
+  private routeClosed(id: CrewId, closed: Closed): Closed {
+    const here = zoneAt(this.content.layout, this.positions[id]);
+    return here && closed.has(here) ? new Set([...closed].filter((x) => x !== here)) : closed;
+  }
+
+  /** La reparación para este tripulante, si puede llegar al cuarto o a alguno de los puntos de trabajo. */
+  private repairJobFor(id: CrewId, incidentId: string, room: string | null, spots: readonly Point[], closed: Closed): RepairJob | null {
+    const ship = this.content.layout;
+    const from = this.positions[id];
+    const open = this.routeClosed(id, closed);
+    const key = `repair:${incidentId}`;
+    if (room) return zoneAt(ship, from) === room || route(ship, from, room, false, open).length >= 2 ? { incidentId, key, zone: room } : null;
+    for (const point of spots) {
+      if (Math.hypot(point.x - from.x, point.y - from.y) < REPAIR_ARRIVED || routeToPoint(ship, from, point, false, open).length >= 2) return { incidentId, key, point };
+    }
+    return null;
+  }
+
+  private onRepairSite(id: CrewId, job: RepairJob): boolean {
+    if (this.travel[id]) return false;
+    const at = this.positions[id];
+    if (job.point) return Math.hypot(job.point.x - at.x, job.point.y - at.y) < REPAIR_ARRIVED;
+    return zoneAt(this.content.layout, at) === job.zone;
+  }
+
+  /** Manda al tripulante a su reparación. Devuelve false si no hay camino. */
+  private goRepair(m: CrewMemberState, job: RepairJob, manual: boolean, closed: Closed): boolean {
+    const ship = this.content.layout;
+    if (this.travel[m.id]?.to === job.key || this.onRepairSite(m.id, job)) return true;
+    const arrive = job.zone ?? zoneAt(ship, job.point!) ?? m.location;
+    const end = job.zone ? this.spotFor(m.id, job.zone) : job.point!;
+    if (!manual) {
+      // En avance rápido no se camina: aparece en el lugar de trabajo.
+      delete this.travel[m.id];
+      this.positions[m.id] = end;
+      this.setLocation(m.id, arrive);
+      return true;
+    }
+    const open = this.routeClosed(m.id, closed);
+    const blind = !usesOptimalRoute(efficiency(m, this._state.meters.lifeSupport.co2MmHg));
+    const found = job.zone ? route(ship, this.positions[m.id], job.zone, blind, open) : routeToPoint(ship, this.positions[m.id], job.point!, blind, open);
+    if (found.length < 2) return false;
+    const path = job.zone ? [...found.slice(0, -1), end] : found;
+    this.travel[m.id] = { to: job.key, arrive, route: path, length: pathLength(path), walked: 0, waitS: 0 };
+    return true;
+  }
+
+  /**
+   * En el embarque final el calendario ya terminó y el reloj no corre: las reparaciones de los automáticos siguen al
+   * ritmo de una jornada, para que un tubo roto no deje a nadie sin poder llegar a la nave.
+   */
+  private repairWhileBoarding(dt: number): void {
+    const hours = dt * this.content.calendar.playHoursPerSecond[this.phase];
+    const events: IncidentEvent[] = [];
+    for (const [id, job] of this.repairJobs) {
+      if (!this.onRepairSite(id, job)) continue;
+      const r = workOnIncident(this.ctx, this._planner, this._state, job.incidentId, id, hours);
+      this._planner = r.planner;
+      this._state = r.state;
+      events.push(...r.events);
+    }
+    if (events.length) this.handleIncidentEvents(events);
+  }
+
   /** Adónde va cada automático: enfermería si reposa, refugio si hay orden, si no lo que marque su rutina. */
   private targetFor(m: CrewMemberState): string {
     const c = this.content;
@@ -1098,8 +1437,16 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       for (const id of Object.keys(this.travel) as CrewId[]) delete this.travel[id];
       this.unreachable.clear();
     }
+    this.assignRepairs(closed);
     for (const m of this._state.crew) {
       if (m.id === this._state.activeCrewId) continue;
+      const job = this.repairJobs.get(m.id);
+      if (job) {
+        if (this.goRepair(m, job, manual, closed)) continue;
+        // No llega (se cerró el camino): deja la reparación y sigue con lo suyo.
+        this.repairJobs.delete(m.id);
+        this.repairKey = '';
+      }
       const target = this.targetFor(m);
       const current = this.travel[m.id];
       if (current?.to === target || (!current && zoneAt(ship, this.positions[m.id]) === target)) continue;
@@ -1149,7 +1496,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       this.positions[m.id] = pointAlong(t.route, t.walked);
       if (t.walked >= t.length) {
         delete this.travel[m.id];
-        this.setLocation(m.id, t.to);
+        this.setLocation(m.id, t.arrive ?? t.to);
       } else {
         const zone = zoneAt(ship, this.positions[m.id]);
         if (zone && !m.resting) this.setLocation(m.id, zone);
@@ -1164,8 +1511,15 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
 
   private handleClock(events: readonly ClockEvent[]): void {
     for (const e of events) {
-      if (e.type === 'day') this.bus.emit('clock:day', { simDate: e.simDate });
-      else if (e.type === 'level') this.bus.emit('alert:level', { level: e.level, reasonKey: e.reasonKey });
+      if ((e.type === 'pace' && e.pace === 'play') || e.type === 'end') this.wake(true);
+      if (e.type === 'day') {
+        this.bus.emit('clock:day', { simDate: e.simDate });
+        this.planDay();
+      }
+      else if (e.type === 'level') {
+        if (e.level === 'impact' && e.alertId) this.stormsSeen.add(e.alertId);
+        this.bus.emit('alert:level', { level: e.level, reasonKey: e.reasonKey });
+      }
       else if (e.type === 'end') this.windowEnded();
     }
   }

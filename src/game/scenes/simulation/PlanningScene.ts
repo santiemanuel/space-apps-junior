@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { CREW_ROSTER } from '../../../content/crew';
-import type { Routine, RoutinePlan } from '../../../core/crew/routines';
 import type { CrewId } from '../../../core/crew/types';
 import type { SimSnapshot } from '../../../core/habitat/events';
 import { t, type TranslationKey } from '../../../i18n';
@@ -8,6 +7,8 @@ import { GAME_HEIGHT } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
 import { VIEW_WIDTH } from './HudScene';
 import type { SimulationSceneData } from './simulationData';
+import { overlayFade } from '../../ui/ui';
+import { audio } from '../../audio/audio';
 
 const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 const FONT = { fontFamily: 'monospace', fontSize: '13px', color: '#e2e8f0' } as const;
@@ -22,8 +23,6 @@ const BLOCKS: readonly { key: Block; color: number; min: number; max: number }[]
 ];
 const FREE_COLOR = 0x4a5568;
 const CELL = 11;
-/** Llamadas a casa por día cuando la rutina las incluye (como la rutina por defecto). */
-const CALLS_PER_DAY = 0.5;
 
 /**
  * Planificación en pausa (§3.1): rutina de cada tripulante en una barra de 24 h y tablero de energía con fichas que
@@ -32,7 +31,6 @@ const CALLS_PER_DAY = 0.5;
 export class PlanningScene extends Phaser.Scene {
   private data_!: SimulationSceneData;
   private snapshot: SimSnapshot | null = null;
-  private routines: RoutinePlan | null = null;
   private off = new Set<string>();
   private layer!: Phaser.GameObjects.Container;
   private powerBars!: Phaser.GameObjects.Graphics;
@@ -45,11 +43,11 @@ export class PlanningScene extends Phaser.Scene {
   init(data: SimulationSceneData): void {
     this.data_ = data;
     this.snapshot = null;
-    this.routines = null;
   }
 
   create(): void {
     const { sim } = this.data_;
+    overlayFade(this);
     this.add.rectangle(0, 0, VIEW_WIDTH, GAME_HEIGHT, 0x05070d, 0.93).setOrigin(0, 0).setInteractive();
     this.layer = this.add.container(0, 0);
     this.powerBars = this.add.graphics();
@@ -57,7 +55,6 @@ export class PlanningScene extends Phaser.Scene {
       const first = !this.snapshot;
       this.snapshot = s;
       if (first) {
-        this.routines = s.routines;
         this.off = new Set(s.power.loads.filter((l) => !l.on).map((l) => l.id));
         this.build();
       }
@@ -89,11 +86,6 @@ export class PlanningScene extends Phaser.Scene {
     g.fillStyle(s.power.loadKw > s.power.generationKw ? 0xfc8181 : 0x68d391).fillRect(600, 146, (260 * s.power.loadKw) / max, 10);
   }
 
-  private setRoutine(id: CrewId, next: Routine): void {
-    this.routines = { ...this.routines!, [id]: next };
-    this.data_.sim.emit('sim:routines', this.routines);
-    this.build();
-  }
 
   /** Redibuja todo el contenido (cambia sólo cuando el jugador toca algo). */
   private build(): void {
@@ -120,35 +112,32 @@ export class PlanningScene extends Phaser.Scene {
       text(24, 64, t('hud.planning.forecast', { min: Math.round(f.minTempC), sky: tr(`mars.uv.${f.uv ?? 'none'}`) }), { color: '#fbd38d', fontSize: '12px', wordWrap: { width: 540 } });
     }
 
-    // Rutinas.
-    text(24, 96, t('hud.planning.routines'), { color: '#90cdf4' });
-    text(24, 114, t('hud.planning.legend'), { color: '#718096', fontSize: '11px' });
-    const tasks = [null, ...s.tasks.filter((task) => task.kind === 'maintenance').map((task) => task.id)];
+    // Tripulación: las tareas se asignan solas según el perfil y el estado de cada uno (ya no se planean a mano).
+    text(24, 96, t('hud.planning.crewAuto'), { color: '#90cdf4' });
+    text(24, 116, t('hud.planning.crewAutoHint'), { color: '#718096', fontSize: '11px', wordWrap: { width: 540 } });
     s.state.crew.forEach((m, i) => {
-      const y = 140 + i * 92;
-      const r = this.routines![m.id];
-      text(24, y, NAMES[m.id], { fontSize: '15px', color: m.id === s.state.activeCrewId ? '#fbd38d' : '#e2e8f0' });
-      // Barra de 24 h: sueño, ejercicio, trabajo y tiempo libre.
+      const y = 150 + i * 104;
+      const r = s.routines[m.id];
+      const active = m.id === s.state.activeCrewId;
+      add(this.add.rectangle(24, y, 540, 92, active ? 0x2a3550 : 0x1a202c).setOrigin(0, 0).setStrokeStyle(2, active ? 0xfbd38d : 0x4a5568));
+      text(40, y + 10, NAMES[m.id], { fontSize: '16px', color: active ? '#fbd38d' : '#e2e8f0' });
+      text(40, y + 32, tr(`common.role.${m.role}`), { fontSize: '11px', color: '#a0aec0' });
+      const job = m.resting
+        ? t('hud.planning.resting')
+        : r?.taskId
+          ? t('hud.planning.task', { task: tr(`${ns}.zone.${s.tasks.find((x) => x.id === r.taskId)!.zone}`) })
+          : t('hud.planning.noTask');
+      text(200, y + 12, job, { fontSize: '13px', color: m.resting ? '#f6e05e' : '#e2e8f0' });
+      // Barra del día: sueño, ejercicio y trabajo, sin números.
       let cell = 0;
-      for (const block of BLOCKS)
-        for (let h = 0; h < r[block.key]; h++) add(this.add.rectangle(110 + (cell++ * (CELL + 1)), y + 2, CELL, 14, block.color).setOrigin(0, 0));
-      while (cell < 24) add(this.add.rectangle(110 + (cell++ * (CELL + 1)), y + 2, CELL, 14, FREE_COLOR).setOrigin(0, 0));
-      const free = 24 - r.sleepHours - r.exerciseHours - r.workHours;
-      BLOCKS.forEach((block, b) => {
-        const x = 24 + b * 180;
-        const label = t(`hud.planning.block.${block.key}`);
-        button(x, y + 26, '−', r[block.key] > block.min, () => this.setRoutine(m.id, { ...r, [block.key]: r[block.key] - 1 }));
-        text(x + 24, y + 27, label, { color: `#${block.color.toString(16).padStart(6, '0')}`, fontSize: '12px' });
-        button(x + 30 + label.length * 7.5, y + 26, '+', r[block.key] < block.max && free > 0, () => this.setRoutine(m.id, { ...r, [block.key]: r[block.key] + 1 }));
-      });
-      const task = tasks.indexOf(r.taskId);
-      const taskName = r.taskId ? tr(`${ns}.zone.${s.tasks.find((x) => x.id === r.taskId)!.zone}`) : t('hud.planning.noTask');
-      button(24, y + 52, t('hud.planning.task', { task: taskName }), true, () =>
-        this.setRoutine(m.id, { ...r, taskId: tasks[(task + 1) % tasks.length] ?? null }),
-      );
-      button(300, y + 52, t(r.callsHomePerDay > 0 ? 'hud.planning.callsOn' : 'hud.planning.callsOff'), true, () =>
-        this.setRoutine(m.id, { ...r, callsHomePerDay: r.callsHomePerDay > 0 ? 0 : CALLS_PER_DAY }),
-      );
+      if (r) for (const block of BLOCKS) for (let h = 0; h < r[block.key]; h++) add(this.add.rectangle(200 + cell++ * (CELL + 1), y + 40, CELL, 12, block.color).setOrigin(0, 0));
+      while (cell < 24) add(this.add.rectangle(200 + cell++ * (CELL + 1), y + 40, CELL, 12, FREE_COLOR).setOrigin(0, 0));
+      const notes = [
+        r && r.sleepHours > 8 ? t('hud.planning.why.sleep') : null,
+        r && r.exerciseHours > 2 ? t('hud.planning.why.exercise') : null,
+        r && r.callsHomePerDay > 0.5 ? t('hud.planning.why.call') : null,
+      ].filter(Boolean);
+      text(200, y + 62, notes.length ? notes.join(' · ') : t('hud.planning.why.fine'), { fontSize: '11px', color: '#68d391', wordWrap: { width: 350 } });
     });
 
     // Tablero de energía.
@@ -181,6 +170,14 @@ export class PlanningScene extends Phaser.Scene {
       // En Marte el tablero está en la sala de energía: lejos de ahí, las fichas no se mueven.
       if (load.essential || s.power.panelBlocked) continue;
       chip.setData('load', load.id).setInteractive({ draggable: true, useHandCursor: true });
+      chip.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (pointer.getDistance() > 6) return;
+        if (this.off.has(load.id)) this.off.delete(load.id);
+        else this.off.add(load.id);
+        audio.sfx('toggle');
+        this.data_.sim.emit('sim:loads', { off: [...this.off] });
+        this.build();
+      });
     }
     text(600, 590, t(overload ? 'hud.planning.overload' : s.power.panelBlocked ? 'hud.planning.panelAway' : 'hud.planning.powerHint'), {
       fontSize: '11px',

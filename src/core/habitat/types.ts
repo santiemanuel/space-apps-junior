@@ -25,6 +25,10 @@ export interface HabitatTask {
   resets?: ActivityCounter;
   /** Minijuego que abre E en este cuarto. */
   minigame?: MinigameId;
+  /** Mantenimiento que además se puede hacer una vez por día aunque el sistema esté sano (la cosecha del invernadero). */
+  daily?: boolean;
+  /** Minijuego de esa tarea diaria con el sistema sano (si falta, el mismo de siempre). */
+  dailyMinigame?: MinigameId;
   /** Lo que suma a toda la tripulación un cuidado del día [regla]. */
   care?: CareReward;
   /**

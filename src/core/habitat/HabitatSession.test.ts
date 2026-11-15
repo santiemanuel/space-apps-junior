@@ -3,7 +3,6 @@ import { INCIDENTS } from '../../content/incidents';
 import { VOYAGE_CONTENT } from '../../content/ship';
 import { makeGameState } from '../../test-utils/factories';
 import type { PhaseCalendar } from '../clock/schedule';
-import { DEFAULT_ROUTINE } from '../crew/routines';
 import { EventBus } from '../events/EventBus';
 import type { GameEvents } from '../events/GameEvents';
 import type { GameState } from '../state/types';
@@ -60,17 +59,16 @@ describe('bus de la simulación', () => {
     expect(last()).toMatchObject({ phase: 'cruiseOut', place: 'cruise', simDate: session.simDate, manual: true });
   });
 
-  it('la planificación pausa el reloj y cambia las rutinas; una rutina imposible se ignora', () => {
+  it('la planificación pausa el reloj; las rutinas son automáticas según el perfil', () => {
     const { session, sim, last } = setup();
     sim.emit('sim:pause', { paused: true });
     const date = session.simDate;
     session.update(0.25, AT_RADIO);
     expect(session.simDate).toBe(date);
     expect(last().paused).toBe(true);
-    const sleepy = { ...DEFAULT_ROUTINE, sleepHours: 10, workHours: 8 };
-    sim.emit('sim:routines', { ...last().routines, miga: sleepy, brote: { ...DEFAULT_ROUTINE, sleepHours: 20, workHours: 10 } });
-    expect(last().routines.miga).toEqual(sleepy);
-    expect(last().routines.brote).toEqual(VOYAGE_CONTENT.routines.brote);
+    // Nadie las elige a mano: la ingeniera cuida el depurador y el botánico, el reciclador.
+    expect(last().routines.miga.taskId).toBe('scrubber');
+    expect(last().routines.brote.taskId).toBe('recycler');
   });
 
   it('tablero de energía: desenchufar la radio ahorra energía y deja sin Control de Misión', () => {

@@ -3,7 +3,6 @@ import { INCIDENT_RULES } from '../../content/incidents';
 import { CARE_TASKS, SHIP_LAYOUT, VOYAGE_CONTENT } from '../../content/ship';
 import { makeCrew, makeGameState, makeIncident, makeMeters } from '../../test-utils/factories';
 import type { PhaseCalendar } from '../clock/schedule';
-import { DEFAULT_ROUTINE } from '../crew/routines';
 import type { CrewId } from '../crew/types';
 import { EventBus } from '../events/EventBus';
 import type { GameEvents } from '../events/GameEvents';
@@ -196,16 +195,10 @@ describe('Voyage: tormenta de radiación', () => {
 });
 
 describe('Voyage: tareas de la nave', () => {
-  it('en la nave gastada de la vuelta, sin nadie asignado el depurador se gasta; con la ingeniera sigue sano', () => {
-    const lazy: VoyageContent = {
-      ...CONTENT,
-      routines: { vega: DEFAULT_ROUTINE, miga: DEFAULT_ROUTINE, brote: DEFAULT_ROUTINE, senda: DEFAULT_ROUTINE },
-    };
-    const neglected = voyage({}, { content: lazy, leg: 'back' }).session;
+  it('en la nave gastada de la vuelta las rutinas automáticas ponen a la ingeniera en el depurador y sigue sano', () => {
     const cared = voyage({}, { leg: 'back' }).session;
-    runUntil(neglected, () => false);
     runUntil(cared, () => false);
-    expect(neglected.state.systems.scrubber).toBe('yellow');
+    expect(cared.snapshot().routines.miga.taskId).toBe('scrubber');
     expect(cared.state.systems.scrubber).toBe('green');
   });
 
@@ -431,5 +424,120 @@ describe('minijuegos de las salas (E)', () => {
     session.setLoadsOff(['radio']);
     expect(session.taskAt('radio')).toMatchObject({ blockedKey: 'hud.task.radioOff' });
     expect(session.minigameAt('radio')).toBeNull();
+  });
+});
+
+describe('jornadas sin nada que hacer (partidas de ~15 min)', () => {
+  it('con tareas del día pendientes la jornada va a tiempo normal', () => {
+    const { session } = voyage({ length: 'long', crew: makeGameState().crew.map((m) => ({ ...m, condition: 0.8 })) });
+    session.update(0.1, STILL);
+    expect(session.hasWork()).toBe(true);
+    expect(session.idle).toBe(false);
+    expect(session.snapshot()).toMatchObject({ manual: true, idle: false });
+  });
+
+  it('sin tareas ni incidentes la jornada corre rápido, pero el jugador sigue manejando a su tripulante', () => {
+    const { session } = voyage({ length: 'long' }, { content: { ...CONTENT, tasks: [] } });
+    const before = Date.parse(session.simDate);
+    session.update(0.1, STILL);
+    expect(session.hasWork()).toBe(false);
+    expect(session.idle).toBe(true);
+    expect(session.snapshot()).toMatchObject({ manual: true, idle: true });
+    expect((Date.parse(session.simDate) - before) / H).toBeGreaterThan(0.1 * CALENDAR.playHoursPerSecond.cruiseOut * 5);
+  });
+
+  it('una decisión pendiente frena el avance aunque no haya tareas', () => {
+    const { session } = voyage(
+      { length: 'long', activeIncidents: [makeIncident({ id: 'scrub-1', definitionId: 'scrubberFailure', phase: 'cruiseOut', status: 'active', impactAt: START })] },
+      { content: { ...CONTENT, tasks: [] } },
+    );
+    expect(session.pendingDecisions().length).toBeGreaterThan(0);
+    expect(session.hasWork()).toBe(true);
+  });
+});
+
+describe('enfermería y lista de pendientes', () => {
+  it('lista lo que falta hacer: sólo las tareas del día que hacen falta', () => {
+    const fit = voyage({ length: 'long' }).session;
+    fit.update(0.1, STILL);
+    expect(fit.snapshot().todo.some((item) => item.kind === 'task' && item.taskId === 'exercise')).toBe(false);
+    const { session } = voyage({ length: 'long', crew: makeGameState().crew.map((m) => ({ ...m, condition: 0.8 })) });
+    session.update(0.1, STILL);
+    const todo = session.snapshot().todo;
+    expect(todo.length).toBeGreaterThan(0);
+    expect(todo).toContainEqual(expect.objectContaining({ kind: 'task', taskId: 'exercise' }));
+  });
+
+  it('en la enfermería se duerme hasta el día siguiente y se despierta descansado', () => {
+    const tired = makeGameState().crew.map((m) => ({ ...m, fatigue: 0.8 }));
+    const { session } = voyage({ length: 'long', crew: tired });
+    expect(session.canSleep('command')).toBe(false);
+    expect(session.sleep('infirmary')).toBe(true);
+    expect(session.asleep).toBe(true);
+    const day = session.simDate.slice(0, 10);
+    runUntil(session, () => !session.asleep, { activeZone: 'infirmary', interacting: false }, 1 / 30);
+    expect(session.simDate.slice(0, 10)).not.toBe(day);
+    expect(session.state.crew.find((m) => m.id === session.state.activeCrewId)!.fatigue).toBeLessThan(0.8);
+  });
+});
+
+describe('dificultad de las tareas', () => {
+  it('con la práctica el minijuego de una tarea se vuelve más difícil (salvo en modo ayuda)', () => {
+    const play = (help: boolean) => {
+      const { session } = voyage({ length: 'long', helpMode: help, activeCrewId: 'miga' });
+      const setups = [];
+      // Otro día: el sistema se volvió a gastar y la tarea de hoy no está hecha.
+      const inner = session as unknown as { maintenance: Record<string, { hoursSince: number }>; doneOn: Record<string, string> };
+      const wear = () => {
+        inner.maintenance.scrubber!.hoursSince = 1e6;
+        for (const key of Object.keys(inner.doneOn)) delete inner.doneOn[key];
+      };
+      for (let i = 0; i < 4; i++) {
+        // Se gasta otra vez para que vuelva a hacer falta el mantenimiento.
+        wear();
+        setups.push(session.minigameAt('scrubber')?.setup);
+        session.finishTask('scrubber');
+      }
+      return setups;
+    };
+    const normal = play(false);
+    expect(normal[0]).toMatchObject({ easy: true });
+    expect(normal[2]).toMatchObject({ easy: false });
+    expect(normal[3]).toMatchObject({ hard: true });
+    expect(play(true)[3]).toMatchObject({ easy: true });
+  });
+});
+
+describe('más tareas después de cada tormenta y misión suspendida', () => {
+  const tasks = (s: VoyageSession) => s.snapshot().todo.filter((i) => i.kind === 'task').length;
+
+  it('cada tormenta vivida suma una tarea del día', () => {
+    const { session } = voyage({ length: 'long' }, { timeline: storm });
+    session.update(0.05, STILL);
+    const before = tasks(session);
+    runUntil(session, () => session.level === 'impact', STILL, 0.05);
+    session.update(0.05, STILL);
+    expect(tasks(session)).toBe(before + 1);
+  });
+
+  it('si un tripulante queda sin salud, la misión se suspende (se puede perder)', () => {
+    const crew = makeGameState().crew.map((m) => (m.id === 'senda' ? { ...m, condition: 0.01 } : m));
+    const { session, bus } = voyage({ crew });
+    const results: string[] = [];
+    bus.on('phase:completed', (r) => results.push(r.outcome));
+    session.update(0.05, STILL);
+    expect(session.outcome).toBe('suspended');
+    expect(results).toEqual(['suspended']);
+  });
+});
+
+describe('lo que hace cada tripulante automático', () => {
+  it('cuando llega a su cuarto se sabe qué hace (para su globo); el jugador no tiene', () => {
+    const { session } = voyage({ length: 'long' });
+    runUntil(session, () => session.state.crew.some((m) => session.activityOf(m.id) !== null), STILL, 0.05, 4000);
+    const working = session.state.crew.filter((m) => session.activityOf(m.id) !== null);
+    expect(working.length).toBeGreaterThan(0);
+    for (const m of working) expect(session.activityOf(m.id)).toBe(m.location);
+    expect(session.activityOf(session.state.activeCrewId)).toBeNull();
   });
 });

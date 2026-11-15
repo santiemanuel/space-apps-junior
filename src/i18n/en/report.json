@@ -56,5 +56,6 @@
   "dataCard.continue": "Continue",
   "dataCard.controls": "Enter, Space or Esc to continue · click the source to open it",
   "achievement.allRockTypes": "Rock Collector",
-  "achievement.allRockTypes.description": "You collected one rock of each kind on Mars: conglomerate, mudstone, basalt, sandstone and sulfur."
+  "achievement.allRockTypes.description": "You collected one rock of each kind on Mars: conglomerate, mudstone, basalt, sandstone and sulfur.",
+  "samples.plants": "Of those, {plants} are greenhouse plants."
 }

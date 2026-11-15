@@ -10,6 +10,8 @@ import { createBrowserSaveStore } from '../../../storage/browserSaveStore';
 import { Painter } from './Painter';
 import { MINIGAME_ICON, renderMinigame, type Area } from './renderers';
 import { renderTutorial } from './tutorials';
+import { audio } from '../../../audio/audio';
+import { panelIn } from '../../../ui/ui';
 
 const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
 /** La vista del mapa (el tablero queda al lado, a la vista). */
@@ -23,6 +25,8 @@ const RESULT_LOCK_MS = 700;
 const TUTORIAL_ROW = { y: AREA.y + AREA.h + 14, h: 34 } as const;
 const CHECKBOX = { x: AREA.x, w: 330 } as const;
 const START = { x: AREA.x + AREA.w - 200, w: 200 } as const;
+/** Entre la casilla y el botón de empezar: cancelar y volver al mapa sin jugar (Q o clic). */
+const CANCEL = { x: CHECKBOX.x + CHECKBOX.w + 24, w: 180 } as const;
 
 type Request = SimulationEvents['sim:minigame'];
 type KeyName = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'W' | 'A' | 'S' | 'D' | 'E' | 'SPACE' | 'ONE' | 'TWO' | 'THREE' | 'Q' | 'ENTER' | 'X';
@@ -45,6 +49,8 @@ export class MinigameView {
   private wonAt: number | null = null;
   /** Tutorial a la vista, con la casilla «No volver a mostrar» marcada o no. */
   private tutorial: { checked: boolean } | null = null;
+  /** Último aviso del minijuego que ya sonó. */
+  private lastMessage: Minigame['message'] = null;
   private readonly prefs = new TutorialPrefs(createBrowserSaveStore());
 
   constructor(
@@ -74,6 +80,8 @@ export class MinigameView {
     this.tutorial = this.game.tutorial && !this.prefs.hidden(request.id) ? { checked: false } : null;
     // Que la E que abrió el juego no cuente como la primera jugada.
     for (const key of Object.values(this.keys)) Phaser.Input.Keyboard.JustDown(key);
+    this.lastMessage = null;
+    panelIn(this.root, 220);
     this.root.setVisible(true);
     this.painter.setVisible(true);
     this.sim.emit('sim:pause', { paused: true });
@@ -94,19 +102,37 @@ export class MinigameView {
     const game = this.game;
     if (!game || !this.request) return;
     const input = this.input();
-    if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) return this.close();
+    if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) {
+      audio.sfx('back');
+      return this.close();
+    }
     const enter = Phaser.Input.Keyboard.JustDown(this.keys.ENTER);
     if (this.tutorial) {
-      if (Phaser.Input.Keyboard.JustDown(this.keys.X)) this.tutorial.checked = !this.tutorial.checked;
-      if (input.pressed.action || enter) this.endTutorial();
+      if (Phaser.Input.Keyboard.JustDown(this.keys.X)) {
+        this.tutorial.checked = !this.tutorial.checked;
+        audio.sfx('toggle');
+      }
+      if (input.pressed.action || enter) {
+        audio.sfx('select');
+        this.endTutorial();
+      }
     } else if (this.wonAt === null) {
       game.update(Math.min(deltaMs / 1000, 0.1), input);
       if (game.closed) return this.close();
+      // Cada aviso del minijuego suena: acierto o error.
+      if (game.message && game.message !== this.lastMessage) {
+        this.lastMessage = game.message;
+        if (!game.done) audio.sfx(game.message.good ? 'good' : 'bad');
+      }
       if (game.done) {
+        audio.sfx('win');
         this.wonAt = now;
         this.sim.emit('sim:minigameWon', { zone: this.request.zone });
       }
-    } else if ((input.pressed.action || enter) && now - this.wonAt > RESULT_LOCK_MS) return this.close();
+    } else if ((input.pressed.action || enter) && now - this.wonAt > RESULT_LOCK_MS) {
+      audio.sfx('select');
+      return this.close();
+    }
     this.draw(game, this.request, now);
   }
 
@@ -120,8 +146,16 @@ export class MinigameView {
   /** Clic en la casilla o en el botón de empezar del tutorial. */
   private click(x: number, y: number): void {
     if (!this.tutorial || !this.root.visible || y < TUTORIAL_ROW.y || y > TUTORIAL_ROW.y + TUTORIAL_ROW.h) return;
-    if (x >= CHECKBOX.x && x <= CHECKBOX.x + CHECKBOX.w) this.tutorial.checked = !this.tutorial.checked;
-    else if (x >= START.x && x <= START.x + START.w) this.endTutorial();
+    if (x >= CHECKBOX.x && x <= CHECKBOX.x + CHECKBOX.w) {
+      this.tutorial.checked = !this.tutorial.checked;
+      audio.sfx('toggle');
+    } else if (x >= START.x && x <= START.x + START.w) {
+      audio.sfx('select');
+      this.endTutorial();
+    } else if (x >= CANCEL.x && x <= CANCEL.x + CANCEL.w) {
+      audio.sfx('back');
+      this.close();
+    }
   }
 
   private input(): MinigameInput {
@@ -199,7 +233,7 @@ export class MinigameView {
     p.end();
   }
 
-  /** Casilla «No volver a mostrar» (X) y botón para empezar (E). */
+  /** Casilla «No volver a mostrar» (X), cancelar (Q) y botón para empezar (E). */
   private tutorialRow(checked: boolean, now: number): void {
     const p = this.painter;
     const cy = TUTORIAL_ROW.y + TUTORIAL_ROW.h / 2;
@@ -210,6 +244,8 @@ export class MinigameView {
     p.text(tr('hud.minigame.tutorial.dontShow'), box.x + box.size + 12, cy, { size: 14, color: checked ? '#c6f6d5' : '#cbd5e0', originY: 0.5 });
     p.key('X', CHECKBOX.x + CHECKBOX.w - 20, cy, checked);
     const lit = Math.sin(now / 250) > 0;
+    p.key('Q', CANCEL.x + 18, cy);
+    p.text(tr('hud.minigame.tutorial.cancel'), CANCEL.x + 44, cy, { size: 14, color: '#cbd5e0', originY: 0.5 });
     p.key('E', START.x + 22, cy, lit);
     p.text(tr('hud.minigame.tutorial.start'), START.x + 50, cy, { size: 18, color: '#fbd38d', originY: 0.5 });
   }

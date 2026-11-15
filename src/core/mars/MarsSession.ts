@@ -12,6 +12,7 @@ import { realEventLogEntry } from '../report/report';
 import { Rng } from '../rng/Rng';
 import type { GameState, HabitatSave, Sample } from '../state/types';
 import type { MarsContent, SampleSite } from './types';
+import type { HabitatTask } from '../habitat/types';
 
 const HOUR_MS = 3_600_000;
 /** Semilla propia de los puntos de muestreo: no gasta tiradas del `Rng` de la partida y no cambia al cargar. */
@@ -107,6 +108,12 @@ export interface MarsGrid {
   solarFactor: number;
 }
 
+/** Tipo (`Sample.rock`) de las muestras de plantas del invernadero. */
+export const PLANT_ROCK = 'plant';
+export const isPlant = (sample: Sample): boolean => sample.rock === PLANT_ROCK;
+/** Muestras de plantas [regla]: una por sol como mucho, livianas y con algo de valor científico. */
+const PLANT_SAMPLES = { max: 4, massKg: 1, value: 8, harvestFoodKg: 2 } as const;
+
 /**
  * Escena `Mars` sin motor (§4.4): la base en el cráter Gale con el polvo (UV) y el frío reales de REMS, la luz
  * del sol marciano, MOXIE, el invernadero y las salidas al exterior a juntar muestras.
@@ -198,6 +205,32 @@ export class MarsSession extends HabitatSession<MarsContent> {
     return cable ? CABLE + cable.id : null;
   }
 
+  /**
+   * Dónde se para un automático para reparar: junto a una puerta del tubo roto (del lado de afuera del tubo) o al lado
+   * del cable cortado, en el exterior (sólo si se puede salir).
+   */
+  protected repairSpots(incident: IncidentState, _work: NonNullable<IncidentResponse['work']>): Point[] {
+    const { layout } = this.content;
+    if (incident.definitionId === 'tubeBreach') {
+      const id = this.tubeOf(incident.id);
+      const tube = layout.passages.find((p) => p.id === id);
+      const spots: Point[] = [];
+      for (const door of tube?.doorTiles ?? [])
+        for (const [dc, dr] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+          const point = { x: door.col + dc + 0.5, y: door.row + dr + 0.5 };
+          const zone = zoneAt(layout, point);
+          if (zone && zone !== id && zone !== EXTERIOR) spots.push(point);
+        }
+      return spots;
+    }
+    if (incident.definitionId === 'cableCut') return this.evaOpen ? [this.cableOf(incident.id).at] : [];
+    return [];
+  }
+
+  protected repairContextKey(): string {
+    return this.evaOpen ? 'eva' : '';
+  }
+
   protected incidentWorkZone(incident: IncidentState, work: NonNullable<IncidentResponse['work']>): string | undefined {
     if (incident.definitionId === 'tubeBreach') return this.tubeOf(incident.id);
     if (incident.definitionId === 'cableCut') return CABLE + this.cableOf(incident.id).id;
@@ -232,6 +265,57 @@ export class MarsSession extends HabitatSession<MarsContent> {
   /** Muestras juntadas: las del depósito y las que todavía lleva alguien encima. */
   get sampleStorage(): { stored: number; carried: number } {
     return { stored: this.stored.size, carried: this.carried.size };
+  }
+
+  /**
+   * Cosecha del invernadero (su minijuego, una vez por sol): deja una muestra de plantas cultivadas en Marte, que el
+   * tripulante lleva encima hasta el depósito, como las rocas, para subirla a la nave al final.
+   */
+  protected onTaskDone(task: HabitatTask, daily: boolean): void {
+    if (task.id !== 'greenhouse' || !daily) return;
+    // La cosecha siempre deja comida fresca; la muestra para la Tierra, mientras haya frascos.
+    this._state = { ...this._state, inventory: { ...this._state.inventory, foodKg: this._state.inventory.foodKg + PLANT_SAMPLES.harvestFoodKg } };
+    const s = this._state;
+    if (!this.plantSamplesLeft) return;
+    const id = `plant-${s.simDate.slice(0, 10)}`;
+    if (s.inventory.samples.some((x) => x.id === id)) return;
+    const sample: Sample = { id, siteId: id, massKg: PLANT_SAMPLES.massKg, value: PLANT_SAMPLES.value, rock: PLANT_ROCK };
+    this.carried.set(id, s.activeCrewId);
+    this._state = {
+      ...s,
+      inventory: { ...s.inventory, samples: [...s.inventory.samples, sample] },
+      history: [...s.history, { simDate: s.simDate, phase: 'mars', kind: 'decision', key: 'mars.log.plant', data: { crewId: s.activeCrewId } }],
+    };
+  }
+
+  /** Frascos de muestras de plantas que quedan por llenar. */
+  get plantSamplesLeft(): number {
+    return Math.max(0, PLANT_SAMPLES.max - this.state.inventory.samples.filter(isPlant).length);
+  }
+
+  /** Rocas juntadas (sin contar las plantas). */
+  get rocksCollected(): number {
+    return this.state.inventory.samples.filter((x) => !isPlant(x)).length;
+  }
+
+  /** Con todas las rocas juntadas se puede empezar el embarque sin esperar al último sol. */
+  get canLeaveEarly(): boolean {
+    return !this.departure && !this.outcome && this.sites.length > 0 && this.rocksCollected >= this.sites.length && !!this.content.departure;
+  }
+
+  /** Empieza el embarque ahora (F): todos a la nave y la carga del depósito. */
+  leaveEarly(): boolean {
+    if (!this.canLeaveEarly) return false;
+    const s = this._state;
+    this._state = { ...s, history: [...s.history, { simDate: s.simDate, phase: 'mars', kind: 'decision', key: 'mars.log.leaveEarly' }] };
+    this.windowEnded();
+    return true;
+  }
+
+  /** En una salida, o con muestras encima sin guardar en el depósito, hay trabajo: el reloj no se apura. */
+  protected extraWork(): boolean {
+    const active = this.state.crew.find((m) => m.id === this.state.activeCrewId);
+    return active?.location === EXTERIOR || [...this.carried.values()].includes(this.state.activeCrewId);
   }
 
   /** Quien entra al depósito deja ahí las muestras que lleva. */
@@ -323,12 +407,14 @@ export class MarsSession extends HabitatSession<MarsContent> {
         daylight: this.daylight,
         evaOpen: this.evaOpen,
         samples: {
-          count: samples.length,
+          count: this.rocksCollected,
           total: this.sites.length,
           kg: Math.round(samples.reduce((sum, x) => sum + x.massKg, 0) * 10) / 10,
           value: samples.reduce((sum, x) => sum + x.value, 0),
           ...this.sampleStorage,
         },
+        plants: samples.filter(isPlant).length,
+        canLeave: this.canLeaveEarly,
         grid: this.grid,
       },
     };

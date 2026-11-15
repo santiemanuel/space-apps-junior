@@ -9,6 +9,8 @@ import type { PhaseSceneData, VoyageSceneData } from '../scenes/sceneData';
 import type { MapViewData, MapViewOptions } from '../scenes/simulation/simulationData';
 import { continueFlow } from './devContinue';
 import type { DevDataBuilders } from './devLaunch';
+import { MARS_CONTENT } from '../../content/gale';
+import { sampleSites } from '../../core/mars/MarsSession';
 
 const DAY_MS = 86_400_000;
 
@@ -73,7 +75,7 @@ const viewOf = (params: URLSearchParams): MapViewData => ({
 /**
  * Datos de prueba para abrir las escenas de simulación con `?scene=`. Dueño: Santiago.
  * `?scene=Voyage&leg=back&where=shelter&broken=scrubber&battery=0` · `?scene=Mars&km=6&where=airlock` (distancia del aterrizaje a la base y cuarto donde
- * arranca el jugador) · `?scene=Mars&incident=tubeBreach,cableCut:2,fuseBlown` (averías de la base) · más los de `phaseState` y `viewOf`.
+ * arranca el jugador) · `?scene=Mars&incident=tubeBreach,cableCut:2,fuseBlown` (averías de la base) · `&rocks=all` (todas las rocas ya juntadas) · más los de `phaseState` y `viewOf`.
  */
 export const simulationDevData: DevDataBuilders = {
   Voyage: (base, params): VoyageSceneData & MapViewData => {
@@ -103,9 +105,13 @@ export const simulationDevData: DevDataBuilders = {
       const [definitionId, n = '0'] = spec.split(':');
       return { id: `dev-${definitionId}-${n}`, definitionId: definitionId!, phase: 'mars' as const, status: 'active' as const, impactAt: state.simDate };
     });
+    const landingDistanceKm = Number(params.get('km') ?? 2);
+    // `rocks=all`: arranca con todas las rocas ya juntadas (para probar la vuelta anticipada con F).
+    const rocks = params.get('rocks') === 'all' ? sampleSites(MARS_CONTENT, state.seed, landingDistanceKm).map((x) => ({ id: x.id, siteId: x.id, massKg: x.massKg, value: x.value, ...(x.rock ? { rock: x.rock } : {}) })) : state.inventory.samples;
     const played: GameState = {
       ...state,
-      landingDistanceKm: Number(params.get('km') ?? 2),
+      landingDistanceKm,
+      inventory: { ...state.inventory, samples: rocks },
       activeIncidents: [...state.activeIncidents, ...incidents],
       meters: { ...state.meters, energy: { batteryKwh: GALE_POWER.capacityKwh, capacityKwh: GALE_POWER.capacityKwh } },
       // Llegan del viaje de ida con algo de dosis; `where` elige dónde arranca el jugador.

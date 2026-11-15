@@ -5,6 +5,7 @@ import { MissionFlow } from '../../core/flow/MissionFlow';
 import { MemorySaveStore } from '../../core/save/SaveStore';
 import type { GameState } from '../../core/state/types';
 import { FlowDirector } from '../scenes/flow/FlowDirector';
+import { createBrowserSaveStore } from '../storage/browserSaveStore';
 
 let game: Phaser.Game | null = null;
 
@@ -25,4 +26,12 @@ export function continueFlow(bus: EventBus<GameEvents>, state: GameState): void 
     // Como en `FlowDirector`: después del cuadro en el que terminó la fase.
     queueMicrotask(() => game && new FlowDirector(game, new MemorySaveStore()).play(flow.state));
   });
+}
+
+let director: FlowDirector | null = null;
+
+/** Director del flujo para las escenas abiertas solas con `?scene=`: sus botones llevan de verdad al menú o a la partida. */
+export function devDirector(): FlowDirector | null {
+  if (!game) return null;
+  return (director ??= new FlowDirector(game, createBrowserSaveStore()));
 }

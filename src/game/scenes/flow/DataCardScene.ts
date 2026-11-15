@@ -3,7 +3,7 @@ import { t, type TranslationKey } from '../../../i18n';
 import { formatDate, formatNumber } from '../../../i18n/format';
 import { GAME_WIDTH } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
-import { addButton, addPanel, addShade, addText, COLOR, onKeys, openSource } from '../../ui/ui';
+import { addButton, addPanel, addShade, addText, COLOR, onKeys, openSource, overlayIn } from '../../ui/ui';
 import type { DataCardSceneData } from '../sceneData';
 
 /** `onClose` lo pone quien abre la tarjeta (el director del flujo) para reanudar el juego. */
@@ -64,6 +64,7 @@ export class DataCardScene extends Phaser.Scene {
     addButton(this, CENTER, 582, () => this.close(), { size: 20 }).setLabel(t('report.dataCard.continue')).setFocused(true);
     addText(this, CENTER, 660, 13, COLOR.dim).setOrigin(0.5).setText(t('report.dataCard.controls'));
 
+    overlayIn(this);
     onKeys(this, (code) => {
       if (code === 'Enter' || code === 'NumpadEnter' || code === 'Space' || code === 'Escape') this.close();
     });

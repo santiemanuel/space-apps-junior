@@ -4,7 +4,7 @@ import type { Minigame, MinigameId, MinigameSetup } from './Minigame';
 import { PatchGame, StarsGame, WaterGame } from './puzzles';
 import type { IncidentId } from '../incidents/definitions';
 import { FusesGame, WiresGame } from './power';
-import { MealGame, PlantsGame, SealsGame, ShieldGame } from './rooms';
+import { HarvestGame, MealGame, PlantsGame, SealsGame, ShieldGame } from './rooms';
 
 const GAMES: Record<MinigameId, new (setup: MinigameSetup) => Minigame> = {
   bike: BikeGame,
@@ -16,6 +16,7 @@ const GAMES: Record<MinigameId, new (setup: MinigameSetup) => Minigame> = {
   meal: MealGame,
   shield: ShieldGame,
   plants: PlantsGame,
+  harvest: HarvestGame,
   moxie: MoxieGame,
   seals: SealsGame,
   patch: PatchGame,

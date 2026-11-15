@@ -12,6 +12,7 @@ import type { ReportData } from '../scenes/flow/ReportScene';
 import type { TitleSceneData } from '../scenes/flow/TitleScene';
 import type { LoadoutSceneData, ManeuverSceneData, PhaseSceneData } from '../scenes/sceneData';
 import type { DevDataBuilders } from './devLaunch';
+import { devDirector } from './devContinue';
 
 const levelOf = (params: URLSearchParams): UnlockLevel => Math.min(4, Math.max(1, Number(params.get('level') ?? 1))) as UnlockLevel;
 
@@ -64,8 +65,8 @@ export const flowDevData: DevDataBuilders = {
     if (params.get('save') === '1') saveGame(store, base.state);
     return {
       store,
-      onNewGame: (state) => console.info('[dev] nueva misión', state),
-      onContinue: (state) => console.info('[dev] continuar misión', state),
+      onNewGame: (state) => devDirector()?.play(state),
+      onContinue: (state) => devDirector()?.play(state),
     };
   },
   Maneuver: (base, params): ManeuverSceneData => {
@@ -84,16 +85,16 @@ export const flowDevData: DevDataBuilders = {
     ...base,
     state: reportState(base.state),
     outcome: params.get('outcome') === 'suspended' ? 'suspended' : 'completed',
-    onExit: () => console.info('[dev] volver al menú'),
+    onExit: () => devDirector()?.showTitle(),
   }),
   DataCard: (base, params): DataCardData => ({
     event: makeRealEvent({ capped: params.get('capped') === '1' }),
     bus: base.bus,
-    onClose: () => console.info('[dev] tarjeta cerrada'),
+    onClose: () => devDirector()?.showTitle(),
   }),
   Pause: (base: PhaseSceneData): PauseSceneData => {
     // Sin director: el guardado de prueba responde enseguida.
     base.bus.on('save:requested', () => base.bus.emit('save:completed', { savedAt: new Date().toISOString() }));
-    return { ...base, onResume: () => console.info('[dev] continuar'), onExit: () => console.info('[dev] salir al menú') };
+    return { ...base, onResume: () => devDirector()?.showTitle(), onExit: () => devDirector()?.showTitle() };
   },
 };

@@ -42,7 +42,7 @@ export interface MissionReport {
   achievements: { id: string; earned: boolean }[];
   crew: CrewReport[];
   /** Muestras que llegaron a la Tierra (sólo cuentan al volver, §5). */
-  samples: { count: number; value: number; massKg: number };
+  samples: { count: number; value: number; massKg: number; /** Cuántas son plantas del invernadero. */ plants: number };
   landingDistanceKm: number | null;
   /** Decisiones e hitos en orden, sin el detalle de cada etapa de maniobra. */
   decisions: MissionLogEntry[];
@@ -146,6 +146,7 @@ export function buildReport(
       count: samples.length,
       value: samples.reduce((sum, s) => sum + s.value, 0),
       massKg: Math.round(samples.reduce((sum, s) => sum + s.massKg, 0) * 10) / 10,
+      plants: samples.filter((s) => s.rock === 'plant').length,
     },
     landingDistanceKm: state.landingDistanceKm,
     decisions: decisionsOf(state.history),

@@ -113,5 +113,12 @@
   "panel.gridBatteryOff": "The battery can't reach the base: no energy at night",
   "panel.gridLoss": "A cable is cut: energy takes the long way and some is lost",
   "panel.blackout": "No power! MOXIE and the greenhouse switched off",
-  "panel.tubes": "Broken tubes: {count}"
+  "panel.tubes": "Broken tubes: {count}",
+  "log.plant": "Greenhouse harvest: a sample of plants grown on Mars",
+  "log.leaveEarly": "All rocks collected: the crew decides to go back early",
+  "plant.collected": "Harvest! Take the plant sample to storage to load it on the ship.",
+  "leave.prompt": "You have all the rocks · F: start the trip home",
+  "leave.confirm": "Press F again to start boarding",
+  "leave.started": "Homeward! Carry the cargo from storage to the ship.",
+  "panel.plants": "Plants: {count}"
 }

@@ -26,6 +26,9 @@ import { HUD_ICONS, preloadHudIcons } from '../../hudIcons';
 import type { SkyLight } from './marsSky';
 import { preloadMinigames } from './minigames/Painter';
 import { createMap, preloadMap, type MapAssets, type MapView, type Solid } from './TiledMapView';
+import { audio } from '../../audio/audio';
+import { drawPresence } from './PanelColumn';
+import { REPAIR_ACTIVITY } from '../../../core/habitat/HabitatSession';
 
 /** Escenas superpuestas que se abren con una tecla desde el mapa. */
 const OVERLAY_KEYS: readonly [string, SceneKey][] = [
@@ -50,6 +53,9 @@ const CAMERA_DEADZONE = { width: 96, height: 64 } as const;
 const CAMERA_LOOK_UP = 64;
 /** Lo que tarda la cámara en ir de un tripulante a otro al cambiar con Tab (s). */
 const CAMERA_GLIDE_S = 0.35;
+/** Hasta dónde se oyen las puertas del jugador (px). */
+const DOOR_SOUND_REACH = 5 * 48;
+
 export const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 
 /** Color de cada tripulante en el minimapa (el de su traje). */
@@ -68,6 +74,8 @@ export const toPx = (p: Point) => ({ x: p.x * TILE, y: p.y * TILE });
  * la sesión de `src/core/` que crea cada escena. Textos propios en `<namespace>.zone|station|task|outcome.*`.
  */
 export abstract class SimulationMapScene<S extends HabitatSession, D extends PhaseSceneData = PhaseSceneData> extends Phaser.Scene {
+  /** Z: dormir en la enfermería hasta el día siguiente. */
+  private sleepKey: Phaser.Input.Keyboard.Key | null = null;
   protected sceneData!: D;
   protected session!: S;
   protected layout!: ShipLayout;
@@ -76,6 +84,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private sprites = new Map<CrewId, CrewSprite>();
   private colliders = new Map<CrewId, Phaser.Physics.Arcade.Collider>();
   private labels = new Map<CrewId, Phaser.GameObjects.Text>();
+  /** Puntos de estado (en línea, ausente, no molestar, desconectado) junto a los nombres. */
+  private presenceDots!: Phaser.GameObjects.Graphics;
   private stationBars = new Map<string, Phaser.GameObjects.Rectangle>();
   private stationFrames = new Map<string, Phaser.GameObjects.Rectangle>();
   /** Cartel y barra de cada estación: se ocultan mientras el jugador está en ese cuarto (ahí ve la ayuda). */
@@ -187,6 +197,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   }
 
   create(): void {
+    this.sleepKey = this.input.keyboard?.addKey('Z') ?? null;
+    this.presenceDots = this.add.graphics().setDepth(41);
     ({ session: this.session, content: this.content } = this.createSession(this.sceneData));
     this.layout = this.content.layout;
     this.controls = createKeyboardControls(this);
@@ -260,6 +272,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     }
     // Con cada aviso nuevo se abre la planificación en pausa, para preparar la respuesta (§3.1, §4.4).
     const offAlert = this.sceneData.bus.on('alert:level', ({ level }) => {
+      if (level !== 'calm') audio.sfx(level === 'impact' ? 'siren' : 'alarm');
       if (level === 'alert' && !this.ended && !this.scene.isActive(SceneKeys.Planning)) this.scene.launch(SceneKeys.Planning, overlay);
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, offAlert);
@@ -296,13 +309,17 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       if (action) s.doAction(activeZone);
       else this.openMinigame(minigame!);
     }
+    if (!this.playing && this.sleepKey && Phaser.Input.Keyboard.JustDown(this.sleepKey) && s.sleep(activeZone)) audio.sfx('whoosh');
     const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone, activePosition) === null;
     s.update(dt, { activeZone, activePosition, interacting });
 
     const choice = this.playing ? null : this.controls.choiceJustPressed();
     const decision = s.pendingDecisions()[0];
     const option = choice && decision?.options[choice - 1];
-    if (option && option.available) s.respond(decision.incident.id, option.response.id);
+    if (option && option.available) {
+      audio.sfx('select');
+      s.respond(decision.incident.id, option.response.id);
+    }
 
     this.moveAutoCrew(dt);
     if (this.toast.visible && this.time.now > this.toastUntil) this.toast.setVisible(false);
@@ -317,14 +334,20 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
 
   /** Abre el minijuego en el tablero, con el cartel final (lo que se logra) ya traducido. */
   private openMinigame(m: ZoneMinigame): void {
+    audio.sfx('open');
     const s = this.session;
     const task = s.taskAt(m.zone)!;
     const name = NAMES[s.state.activeCrewId];
-    const reward = task.kind === 'incident' ? t('hud.minigame.reward.incident', { title: tr(`${task.textKey}.title`) }) : this.rewardText(task.task, name);
+    const reward = task.kind === 'incident' ? t('hud.minigame.reward.incident', { title: tr(`${task.textKey}.title`) }) : (this.minigameReward(m) ?? this.rewardText(task.task, name));
     const badge = m.setup.hard ? t('hud.minigame.hard') : !m.setup.easy ? null : s.state.helpMode ? t('hud.minigame.easy.help') : t('hud.minigame.easy.specialist', { name });
     this.playing = m.zone;
     s.minigameStarted(m);
     this.sim.emit('sim:minigame', { ...m, reward, badge });
+  }
+
+  /** Lo que se gana con un minijuego propio del lugar (en Marte, la cosecha); null para el texto de siempre. */
+  protected minigameReward(_m: ZoneMinigame): string | null {
+    return null;
   }
 
   private rewardText(task: HabitatTask, name: string): string {
@@ -348,6 +371,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const textKey = (definitionId: string) => definitionOf(INCIDENTS, definitionId).textKey;
     const offs = [
       bus.on('crew:switched', ({ crewId }) => {
+        audio.sfx('select', 1.2);
         const current = this.sprites.get(this.session.state.activeCrewId)!.sprite;
         this.session.switchCrew(crewId, { x: current.x / TILE, y: current.y / TILE });
         this.selectActive(true);
@@ -360,8 +384,14 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         // La tormenta de polvo llega con una ráfaga.
         if (i.definitionId === 'dustStorm') this.cameras.main.shake(900, 0.004);
       }),
-      bus.on('incident:resolved', (i) => this.showToast(t('hud.toast.resolved', { title: tr(`${textKey(i.definitionId)}.title`) }))),
-      bus.on('cascade:entered', (e) => this.showToast(tr(`incidents.cascade.${e.meter}.entered`, { name: e.crewId ? NAMES[e.crewId as CrewId] : '' }))),
+      bus.on('incident:resolved', (i) => {
+        audio.sfx('success');
+        this.showToast(t('hud.toast.resolved', { title: tr(`${textKey(i.definitionId)}.title`) }));
+      }),
+      bus.on('cascade:entered', (e) => {
+        audio.sfx('warning');
+        this.showToast(tr(`incidents.cascade.${e.meter}.entered`, { name: e.crewId ? NAMES[e.crewId as CrewId] : '' }));
+      }),
       bus.on('realEvent:shown', (e) => this.showToast(t('hud.toast.realEvent', { mission: e.mission, instrument: e.instrument }))),
     ];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offs.forEach((off) => off()));
@@ -391,11 +421,18 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const s = this.session;
     const active = this.sprites.get(s?.state.activeCrewId)?.sprite;
     if (!active) return;
-    this.mapView?.update([...this.sprites.values()].map(({ sprite }) => ({ x: sprite.x, y: sprite.y })), deltaMs / 1000, s.closedPassages());
+    // Sonido de las puertas que se abren y se cierran cerca del jugador (en el momento, no al cambiar de cuarto).
+    const player = this.sprites.get(s.state.activeCrewId)?.sprite;
+    this.mapView?.update([...this.sprites.values()].map(({ sprite }) => ({ x: sprite.x, y: sprite.y })), deltaMs / 1000, s.closedPassages(), (state, x, y) => {
+      if (player && Math.hypot(player.x - x, player.y - y) < DOOR_SOUND_REACH) audio.sfx(state === 'open' ? 'door' : 'doorClose');
+    });
+    // Estado de cada uno (como en Discord) junto a su nombre en el mapa.
+    this.presenceDots.clear();
     for (const m of s.state.crew) {
       const view = this.sprites.get(m.id)!;
       view.sync(m);
-      this.labels.get(m.id)!.setPosition(view.sprite.x, view.sprite.y + 6);
+      const label = this.labels.get(m.id)!.setPosition(view.sprite.x + 6, view.sprite.y + 6);
+      drawPresence(this.presenceDots, label.x - label.width / 2 - 7, label.y + label.height / 2, s.presenceOf(m.id), 4);
     }
     const activePosition = { x: active.x / TILE, y: active.y / TILE };
     this.renderMap(activePosition, zoneAt(this.layout, activePosition), deltaMs / 1000);
@@ -447,6 +484,9 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
    */
   private moveAutoCrew(dt: number): void {
     for (const [id, view] of this.sprites) {
+      // Globo con el ícono de lo que hace cada automático (gimnasio, depurador, dormir, refugio…).
+      const activity = this.session.activityOf(id);
+      view.setActivity(activity === REPAIR_ACTIVITY ? 'spares' : activity);
       if (id === this.session.state.activeCrewId) continue;
       const target = toPx(this.session.positionOf(id));
       const { sprite } = view;
@@ -735,6 +775,17 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const s = this.session;
     const member = this.member(s.state.activeCrewId);
     if (member.resting) return t('hud.crew.resting', { name: NAMES[member.id] });
+    if (s.asleep) return t('hud.sleep.sleeping');
+    if (s.canSleep(zone)) {
+      const here = this.roomPrompt(position, zone);
+      return here ? `${here}  ·  ${t('hud.sleep.prompt')}` : t('hud.sleep.prompt');
+    }
+    return this.roomPrompt(position, zone);
+  }
+
+  /** Texto de la sala para el jugador (lo que hace E acá). */
+  private roomPrompt(position: Point, zone: string | null): string {
+    const s = this.session;
     const place = this.placePrompt(position, zone);
     if (place !== null) return place;
     const task = s.taskAt(zone, position);

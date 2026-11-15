@@ -56,5 +56,6 @@
   "dataCard.continue": "Seguir",
   "dataCard.controls": "Enter, Espacio o Esc para seguir · clic en la fuente para abrirla",
   "achievement.allRockTypes": "Coleccionista de rocas",
-  "achievement.allRockTypes.description": "Juntaste en Marte una roca de cada tipo: conglomerado, lutita, basalto, arenisca y azufre."
+  "achievement.allRockTypes.description": "Juntaste en Marte una roca de cada tipo: conglomerado, lutita, basalto, arenisca y azufre.",
+  "samples.plants": "De ellas, {plants} de plantas del invernadero."
 }
