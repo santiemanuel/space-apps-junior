@@ -30,6 +30,7 @@ que pide decisiones sobre soporte vital, blindaje contra radiación, energía y 
 | `series/gale-weather.json` | [REMS de Curiosity](https://mars.nasa.gov/msl/mission/weather/) por fecha terrestre, recortado al rango de RAD | Derivado | **Polvo** (índice UV → f_polvo) y **frío** (mínima → calefacción) en la base de Gale |
 | `curated/mars-conjunctions.json` | NASA JPL (anuncios de cada moratoria de comandos) | Curado | **Conjunción solar**: días sin Control de Misión en Marte (2015, 2017, 2019, 2021, 2023) |
 | `curated/nasa-std-3001.json` | NASA-STD-3001 (OCHMO Technical Briefs), BVAD, NASA (ISS) | Curado | Límite de CO2, agua potable y por hora de EVA, kcal diarias, reciclaje de agua y ejercicio diario de los medidores |
+| `curated/planet-elements.json` | [NASA JPL SSD: Approximate Positions of the Planets](https://ssd.jpl.nasa.gov/planets/approx_pos.html) (Tabla 1, 1800–2050) | Curado | **Demora de la señal** de Control de Misión: distancia Tierra–nave y Tierra–Marte por fecha (de segundos al salir a ~16–20 min en Marte en 2024) |
 
 **Descargado**: lo genera `npm run datasets:fetch` (año completo, en tramos de 60 días, que es el máximo de DONKI).
 **Derivado**: lo generan `node scripts/build-storms.mjs`, `node scripts/build-series.mjs` y `node scripts/build-events.mjs` a partir de `datasets/raw/` (sin red).
@@ -79,6 +80,10 @@ Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 40
   (8013 μGy/h) contra la mediana de su media diaria después del cruce. Los otros sensores marcaron entre 4122 y
   17 251 μGy/h según dónde estaban en la cápsula; la serie los guarda a los cuatro. Sólo hay datos diarios, no el perfil
   minuto a minuto del cruce.
+- **Demora de la señal** (`curated/planet-elements.json`): posición heliocéntrica de la Tierra y Marte con las fórmulas
+  keplerianas de JPL (error de miles de km, despreciable para minutos de luz; el test reproduce los 0,415 UA del
+  acercamiento del 06/10/2020). En el viaje, la nave va en línea recta entre el planeta de salida y el de llegada
+  [regla]. Control de Misión responde tras la ida y vuelta de la señal, en tiempo simulado.
 - **Control de Misión** (`notices/donki-notices.json`): se extraen la clase de la llamarada, el satélite que detectó
   el SEP y la velocidad y la llegada a Marte de cada CME. En español se muestra una plantilla
   (`hud.missionControl.notice.*`); en inglés, además, el primer párrafo del texto original. Los avisos se refieren

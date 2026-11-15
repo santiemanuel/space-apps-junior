@@ -40,6 +40,10 @@ export class VoyageSession extends HabitatSession<VoyageContent> {
     };
   }
 
+  protected averageGenerationKw(): number {
+    return this.content.power.panelKwAt1Au / cruiseDistanceAu(this.progress, this.leg) ** 2;
+  }
+
   protected wearFactor(): number {
     return this.leg === 'back' ? this.content.back.wearMultiplier : 1;
   }

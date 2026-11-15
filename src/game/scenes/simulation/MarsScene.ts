@@ -1,16 +1,21 @@
 import { MARS_CONTENT } from '../../../content/gale';
 import { INCIDENTS } from '../../../content/incidents';
+import { earthMarsDelaySeconds } from '../../../core/environment/orbits';
 import { EXTERIOR, type Point } from '../../../core/habitat/layout';
 import { MarsSession } from '../../../core/mars/MarsSession';
 import { incidentTimeline } from '../../../data/incidentTimeline';
+import { EARTH_ORBIT, MARS_ORBIT } from '../../../data/planets';
 import { seriesFor } from '../../../data/realData';
 import { galeWeatherOn } from '../../../data/series';
 import { t } from '../../../i18n';
 import { TILE } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
+import type Phaser from 'phaser';
 import type { PhaseSceneData } from '../sceneData';
-import type { PanelRow } from './VoyagePanel';
-import { LIGHT, SimulationMapScene, toPx, tr } from './SimulationMapScene';
+import { SimulationMapScene, toPx, tr } from './SimulationMapScene';
+
+/** Donde está estacionado Curiosity en el exterior (tiles). */
+const CURIOSITY_SPOT = { x: 43.5, y: 11.5 };
 
 /**
  * Estancia en el cráter Gale (game-design §4.4): la base, la esclusa y el exterior con los puntos de muestreo.
@@ -30,8 +35,29 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
       timeline: incidentTimeline('mars', window, INCIDENTS, MARS_CONTENT.incidentRules),
       doseRate: (date) => seriesFor('mars', date).dose,
       weather: galeWeatherOn,
+      signalDelaySeconds: (date) => earthMarsDelaySeconds(EARTH_ORBIT, MARS_ORBIT, date),
     });
     return { session, content: MARS_CONTENT };
+  }
+
+  private curiosityBubble!: Phaser.GameObjects.Text;
+  private bubbleDay = '';
+
+  create(): void {
+    super.create();
+    // Curiosity, el vecino robot (§4.4, §5.3): decorado en el exterior que reporta el dato real del día.
+    const { x, y } = toPx(CURIOSITY_SPOT);
+    const g = this.add.graphics().setDepth(6);
+    g.fillStyle(0xe2e8f0).fillRect(x - 18, y - 8, 36, 14);
+    g.fillStyle(0x2d3748);
+    for (const dx of [-14, 0, 14]) g.fillCircle(x + dx, y + 9, 5);
+    g.lineStyle(3, 0xe2e8f0).lineBetween(x + 10, y - 8, x + 10, y - 26);
+    g.fillStyle(0xe2e8f0).fillRect(x + 4, y - 32, 14, 7);
+    this.add.text(x, y + 18, 'Curiosity', { fontFamily: 'monospace', fontSize: '11px', color: '#fbd38d' }).setOrigin(0.5, 0).setDepth(6);
+    this.curiosityBubble = this.add
+      .text(x - 24, y - 40, '', { fontFamily: 'monospace', fontSize: '11px', color: '#1a202c', backgroundColor: '#fefcbf', padding: { x: 4, y: 2 }, wordWrap: { width: 220 } })
+      .setOrigin(1, 1)
+      .setDepth(6);
   }
 
   protected outcomeKey(outcome: 'completed' | 'suspended'): string {
@@ -42,26 +68,13 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     return !this.session.evaOpen;
   }
 
-  protected placeRows(): PanelRow[] {
-    const s = this.session;
-    const w = s.weather;
-    const samples = s.state.inventory.samples;
-    const kg = Math.round(samples.reduce((sum, x) => sum + x.massKg, 0) * 10) / 10;
-    const value = samples.reduce((sum, x) => sum + x.value, 0);
-    return [
-      { gap: 6, text: t('mars.panel.curiosity', { sol: w.sol, min: Math.round(w.minTempC), max: w.maxTempC === null ? '?' : Math.round(w.maxTempC) }), color: '#fbd38d', size: 12 },
-      { text: `${tr(`mars.uv.${w.uv ?? 'none'}`)} · ${t('common.dataDate', { date: this.formatDate(w.date) })}`, color: w.uv === 'Low' ? LIGHT.red : w.uv === 'Moderate' ? LIGHT.yellow : '#a0aec0', size: 11 },
-      {
-        text: `${t(s.daylight ? 'mars.panel.day' : 'mars.panel.night')} · ${t(s.evaOpen ? 'mars.panel.evaOpen' : s.daylight ? 'mars.panel.evaBlocked' : 'mars.panel.evaNight')}`,
-        color: s.evaOpen ? LIGHT.green : LIGHT.yellow,
-        size: 12,
-      },
-      { text: t('mars.panel.samples', { count: samples.length, total: s.sites.length, kg, value }), color: '#e2e8f0', size: 12 },
-    ];
-  }
-
   protected renderPlace(): void {
     const s = this.session;
+    if (this.bubbleDay !== s.simDate.slice(0, 10)) {
+      this.bubbleDay = s.simDate.slice(0, 10);
+      const w = s.weather;
+      this.curiosityBubble.setText(t('mars.curiosity.bubble', { min: Math.round(w.minTempC), sky: tr(`mars.uv.${w.uv ?? 'none'}`) }));
+    }
     const ext = this.layout.exterior?.rect;
     if (ext && !s.daylight) this.markers.fillStyle(0x0b1020, 0.45).fillRect(ext.col * TILE, ext.row * TILE, ext.cols * TILE, ext.rows * TILE);
     for (const { site, progress } of s.remainingSites()) {

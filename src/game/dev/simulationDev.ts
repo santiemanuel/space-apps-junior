@@ -74,7 +74,11 @@ export const simulationDevData: DevDataBuilders = {
       },
     };
   },
-  // Prototipo: dependen de GameSession y se abren sólo por el camino normal.
-  Habitat: null,
+  // Superpuestas: necesitan el bus de la simulación de una escena de mapa (P, C y G desde Voyage o Mars).
   Hud: null,
+  Planning: null,
+  MissionControl: null,
+  DataPanel: null,
+  // Prototipo: depende de GameSession y se abre sólo por el camino normal.
+  Habitat: null,
 };

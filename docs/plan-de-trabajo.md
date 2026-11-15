@@ -360,14 +360,24 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - `Planning`: rutinas y tablero de energía con el mouse.
 - `MissionControl`: demora real con cuenta regresiva y bloqueo durante la conjunción solar.
 - `DataPanel`: gráficas con la posición del jugador en el tiempo.
+- Hecho: las superpuestas hablan con la sesión por un bus propio, `SimulationEvents` (`core/habitat/events.ts`):
+  `sim:snapshot` en cada cuadro y pedidos `sim:pause|respond|sacrifice|routines|loads|ask`. No toca `GameEvents.ts`;
+  se puede unir en la integración. Las escenas de mapa lanzan `Hud` y abren `Planning` (P, pausa), `MissionControl`
+  (C, el reloj sigue) y `DataPanel` (G, pausa). `HudScene` conserva el tablero del prototipo lunar si `Boot` la abre
+  con `{ session }`. Demora de la señal con las órbitas aproximadas de JPL (`datasets/curated/planet-elements.json`);
+  consejos y diagnóstico remoto (×1,5) los pide la comandante desde la radio. El monitor de partículas suena con
+  Web Audio (M silencia).
+- Después de S9: la planificación se abre sola con cada aviso nuevo; el tablero tiene tantos enchufes como alcanza
+  el sol de hoy (`power.socketKw`, con polvo "Low" en Gale no queda ninguno); Control de Misión suma noticias de casa
+  cada 3 días; Curiosity está estacionado en el exterior con el dato del día; el tablero titila en Alerta.
 
 ### Entregables de Santiago
 
-- [ ] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
-- [ ] Series de `src/data/` documentadas en `datasets/README.md`.
-- [ ] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
-- [ ] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
-- [ ] Textos en `voyage/mars/hud/incidents.json` (es + en).
+- [x] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
+- [x] Series de `src/data/` documentadas en `datasets/README.md`.
+- [x] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
+- [x] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
+- [x] Textos en `voyage/mars/hud/incidents.json` (es + en).
 
 ---
 

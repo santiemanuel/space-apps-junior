@@ -119,6 +119,11 @@ describe('Mars: polvo, frío, MOXIE e invernadero', () => {
     expect(battery('Low')).toBeLessThan(battery('High') - 20);
   });
 
+  it('tablero de energía: con cielo limpio alcanzan los enchufes; con mucho polvo no queda ninguno (§3.2)', () => {
+    expect(mars({}, { uv: 'High' }).session.sockets()).toBe(2);
+    expect(mars({}, { uv: 'Low' }).session.sockets()).toBe(0);
+  });
+
   it('de noche no hay sol ni salidas', () => {
     const { session } = mars({ simDate: at(20) });
     expect(session.daylight).toBe(false);

@@ -24,6 +24,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - Todo el azar pasa por `Rng` (con semilla), nunca por `Math.random`.
 - Idioma de UI, comentarios y tests: español. Público objetivo: niños de 7–12 años (lenguaje sencillo en la UI).
 - Trabajo en paralelo (Santiago: simulación · Facundo: flujo y maniobras): ver `docs/plan-de-trabajo.md` §8 para los dueños de cada carpeta. Archivos congelados fuera de la Etapa 0 y la integración: `main.ts`, `display.ts`, `GameEvents.ts`, `sceneKeys.ts`, `config.ts`, `scenes/registry.ts`, `scenes/sceneData.ts`, `dev/devLaunch.ts`, `i18n/index.ts`, `package.json` y los `types.ts` de contratos.
+- Superpuestas de la simulación (`Hud`, `Planning`, `MissionControl`, `DataPanel`): reciben `SimulationSceneData` (`PhaseSceneData` + `sim`, el bus `SimulationEvents` de `core/habitat/events.ts`) y se abren desde `Voyage`/`Mars` con P, C y G; no se abren solas con `?scene=`.
 - Escenas nuevas: en `src/game/scenes/flow/` o `simulation/` y registradas en `flowScenes.ts` o `simulationScenes.ts`; reciben `PhaseSceneData` (`state` + `bus`) y se hablan sólo por el bus.
 - Textos de UI con `t('<archivo>.<clave>')` de `src/i18n/`; cada clave en `es/` y `en/` (lo verifica un test). `src/core/` no traduce: guarda claves.
 - El estado completo de partida es `GameState` (JSON puro); `MissionState` es el de una tarea del prototipo.

@@ -217,6 +217,17 @@ describe('Voyage: tareas de la nave', () => {
     expect(session.state.systems.scrubber).toBe('green');
   });
 
+  it('con el depurador al día, mantener apretado no repite el mantenimiento', () => {
+    const { session } = voyage({ length: 'long', systems: { ...makeGameState().systems, scrubber: 'yellow' } });
+    runUntil(session, () => session.state.systems.scrubber === 'green', { activeZone: 'scrubber', interacting: true }, 0.25, 400);
+    expect(session.taskAt('scrubber')).toMatchObject({ upToDate: true, progress: 1 });
+    const fatigue = member(session, 'vega').fatigue;
+    runUntil(session, () => false, { activeZone: 'scrubber', interacting: true }, 0.25, 40);
+    expect(session.taskAt('scrubber')).toMatchObject({ upToDate: true });
+    // No trabaja de más: sin horas de trabajo no se cansa por la tarea.
+    expect(member(session, 'vega').fatigue).toBeLessThanOrEqual(fatigue);
+  });
+
   it('una llamada a casa desde la radio levanta el ánimo de toda la tripulación', () => {
     const crew = makeCrew().map((m) => ({ ...m, morale: 0.5 }));
     const { session } = voyage({ length: 'long', crew });

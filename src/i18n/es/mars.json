@@ -38,5 +38,6 @@
   "uv.none": "Sin dato de polvo hoy",
   "outcome.completed": "¡Terminó la estancia en Marte! Ahora hay que elegir qué se lleva la nave de vuelta.",
   "outcome.suspended": "Misión suspendida: la tripulación está a salvo en el refugio esperando el rescate.",
-  "log.sample": "Muestra de {massKg} kg (valor {value})"
+  "log.sample": "Muestra de {massKg} kg (valor {value})",
+  "curiosity.bubble": "¡Hola, vecinos! Hoy la mínima es de {min} °C. {sky}"
 }

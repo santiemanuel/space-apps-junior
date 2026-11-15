@@ -40,6 +40,8 @@ export interface HabitatPower {
   loadsKw: Record<string, number>;
   /** Lo que queda encendido en el modo de emergencia de energía (§3.5). */
   essentialLoads: readonly string[];
+  /** Potencia que representa cada enchufe del tablero (kW) [regla]: con menos luz hay menos enchufes (§3.2). */
+  socketKw: number;
 }
 
 /** Contenido común de la nave y de la base; se inyecta para probar las sesiones con dobles. */
@@ -61,6 +63,8 @@ export interface HabitatContent {
   infirmaryZone: string;
   /** Refugio de agua (§3.2). */
   shelterZone: string;
+  /** Control de Misión (§3.7) [regla]: consola, energía del diagnóstico y cuánto acelera la reparación. */
+  missionControl: { consoleZone: string; diagnosisKwh: number; diagnosisBoost: number };
   meterRules: MeterRules;
   cascadeRules: CascadeRules;
   incidents: readonly IncidentDefinition[];

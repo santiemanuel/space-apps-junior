@@ -1,7 +1,9 @@
 import { INCIDENTS } from '../../../content/incidents';
 import { VOYAGE_CONTENT } from '../../../content/ship';
+import { cruiseDelaySeconds } from '../../../core/environment/orbits';
 import { VoyageSession } from '../../../core/voyage/VoyageSession';
 import { incidentTimeline } from '../../../data/incidentTimeline';
+import { EARTH_ORBIT, MARS_ORBIT } from '../../../data/planets';
 import { seriesFor } from '../../../data/realData';
 import { SceneKeys } from '../../sceneKeys';
 import type { VoyageSceneData } from '../sceneData';
@@ -23,6 +25,7 @@ export class VoyageScene extends SimulationMapScene<VoyageSession, VoyageSceneDa
       content: VOYAGE_CONTENT,
       timeline: incidentTimeline(phase, window, INCIDENTS, VOYAGE_CONTENT.incidentRules),
       doseRate: (date) => seriesFor(phase, date).dose,
+      signalDelaySeconds: (date) => cruiseDelaySeconds(EARTH_ORBIT, MARS_ORBIT, window, leg, date),
     });
     return { session, content: VOYAGE_CONTENT };
   }

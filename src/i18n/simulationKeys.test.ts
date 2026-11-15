@@ -3,8 +3,8 @@ import { CAMPAIGN_2024 } from '../content/campaign';
 import { INCIDENT_RULES, INCIDENTS } from '../content/incidents';
 import { CLOCK_RULES } from '../core/clock/MissionClock';
 import { stormAlert } from '../core/clock/schedule';
-import { GALE_LAYOUT, GALE_TASKS } from '../content/gale';
-import { SHIP_LAYOUT, VOYAGE_TASKS } from '../content/ship';
+import { GALE_LAYOUT, GALE_TASKS, MARS_CONTENT } from '../content/gale';
+import { SHIP_LAYOUT, VOYAGE_CONTENT, VOYAGE_TASKS } from '../content/ship';
 import { SACRIFICES } from '../core/cascade/sacrifices';
 import { CORRIDOR, EXTERIOR } from '../core/habitat/layout';
 import { incidentTimeline } from '../data/incidentTimeline';
@@ -51,6 +51,13 @@ describe('claves de texto de la simulación', () => {
     ...['Very_High', 'High', 'Moderate', 'Low', 'none'].map((uv) => `mars.uv.${uv}`),
     ...['completed', 'suspended'].map((o) => `mars.outcome.${o}`),
     'mars.log.sample',
+    ...['cruise', 'mars'].map((place) => `hud.source.${place}`),
+    ...[...new Set([...Object.keys(VOYAGE_CONTENT.power.loadsKw), ...Object.keys(MARS_CONTENT.power.loadsKw)])].map((id) => `hud.load.${id}`),
+    ...['sleepHours', 'exerciseHours', 'workHours'].map((b) => `hud.planning.block.${b}`),
+    ...['deepSpace', 'marsCruise', 'marsSurface'].map((site) => `hud.dataPanel.site.${site}`),
+    ...['flare', 'sep', 'cmeMars'].map((kind) => `hud.dataPanel.notice.${kind}`),
+    ...['offline', 'notCommander', 'notAtConsole'].map((k) => `hud.missionControl.blocked.${k}`),
+    ...Array.from({ length: 6 }, (_, i) => `hud.missionControl.home.${i}`),
     ...['green', 'yellow', 'red'].map((s) => `hud.status.${s}`),
     ...METERS.map((m) => `hud.meterName.${m}`),
     ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),

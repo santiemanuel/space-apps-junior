@@ -4,7 +4,7 @@ import type { MarsWeather } from '../environment/series';
 import { HabitatSession, type HabitatOptions, type StepContext } from '../habitat/HabitatSession';
 import { EXTERIOR, type Point } from '../habitat/layout';
 import { incidentModifiers } from '../incidents/planner';
-import { dustFactorFromUv, MARS_DISTANCE_AU } from '../meters/energy';
+import { dustFactorFromUv, heatingKw, MARS_DISTANCE_AU } from '../meters/energy';
 import type { MeterEnvironment, MeterPlan } from '../meters/step';
 import { Rng } from '../rng/Rng';
 import type { GameState, Sample } from '../state/types';
@@ -99,6 +99,17 @@ export class MarsSession extends HabitatSession<MarsContent> {
     return this.remainingSites().find(({ site }) => Math.hypot(site.x - position.x, site.y - position.y) <= reach)?.site ?? null;
   }
 
+  /** Promedio de un sol: la luz (seno entre la salida y la puesta) da 1/π del máximo y el polvo la recorta. */
+  protected averageGenerationKw(): number {
+    const { daylight, power, meterRules } = this.content;
+    const dayShare = (daylight.sunsetHour - daylight.sunriseHour) / 24;
+    return (power.panelKwAt1Au / MARS_DISTANCE_AU ** 2) * dustFactorFromUv(meterRules, this.weather.uv) * dayShare * (2 / Math.PI);
+  }
+
+  protected averageHeatingKw(): number {
+    return heatingKw(this.content.meterRules, this.weather.minTempC);
+  }
+
   /** f_luz promedio del paso: el Sol sale a las 6 y se pone a las 18 (seno), 0 de noche (§3.2). */
   private lightFactor(hours: number): number {
     const { sunriseHour, sunsetHour } = this.content.daylight;
@@ -130,7 +141,8 @@ export class MarsSession extends HabitatSession<MarsContent> {
 
   protected planExtras(s: GameState, hours: number, { adj, mods }: StepContext): Partial<MeterPlan> {
     const moxie = s.systems.moxie;
-    const moxieKgPerDay = adj.moxieOn && moxie !== 'red' ? this.content.moxieOxygenKgPerDay * (moxie === 'yellow' ? 0.5 : 1) : 0;
+    const moxieOn = adj.moxieOn && this.activeLoads({ adj, mods }).includes('moxie');
+    const moxieKgPerDay = moxieOn && moxie !== 'red' ? this.content.moxieOxygenKgPerDay * (moxie === 'yellow' ? 0.5 : 1) : 0;
     return {
       heatingFactor: adj.heatingFactor * mods.heatingFactor,
       oxygenProducedKg: ((moxieKgPerDay + adj.extraOxygenKgPerDay) * hours) / 24,
@@ -140,6 +152,24 @@ export class MarsSession extends HabitatSession<MarsContent> {
   protected activeLoads(ctx: StepContext): readonly string[] {
     const loads = super.activeLoads(ctx);
     return ctx.mods.greenhouseOff ? loads.filter((k) => k !== 'greenhouse') : loads;
+  }
+
+  protected snapshotExtras() {
+    const samples = this.state.inventory.samples;
+    return {
+      mars: {
+        weather: this.weather,
+        forecast: this.weatherOf(new Date(Date.parse(this.simDate) + 24 * HOUR_MS).toISOString()),
+        daylight: this.daylight,
+        evaOpen: this.evaOpen,
+        samples: {
+          count: samples.length,
+          total: this.sites.length,
+          kg: Math.round(samples.reduce((sum, x) => sum + x.massKg, 0) * 10) / 10,
+          value: samples.reduce((sum, x) => sum + x.value, 0),
+        },
+      },
+    };
   }
 
   /** El invernadero encendido suma comida al stock; con plaga rinde la mitad (§4.4). */

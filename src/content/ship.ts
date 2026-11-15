@@ -67,11 +67,13 @@ export const VOYAGE_CONTENT: VoyageContent = {
   // [regla] Sin nadie que lo cuide, un sistema se gasta en 4 días (2 en la vuelta).
   wear: { systems: ['scrubber', 'waterRecycler'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
   back: { wearMultiplier: 2, exerciseMultiplier: 2 },
-  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'] },
+  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'], socketKw: 2 },
   // Algo más rápido que el jugador del prototipo (160 px/s ≈ 3,3 tiles/s) [regla].
   crewSpeedTilesPerS: 3.5,
   infirmaryZone: 'infirmary',
   shelterZone: 'shelter',
+  // El comandante pide desde la radio; el diagnóstico acelera ×1,5 (game-design §3.7).
+  missionControl: { consoleZone: 'radio', diagnosisKwh: 0.5, diagnosisBoost: 1.5 },
   meterRules: METER_RULES,
   cascadeRules: CASCADE_RULES,
   incidents: INCIDENTS,

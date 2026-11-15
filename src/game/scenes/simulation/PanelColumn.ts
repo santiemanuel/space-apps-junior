@@ -8,16 +8,18 @@ export interface PanelRow {
   /** Espacio extra antes de la fila (px). */
   gap?: number;
   onClick?: () => void;
+  /** Íconos de color al final de la fila (p. ej. los cuatro de la salud, §3.2). */
+  icons?: readonly { glyph: string; color: string }[];
 }
 
 const FONT = 'monospace';
 
-/**
- * Columna de textos con filas que se pueden tocar con el mouse. Reutiliza los objetos de texto y sólo
- * redibuja lo que cambió. Provisional: el tablero definitivo es la escena `Hud` (S9).
- */
-export class VoyagePanel {
+const ICON_SLOTS = 4;
+
+/** Columna de textos con filas que se pueden tocar con el mouse. Reutiliza los objetos y sólo redibuja lo que cambió. */
+export class PanelColumn {
   private readonly texts: Phaser.GameObjects.Text[] = [];
+  private readonly icons: Phaser.GameObjects.Text[][] = [];
   private readonly handlers = new Map<Phaser.GameObjects.Text, (() => void) | undefined>();
   private signature = '';
 
@@ -26,11 +28,7 @@ export class VoyagePanel {
     private readonly x: number,
     private readonly y: number,
     private readonly width: number,
-    height: number,
-  ) {
-    scene.add.rectangle(x - 16, 0, width + 32, height, 0x0b1020, 0.96).setOrigin(0, 0).setDepth(50).setScrollFactor(0);
-    scene.add.rectangle(x - 16, 0, 2, height, 0x2d3748).setOrigin(0, 0).setDepth(50).setScrollFactor(0);
-  }
+  ) {}
 
   render(rows: readonly PanelRow[]): void {
     const signature = rows.map((r) => `${r.text}|${r.color}|${r.size}|${r.gap}|${r.onClick ? 1 : 0}`).join('\n');
@@ -53,9 +51,23 @@ export class VoyagePanel {
       this.handlers.set(text, row.onClick);
       if (row.onClick) text.setInteractive({ useHandCursor: true });
       else text.disableInteractive();
+      this.icons[i]!.forEach((icon, n) => {
+        const spec = row.icons?.[row.icons.length - 1 - n];
+        icon.setVisible(!!spec);
+        if (spec) icon.setText(spec.glyph).setColor(spec.color).setFontSize(row.size ?? 13).setPosition(this.x + this.width - n * 18, y);
+      });
       y += text.height + 2;
     });
-    for (const text of this.texts.slice(rows.length)) text.setVisible(false).disableInteractive();
+    for (const [i, text] of this.texts.entries()) {
+      if (i < rows.length) continue;
+      text.setVisible(false).disableInteractive();
+      this.icons[i]!.forEach((icon) => icon.setVisible(false));
+    }
+  }
+
+  /** Altura de una fila en el último dibujo (0 si no existe). */
+  rowY(index: number): number {
+    return this.texts[index]?.y ?? 0;
   }
 
   private create(): Phaser.GameObjects.Text {
@@ -67,6 +79,11 @@ export class VoyagePanel {
     text.on('pointerover', () => text.setAlpha(0.75));
     text.on('pointerout', () => text.setAlpha(1));
     this.texts.push(text);
+    this.icons.push(
+      Array.from({ length: ICON_SLOTS }, () =>
+        this.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '13px' }).setOrigin(1, 0).setDepth(51).setScrollFactor(0).setVisible(false),
+      ),
+    );
     return text;
   }
 }

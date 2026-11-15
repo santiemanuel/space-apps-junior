@@ -11,7 +11,7 @@ import { initialCascade, type ActiveEmergency, type CascadeEvent, type CascadeSt
 import type { ClockEvent, MissionClock } from '../clock/MissionClock';
 import { createPhaseClock, type PhaseWindow, type TimedPhase } from '../clock/schedule';
 import { efficiency, reactionSeconds, usesOptimalRoute, withSlowReasons, workSpeed } from '../crew/efficiency';
-import { DEFAULT_ROUTINE, routineActivities } from '../crew/routines';
+import { DEFAULT_ROUTINE, isValidRoutine, routineActivities, type RoutinePlan } from '../crew/routines';
 import type { CrewId, CrewMemberState } from '../crew/types';
 import type { DailyDose } from '../environment/series';
 import type { EventBus } from '../events/EventBus';
@@ -44,6 +44,7 @@ import { Rng } from '../rng/Rng';
 import type { GameState } from '../state/types';
 import type { SystemId } from '../systems/types';
 import { EXTERIOR, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type Point } from './layout';
+import type { MissionControlRequest, SimSnapshot, SimulationEvents } from './events';
 import type { HabitatContent, HabitatTask } from './types';
 
 const HOUR_MS = 3_600_000;
@@ -60,6 +61,8 @@ export interface HabitatOptions<C extends HabitatContent = HabitatContent> {
   timeline: readonly TimelineEntry[];
   /** Tasa de dosis real del día (`seriesFor(phase, date).dose`). */
   doseRate: (date: string) => DailyDose;
+  /** Demora de ida de la señal a la Tierra (s) por fecha y avance de la fase (§3.7). Sin ella, 0. */
+  signalDelaySeconds?: (date: string, progress: number) => number;
   cascade?: CascadeState;
   planner?: IncidentPlannerState;
 }
@@ -77,7 +80,8 @@ export interface HabitatInput {
 /** Qué puede hacer el jugador en una zona: trabajar en un incidente o una tarea de la nave. */
 export type ZoneTask =
   | { kind: 'incident'; incident: IncidentState; textKey: string; progress: number }
-  | { kind: 'task'; task: HabitatTask; progress: number };
+  /** `upToDate`: mantenimiento al día; hasta que haga falta, trabajar ahí no suma nada. */
+  | { kind: 'task'; task: HabitatTask; progress: number; upToDate?: boolean };
 
 /** Lo que el paso ya sabe antes de los medidores: ajustes de la cascada y de las respuestas a incidentes. */
 export interface StepContext {
@@ -138,6 +142,13 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private readonly maintenance: Partial<Record<SystemId, { hoursSince: number; progress: number }>> = {};
   private callProgress = 0;
   private realSeconds = 0;
+  protected routines: RoutinePlan;
+  private readonly loadsOff = new Set<string>();
+  private readonly signalDelay: (date: string, progress: number) => number;
+  private requests: MissionControlRequest[] = [];
+  private readonly diagnosed = new Set<string>();
+  private lastPower = { generationKw: 0, loadKw: 0 };
+  private sim: EventBus<SimulationEvents> | null = null;
 
   constructor(options: HabitatOptions<C>) {
     const { state, content } = options;
@@ -145,6 +156,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     this.bus = options.bus;
     this.doseRate = options.doseRate;
     this.phase = options.phase;
+    this.routines = content.routines;
+    this.signalDelay = options.signalDelaySeconds ?? (() => 0);
     for (const id of [...content.wear.systems, ...content.tasks.flatMap((t) => (t.system ? [t.system] : []))])
       this.maintenance[id] = { hoursSince: 0, progress: 0 };
     this.window = content.calendar.windows[this.phase];
@@ -234,8 +247,171 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     else this.clock.pause();
   }
 
+  /**
+   * Conecta el bus de la simulación: escucha los pedidos de las escenas superpuestas y publica `sim:snapshot`
+   * en cada cuadro. Devuelve la función para desconectarlo.
+   */
+  attach(sim: EventBus<SimulationEvents>): () => void {
+    this.sim = sim;
+    const offs = [
+      sim.on('sim:pause', ({ paused }) => (paused ? this.clock.pause() : this.clock.resume())),
+      sim.on('sim:respond', ({ incidentId, responseId }) => this.respond(incidentId, responseId)),
+      sim.on('sim:sacrifice', ({ id }) => this.sacrifice(id)),
+      sim.on('sim:routines', (plan) => this.setRoutines(plan)),
+      sim.on('sim:loads', ({ off }) => this.setLoadsOff(off)),
+      sim.on('sim:ask', ({ kind, incidentId }) => this.ask(kind, incidentId)),
+    ];
+    this.publishSnapshot();
+    return () => {
+      offs.forEach((off) => off());
+      this.sim = null;
+    };
+  }
+
+  /** Rutinas nuevas de la planificación (§3.1); las imposibles (más de 24 h) se ignoran. */
+  setRoutines(plan: RoutinePlan): void {
+    this.routines = Object.fromEntries(
+      Object.entries(this.routines).map(([id, r]) => {
+        const next = plan[id as CrewId];
+        return [id, next && isValidRoutine(next) ? next : r];
+      }),
+    ) as RoutinePlan;
+    this.publishSnapshot();
+  }
+
+  /** Tablero de energía (§3.2): los sistemas desenchufados no consumen. El soporte vital no se desenchufa. */
+  setLoadsOff(off: readonly string[]): void {
+    this.loadsOff.clear();
+    for (const id of off) if (!this.content.power.essentialLoads.includes(id) && id in this.content.power.loadsKw) this.loadsOff.add(id);
+    this.publishSnapshot();
+  }
+
+  isLoadOn(id: string): boolean {
+    return !this.loadsOff.has(id);
+  }
+
+  /** Demora de ida de la señal (s) ahora. */
+  get delaySeconds(): number {
+    return this.signalDelay(this.simDate, this.progress);
+  }
+
+  /** Por qué no se puede pedir nada a Control de Misión ahora (clave de texto), o null (§3.7). */
+  missionControlBlockedKey(): string | null {
+    if (this.missionControlOffline()) return 'hud.missionControl.blocked.offline';
+    const active = this._state.crew.find((m) => m.id === this._state.activeCrewId);
+    if (active?.role !== 'commander') return 'hud.missionControl.blocked.notCommander';
+    if (active.location !== this.content.missionControl.consoleZone) return 'hud.missionControl.blocked.notAtConsole';
+    return null;
+  }
+
+  private missionControlOffline(): boolean {
+    return (
+      !incidentModifiers(this.content.incidents, this._state).missionControl || this.loadsOff.has('radio') || this._state.systems.radio === 'red'
+    );
+  }
+
+  /**
+   * Consejo o diagnóstico remoto (§3.7): la respuesta llega después de la ida y vuelta de la señal. El diagnóstico
+   * gasta energía de la radio y, cuando llega, acelera la reparación en curso.
+   */
+  ask(kind: MissionControlRequest['kind'], incidentId: string): MissionControlRequest | null {
+    const incident = this._state.activeIncidents.find((i) => i.id === incidentId);
+    if (!incident || this.missionControlBlockedKey()) return null;
+    const def = definitionOf(this.content.incidents, incident.definitionId);
+    const mc = this.content.missionControl;
+    if (kind === 'diagnosis') {
+      const work = def.responses.find((r) => r.id === incident.responseId)?.work;
+      if (!work || this.diagnosed.has(incidentId) || this._state.meters.energy.batteryKwh < mc.diagnosisKwh) return null;
+      const { energy } = this._state.meters;
+      this._state = { ...this._state, meters: { ...this._state.meters, energy: { ...energy, batteryKwh: energy.batteryKwh - mc.diagnosisKwh } } };
+    }
+    const best = def.responses.find((r) => r.risk === 'green') ?? def.responses.find((r) => r.risk === 'yellow') ?? def.responses[0]!;
+    const request: MissionControlRequest = {
+      id: `mc-${this.requests.length + 1}`,
+      kind,
+      incidentId,
+      textKey: def.textKey,
+      askedAt: this.simDate,
+      arrivesAt: new Date(Date.parse(this.simDate) + 2 * this.delaySeconds * 1000).toISOString(),
+      arrived: false,
+      ...(kind === 'advice' ? { responseId: best.id } : {}),
+    };
+    this.requests = [...this.requests, request];
+    this.receiveRequests();
+    this.publishSnapshot();
+    return request;
+  }
+
+  get missionControlRequests(): readonly MissionControlRequest[] {
+    return this.requests;
+  }
+
+  private receiveRequests(): void {
+    const now = Date.parse(this.simDate);
+    if (!this.requests.some((r) => !r.arrived && Date.parse(r.arrivesAt) <= now)) return;
+    this.requests = this.requests.map((r) => {
+      if (r.arrived || Date.parse(r.arrivesAt) > now) return r;
+      if (r.kind === 'diagnosis') this.diagnosed.add(r.incidentId);
+      return { ...r, arrived: true };
+    });
+  }
+
+  /** Lo que muestran las escenas superpuestas. */
+  snapshot(): SimSnapshot {
+    const decisions = this.pendingDecisions();
+    const { loadsKw, essentialLoads } = this.content.power;
+    return {
+      phase: this.phase,
+      place: this.place,
+      simDate: this.simDate,
+      window: this.window,
+      progress: this.progress,
+      level: this.level,
+      reasonKey: this.reasonKey,
+      manual: this.manual,
+      paused: this.paused,
+      state: this._state,
+      dose: this._dose,
+      decisions,
+      hints: this._state.helpMode
+        ? decisions.map((d) => {
+            const best = d.options.find((o) => o.available && o.response.risk === 'green') ?? d.options.find((o) => o.available);
+            return { incidentId: d.incident.id, responseId: best?.response.id ?? d.options[0]!.response.id };
+          })
+        : [],
+      emergencies: this._cascade.emergencies,
+      sacrifices: this._cascade.emergencies.length ? this.sacrifices().map((x) => x.id) : [],
+      routines: this.routines,
+      tasks: this.content.tasks,
+      power: {
+        loads: Object.entries(loadsKw).map(([id, kw]) => ({ id, kw, on: !this.loadsOff.has(id), essential: essentialLoads.includes(id) })),
+        ...this.lastPower,
+        sockets: this.sockets(),
+      },
+      missionControl: {
+        blockedKey: this.missionControlBlockedKey(),
+        delaySeconds: this.delaySeconds,
+        offline: this.missionControlOffline(),
+        requests: this.requests,
+      },
+      ...this.snapshotExtras(),
+    };
+  }
+
+  /** Datos propios del lugar para las escenas superpuestas. */
+  protected snapshotExtras(): Partial<SimSnapshot> {
+    return {};
+  }
+
+  private publishSnapshot(): void {
+    this.sim?.emit('sim:snapshot', this.snapshot());
+  }
+
   update(realSeconds: number, input: HabitatInput): void {
-    if (this._outcome || this.clock.isPaused) return;
+    if (this._outcome || this.clock.isPaused) {
+      this.publishSnapshot();
+      return;
+    }
     const dt = Math.min(realSeconds, MAX_STEP_S);
     this.realSeconds += dt;
     if (input.activeZone) this.setLocation(this._state.activeCrewId, input.activeZone);
@@ -250,6 +426,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     this.planRoutes(this.manual);
     this.checkShelter();
     if (hours > 0) this.publishState();
+    this.publishSnapshot();
   }
 
   /** Cambio de tripulante (Tab): el anterior queda donde lo dejó el jugador y vuelve a su rutina. */
@@ -273,8 +450,24 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     }
     const task = this.content.tasks.find((t) => t.zone === zone);
     if (!task) return null;
+    if (task.kind === 'maintenance' && !this.needsMaintenance(this._state, task)) return { kind: 'task', task, progress: 1, upToDate: true };
     const progress = task.system ? (this.maintenance[task.system]?.progress ?? 0) : task.kind === 'callHome' ? this.callProgress : 0;
     return { kind: 'task', task, progress };
+  }
+
+  /**
+   * Un mantenimiento hace falta si el sistema está gastado, si ya pasó la mitad del tiempo que aguanta sin cuidado o,
+   * para las tareas que reinician un contador (invernadero, esclusa), si se gastó la mitad del rango seguro [regla].
+   */
+  private needsMaintenance(s: GameState, task: HabitatTask): boolean {
+    if (!task.system || s.systems[task.system] !== 'green') return true;
+    const { wear } = this.content;
+    if (wear.systems.includes(task.system) && (this.maintenance[task.system]?.hoursSince ?? 0) >= wear.hoursToYellow / 2) return true;
+    if (!task.resets) return false;
+    const max = this.content.incidents
+      .flatMap((d) => d.triggers)
+      .find((t) => t.kind === 'safeRange' && t.variable === task.resets);
+    return max?.kind === 'safeRange' && this._planner.counters[task.resets] >= max.max / 2;
   }
 
   /** Cuarto donde está la fuga de un micrometeorito (fijo para cada incidente, sin gastar tiradas del Rng). */
@@ -335,12 +528,35 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
 
   /** Sistemas encendidos (claves de `power.loadsKw`). */
   protected activeLoads(ctx: StepContext): readonly string[] {
-    return ctx.adj.essentialOnly ? this.content.power.essentialLoads : Object.keys(this.content.power.loadsKw);
+    const { essentialLoads, loadsKw } = this.content.power;
+    return ctx.adj.essentialOnly ? essentialLoads : Object.keys(loadsKw).filter((k) => !this.loadsOff.has(k));
   }
 
   /** Después de los medidores y antes de la cascada (invernadero, ejercicio de la vuelta…). */
   protected afterStep(_before: GameState, after: GameState, _hours: number, _ctx: StepContext): GameState {
     return after;
+  }
+
+  /** Generación promedio de hoy (kW): sin noche en el viaje; en Marte, con la luz y el polvo del sol. */
+  protected averageGenerationKw(): number {
+    return this.content.power.panelKwAt1Au;
+  }
+
+  /** Calefacción promedio de hoy (kW); sólo en Marte. */
+  protected averageHeatingKw(): number {
+    return 0;
+  }
+
+  /**
+   * Enchufes del tablero (§3.2): lo que sobra del sol de hoy después del soporte vital y la calefacción, en fichas
+   * de `socketKw`. Con polvo hay menos y hay que elegir qué desenchufar.
+   */
+  sockets(): number {
+    const { loadsKw, essentialLoads, socketKw } = this.content.power;
+    const essential = essentialLoads.reduce((sum, k) => sum + (loadsKw[k] ?? 0), 0);
+    const free = this.averageGenerationKw() - essential - this.averageHeatingKw();
+    const optional = Object.keys(loadsKw).filter((k) => !essentialLoads.includes(k)).length;
+    return Math.min(optional, Math.max(0, Math.floor(free / socketKw)));
   }
 
   /** Multiplica el desgaste de los sistemas (la nave gastada de la vuelta, §4.6). */
@@ -359,13 +575,13 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     this._dose = this.doseRate(s.simDate);
     const adj = cascadeAdjustments(c.cascadeRules, this._cascade, s.simDate);
     const ctx: StepContext = { adj, mods: incidentModifiers(c.incidents, s) };
-    const activities = routineActivities(s.crew, c.routines, hours, adj.workFactor);
+    const activities = routineActivities(s.crew, this.routines, hours, adj.workFactor);
     const activeId = s.activeCrewId;
     let callsHome = 0;
 
     for (const m of s.crew) {
       if (manual && m.id === activeId) {
-        const sleep = (c.routines[m.id] ?? DEFAULT_ROUTINE).sleepHours * (hours / 24);
+        const sleep = (this.routines[m.id] ?? DEFAULT_ROUTINE).sleepHours * (hours / 24);
         const activity: CrewActivity = m.resting ? { sleepHours: hours } : { sleepHours: sleep };
         if (input && !m.resting) {
           const point = input.activePosition ? this.workAtPoint(s, m.id, input.activePosition, hours) : null;
@@ -380,7 +596,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
         }
         activities[m.id] = activity;
       } else if (!m.resting && !this.sheltering.has(m.id)) {
-        const task = c.tasks.find((t) => t.id === c.routines[m.id]?.taskId);
+        const task = c.tasks.find((t) => t.id === this.routines[m.id]?.taskId);
         const workHours = activities[m.id]?.workHours ?? 0;
         if (task && workHours > 0) s = this.work(s, m.id, task.zone, workHours, true).state;
       }
@@ -414,6 +630,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       },
       hours,
     );
+    this.lastPower = { generationKw: step.generationKw, loadKw: step.loadKw };
     s = applyEmergencyEffects(c.cascadeRules, this._cascade, this.afterStep(s, step.state, hours, ctx), hours);
     const cascade = updateCascade(c.cascadeRules, c.meterRules, this._cascade, s, hours);
     this._cascade = cascade.cascade;
@@ -422,6 +639,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     this._planner = incidents.planner;
     s = this.wear(incidents.state, hours);
     this._state = { ...s, crew: withSlowReasons(s.crew, s.meters.lifeSupport.co2MmHg), rngState: this.rng.state };
+    this.receiveRequests();
     this.handleCascadeEvents(cascade.events);
     this.handleIncidentEvents(incidents.events);
   }
@@ -430,7 +648,9 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private work(s: GameState, crewId: CrewId, zone: string, hours: number, auto: boolean): { state: GameState; activity: CrewActivity } {
     const incident = this.incidentWorkAt(s, zone);
     if (incident) {
-      const r = workOnIncident(this.ctx, this._planner, s, incident.id, crewId, hours);
+      // Con el diagnóstico remoto de Control de Misión la reparación rinde más (§3.7).
+      const boost = this.diagnosed.has(incident.id) ? this.content.missionControl.diagnosisBoost : 1;
+      const r = workOnIncident(this.ctx, this._planner, s, incident.id, crewId, hours * boost);
       this._planner = r.planner;
       this.pendingIncidentEvents.push(...r.events);
       return { state: r.state, activity: { workHours: hours } };
@@ -438,6 +658,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const task = this.content.tasks.find((t) => t.zone === zone);
     if (!task) return { state: s, activity: {} };
     if (task.kind === 'maintenance' && task.system) {
+      if (!this.needsMaintenance(s, task)) return { state: s, activity: {} };
       const member = s.crew.find((m) => m.id === crewId)!;
       const m = this.maintenance[task.system]!;
       m.progress += (hours * workSpeed(member, task.category, s.meters.lifeSupport.co2MmHg)) / this.content.wear.maintenanceHours;
@@ -451,6 +672,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     }
     if (auto) return { state: s, activity: {} };
     if (task.kind === 'exercise') return { state: s, activity: { exerciseHours: hours } };
+    if (this.loadsOff.has('radio') || s.systems.radio === 'red') return { state: s, activity: {} };
     this.callProgress += hours / this.content.wear.callHours;
     if (this.callProgress < 1) return { state: s, activity: {} };
     this.callProgress = 0;
@@ -526,7 +748,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const c = this.content;
     if (m.resting) return c.infirmaryZone;
     if (this.sheltering.has(m.id)) return c.shelterZone;
-    const r = c.routines[m.id] ?? DEFAULT_ROUTINE;
+    const r = this.routines[m.id] ?? DEFAULT_ROUTINE;
     const hour = (new Date(this.clock.simDate).getUTCHours() + 24 - (c.routineOffsetHours[m.id] ?? 0)) % 24;
     if (hour < r.sleepHours) return c.infirmaryZone;
     if (hour < r.sleepHours + r.exerciseHours) return c.tasks.find((t) => t.kind === 'exercise')?.zone ?? c.layout.spawnZone;

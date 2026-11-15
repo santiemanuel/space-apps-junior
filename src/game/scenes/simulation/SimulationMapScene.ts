@@ -1,28 +1,31 @@
 import Phaser from 'phaser';
 import { CREW_ROSTER } from '../../../content/crew';
 import { INCIDENTS } from '../../../content/incidents';
-import type { SacrificeId } from '../../../core/cascade/sacrifices';
-import { efficiency, moveSpeedFactor } from '../../../core/crew/efficiency';
+import { moveSpeedFactor } from '../../../core/crew/efficiency';
 import type { CrewId, CrewMemberState } from '../../../core/crew/types';
+import { EventBus } from '../../../core/events/EventBus';
+import type { SimulationEvents } from '../../../core/habitat/events';
 import type { HabitatSession } from '../../../core/habitat/HabitatSession';
 import { EXTERIOR, isWalkable, zoneAt, zoneById, zoneSpot, type Point, type ShipLayout } from '../../../core/habitat/layout';
 import type { HabitatContent } from '../../../core/habitat/types';
 import { definitionOf } from '../../../core/incidents/planner';
-import { chestXrays } from '../../../core/meters/dose';
-import type { AlertLevel } from '../../../core/meters/types';
 import type { SystemStatus } from '../../../core/systems/types';
-import { getLocale, t, type TranslationKey, type TranslationParams } from '../../../i18n';
+import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { GAME_HEIGHT, GAME_WIDTH, TILE } from '../../display';
 import { createCrewSprite, type CrewSprite } from '../../entities/CrewSprite';
 import { createKeyboardControls, type PlayerControls } from '../../input/PlayerControls';
-import type { SceneKey } from '../../sceneKeys';
+import { SceneKeys, type SceneKey } from '../../sceneKeys';
 import type { PhaseSceneData } from '../sceneData';
-import { VoyagePanel, type PanelRow } from './VoyagePanel';
+import { VIEW_WIDTH } from './HudScene';
+import { toggleOverlay, type SimulationSceneData } from './simulationData';
 
-/** Ancho de la vista del mapa: el resto de la pantalla es el tablero provisional. */
-export const VIEW_WIDTH = 19 * TILE;
+/** Escenas superpuestas que se abren con una tecla desde el mapa. */
+const OVERLAY_KEYS: readonly [string, SceneKey][] = [
+  ['P', SceneKeys.Planning],
+  ['C', SceneKeys.MissionControl],
+  ['G', SceneKeys.DataPanel],
+];
 const PLAYER_SPEED = 160;
-const DAY_MS = 86_400_000;
 export const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 
 const ZONE_COLOR: Record<string, number> = {
@@ -40,17 +43,8 @@ const ZONE_COLOR: Record<string, number> = {
   [EXTERIOR]: 0x9c4a2a,
 };
 export const LIGHT: Record<SystemStatus, string> = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' };
-const LEVEL_COLOR: Record<AlertLevel, string> = { calm: '#68d391', alert: '#f6e05e', impact: '#fc8181' };
-const LEVEL_TINT: Record<AlertLevel, [number, number]> = { calm: [0, 0], alert: [0xecc94b, 0.08], impact: [0xe53e3e, 0.1] };
 
 export const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
-export const bar = (fraction: number, width = 10) => {
-  const full = Math.round(Math.min(1, Math.max(0, fraction)) * width);
-  return '█'.repeat(full) + '░'.repeat(width - full);
-};
-const tenths = (x: number) => Math.round(Math.min(1, Math.max(0, x)) * 10);
-export const lightFor = (value: number, yellowBelow: number, redBelow: number) =>
-  value < redBelow ? LIGHT.red : value < yellowBelow ? LIGHT.yellow : LIGHT.green;
 export const toPx = (p: Point) => ({ x: p.x * TILE, y: p.y * TILE });
 
 /**
@@ -69,11 +63,10 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private stationBars = new Map<string, Phaser.GameObjects.Rectangle>();
   private stationFrames = new Map<string, Phaser.GameObjects.Rectangle>();
   protected markers!: Phaser.GameObjects.Graphics;
-  private tint!: Phaser.GameObjects.Rectangle;
+  private sim!: EventBus<SimulationEvents>;
   private prompt!: Phaser.GameObjects.Text;
   private toast!: Phaser.GameObjects.Text;
   private toastUntil = 0;
-  private panel!: VoyagePanel;
   private ended = false;
 
   protected constructor(key: SceneKey, private readonly namespace: 'voyage' | 'mars') {
@@ -91,10 +84,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   }
 
   protected abstract createSession(data: D): { session: S; content: HabitatContent };
-  /** Filas propias del lugar en el tablero (después del reloj). */
-  protected placeRows(): PanelRow[] {
-    return [];
-  }
   /** Dibujo propio del lugar en cada cuadro (en `markers`, ya limpio). */
   protected renderPlace(): void {}
   /** Texto de ayuda propio del lugar para el tripulante del jugador, o null para el de las tareas. */
@@ -119,7 +108,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const walls = this.drawMap();
     const doorBlock = this.outerDoorBlock();
     this.markers = this.add.graphics().setDepth(5);
-    this.tint = this.add.rectangle(0, 0, VIEW_WIDTH, GAME_HEIGHT, 0, 0).setOrigin(0, 0).setDepth(40).setScrollFactor(0);
     for (const m of this.session.state.crew) {
       const p = toPx(this.session.positionOf(m.id));
       const sprite = createCrewSprite(this, m.id, p.x, p.y);
@@ -138,16 +126,24 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       .setDepth(60)
       .setScrollFactor(0)
       .setVisible(false);
-    this.panel = new VoyagePanel(this, VIEW_WIDTH + 20, 14, GAME_WIDTH - VIEW_WIDTH - 36, GAME_HEIGHT);
-    this.add
-      .text(VIEW_WIDTH + 20, GAME_HEIGHT - 10, t('hud.panel.controls'), { fontFamily: 'monospace', fontSize: '11px', color: '#718096', wordWrap: { width: GAME_WIDTH - VIEW_WIDTH - 36 } })
-      .setOrigin(0, 1)
-      .setDepth(51)
-      .setScrollFactor(0);
 
     this.listen();
+    // Bus propio de la simulación: el tablero y las pantallas superpuestas leen el estado y piden cosas por acá.
+    this.sim = new EventBus<SimulationEvents>();
+    const detach = this.session.attach(this.sim);
+    const overlay: SimulationSceneData = { state: this.session.state, bus: this.sceneData.bus, sim: this.sim, namespace: this.namespace };
+    this.scene.launch(SceneKeys.Hud, overlay);
     const keyboard = this.input.keyboard!;
-    keyboard.addKey('P').on('down', () => this.session.togglePause());
+    for (const [key, scene] of OVERLAY_KEYS) keyboard.addKey(key).on('down', () => toggleOverlay(this.scene, scene, overlay, !this.ended));
+    // Con cada aviso nuevo se abre la planificación en pausa, para preparar la respuesta (§3.1, §4.4).
+    const offAlert = this.sceneData.bus.on('alert:level', ({ level }) => {
+      if (level === 'alert' && !this.ended && !this.scene.isActive(SceneKeys.Planning)) this.scene.launch(SceneKeys.Planning, overlay);
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offAlert);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      detach();
+      for (const key of [SceneKeys.Hud, ...OVERLAY_KEYS.map(([, scene]) => scene)]) this.scene.stop(key);
+    });
     // Provisional hasta F2: Tab y `crew:switched` son de Facundo (src/game/input/); quitar en la integración.
     keyboard.addCapture('TAB');
     keyboard.addKey('TAB').on('down', () => this.sceneData.bus.emit('crew:switched', { crewId: this.nextCrew() }));
@@ -181,7 +177,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       this.labels.get(m.id)!.setPosition(sprite.sprite.x, sprite.sprite.y + 16);
     }
     this.renderMap(activePosition, activeZone);
-    this.panel.render(this.panelRows());
     if (this.toast.visible && this.time.now > this.toastUntil) this.toast.setVisible(false);
     if (s.outcome && !this.ended) this.showOutcome(s.outcome);
   }
@@ -193,10 +188,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   protected showToast(text: string): void {
     this.toast.setText(text).setVisible(true);
     this.toastUntil = this.time.now + 4500;
-  }
-
-  protected formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString(getLocale() === 'es' ? 'es-AR' : 'en-US', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   private nextCrew(): CrewId {
@@ -301,8 +292,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
 
   private renderMap(activePosition: Point, activeZone: string | null): void {
     const s = this.session;
-    const [color, alpha] = LEVEL_TINT[s.level];
-    this.tint.setFillStyle(color, alpha);
 
     for (const [zone, frame] of this.stationFrames) {
       const task = this.content.tasks.find((t) => t.zone === zone)!;
@@ -338,130 +327,15 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     if (place !== null) return place;
     const task = s.taskAt(zone);
     if (!task) return '';
+    if (task.kind === 'task' && task.upToDate) return t('hud.task.upToDate');
     if (!s.manual) return t('hud.task.fastForward');
     return task.kind === 'incident' ? t('hud.task.incident', { title: tr(`${task.textKey}.title`) }) : tr(`${this.namespace}.task.${task.task.id}`);
   }
 
-  private panelRows(): PanelRow[] {
-    const s = this.session;
-    const st = s.state;
-    const rules = this.content.meterRules;
-    const crewCount = st.crew.length || 1;
-    const start = Date.parse(s.window.start);
-    const total = Math.round((Date.parse(s.window.end) - start) / DAY_MS);
-    const day = Math.min(total, Math.floor((Date.parse(s.simDate) - start) / DAY_MS) + 1);
-    const { energy, lifeSupport } = st.meters;
-    const meter = (label: string, amount: number, perCrewDay: number): PanelRow => {
-      const left = Math.floor(amount / (perCrewDay * crewCount));
-      const text = left > 99 ? t('hud.meter.manyDays') : t('hud.meter.days', { days: left });
-      return { text: `${label.padEnd(8)} ${bar(left / 60)} ${text}`, color: lightFor(left, 14, 4) };
-    };
-    // El agua se recicla: lo que se pierde por día depende del estado del reciclador (§3.2).
-    const waterLossPerCrewDay = rules.lifeSupport.waterLPerCrewDay * (1 - rules.lifeSupport.recyclingByStatus[st.systems.waterRecycler]);
-    const systems = [...new Set(this.content.tasks.flatMap((task) => (task.system ? [task.system] : [])))];
-
-    const rows: PanelRow[] = [
-      { text: tr(`common.phase.${s.phase}`), size: 18, color: '#90cdf4' },
-      { text: `${this.formatDate(s.simDate)} · ${t(this.namespace === 'mars' ? 'hud.panel.sol' : 'hud.panel.day', { day, total })}`, color: '#a0aec0', size: 12 },
-      { text: bar(s.progress, 30), color: '#4a5568', size: 10 },
-      { gap: 4, text: `● ${tr(s.reasonKey)}`, color: LEVEL_COLOR[s.level] },
-      {
-        text: s.paused ? t('hud.panel.paused') : s.manual ? t('hud.panel.pacePlay', { name: NAMES[st.activeCrewId] }) : t('hud.panel.paceFast'),
-        color: '#a0aec0',
-        size: 12,
-      },
-      ...this.placeRows(),
-      { gap: 6, text: t('hud.panel.meters'), color: '#90cdf4' },
-      {
-        text: `${t('hud.meter.energy').padEnd(8)} ${bar(energy.batteryKwh / energy.capacityKwh)}`,
-        color: lightFor(energy.batteryKwh / energy.capacityKwh, 0.3, 0.1),
-      },
-      meter(t('hud.meter.air'), lifeSupport.oxygenKg, rules.lifeSupport.oxygenKgPerCrewDay),
-      meter(t('hud.meter.water'), lifeSupport.waterL, waterLossPerCrewDay),
-      meter(t('hud.meter.food'), st.inventory.foodKg, rules.food.foodKgPerCrewDay),
-      {
-        text: `${'CO2'.padEnd(8)} ${lifeSupport.co2MmHg > rules.lifeSupport.co2LimitMmHg ? t('hud.meter.co2High') : t('hud.meter.co2Ok')}`,
-        color: lifeSupport.co2MmHg > rules.lifeSupport.co2LimitMmHg ? LIGHT.red : lifeSupport.co2MmHg > rules.lifeSupport.co2LimitMmHg - 0.5 ? LIGHT.yellow : LIGHT.green,
-      },
-      ...systems.map((id) => ({
-        text: `${tr(`hud.system.${id}`).padEnd(12)} ● ${tr(`hud.status.${st.systems[id]}`)}`,
-        color: LIGHT[st.systems[id]],
-        size: 12,
-      })),
-      { text: `${t('hud.panel.spares', { count: st.inventory.spares })}`, color: '#a0aec0', size: 12 },
-      {
-        text: `${t('hud.panel.dose', { value: Math.round(s.dose.uGyH) })} · ${t('common.dataDate', { date: this.formatDate(s.dose.date) })}${s.dose.capped ? ` ${t('hud.panel.doseCapped')}` : ''}`,
-        color: '#a0aec0',
-        size: 11,
-      },
-      { gap: 6, text: t('hud.panel.crew'), color: '#90cdf4' },
-    ];
-
-    for (const m of st.crew) {
-      const eff = efficiency(m, lifeSupport.co2MmHg);
-      const marker = m.id === st.activeCrewId ? '▶' : ' ';
-      const where = m.location === 'corridor' || m.location === EXTERIOR ? `hud.zone.${m.location}` : `${this.namespace}.zone.${m.location}`;
-      rows.push({
-        text: `${marker} ${NAMES[m.id]} · ${tr(where)}`,
-        color: m.resting ? '#a0aec0' : lightFor(eff, 0.8, 0.6),
-        onClick: m.id === st.activeCrewId ? undefined : () => this.sceneData.bus.emit('crew:switched', { crewId: m.id }),
-      });
-      rows.push({
-        text: `  ${t('hud.crew.stats', { condition: tenths(m.condition), rest: tenths(1 - m.fatigue), food: tenths(m.nutrition), xrays: Math.round(chestXrays(rules, m.doseMSv)) })}`,
-        color: '#a0aec0',
-        size: 11,
-      });
-      if (m.slowReasonKey) rows.push({ text: `  ${tr(m.slowReasonKey, { name: NAMES[m.id] })}`, color: '#fbd38d', size: 11 });
-    }
-
-    const decisions = s.pendingDecisions();
-    const decided = st.activeIncidents.filter((i) => i.responseId);
-    if (decisions.length || decided.length) rows.push({ gap: 6, text: t('hud.panel.incidents'), color: '#90cdf4' });
-    decisions.forEach((d, n) => {
-      rows.push({ text: `⚠ ${tr(`${d.textKey}.title`)}`, color: d.incident.status === 'active' ? LIGHT.red : LIGHT.yellow });
-      if (n === 0) rows.push({ text: t('hud.panel.choose'), color: '#a0aec0', size: 11 });
-      d.options.forEach(({ response, available }, i) => {
-        const key = n === 0 ? `[${i + 1}] ` : '';
-        rows.push({
-          text: `${key}● ${tr(`${d.textKey}.response.${response.id}.title`)}`,
-          color: available ? LIGHT[response.risk] : '#4a5568',
-          onClick: available ? () => s.respond(d.incident.id, response.id) : undefined,
-        });
-        rows.push({ text: `    ${tr(`${d.textKey}.response.${response.id}.cost`)}`, color: '#718096', size: 11 });
-      });
-    });
-    for (const incident of decided) {
-      const def = definitionOf(INCIDENTS, incident.definitionId);
-      const response = def.responses.find((r) => r.id === incident.responseId)!;
-      const status = response.work
-        ? t('hud.panel.working', { progress: bar(incident.progress ?? 0, 8) })
-        : tr(`${def.textKey}.response.${response.id}.title`);
-      rows.push({ text: `• ${tr(`${def.textKey}.title`)}: ${status}`, color: '#e2e8f0', size: 12 });
-    }
-
-    if (s.emergencies.length) rows.push({ gap: 6, text: t('hud.panel.emergency'), color: LIGHT.red });
-    const marginKey = this.namespace === 'mars' ? 'incidents.cascade.marginSols' : 'incidents.cascade.margin';
-    for (const e of s.emergencies) {
-      const name = e.crewId ? NAMES[e.crewId as CrewId] : '';
-      const margin = e.overdue ? tr('incidents.cascade.overdue') : tr(marginKey, { days: Math.ceil(e.marginHours / 24) });
-      rows.push({ text: `${tr(`hud.meterName.${e.meter}`, { name })}: ${margin}`, color: LIGHT.yellow, size: 12 });
-    }
-    const sacrifices = s.emergencies.length ? s.sacrifices() : [];
-    if (sacrifices.length) rows.push({ text: t('hud.panel.sacrifices'), color: '#a0aec0', size: 11 });
-    for (const sacrifice of sacrifices) {
-      rows.push({
-        text: `● ${tr(`incidents.sacrifice.${sacrifice.id}.title`)}`,
-        color: LIGHT.yellow,
-        size: 12,
-        onClick: () => s.sacrifice(sacrifice.id as SacrificeId),
-      });
-      rows.push({ text: `    ${tr(`incidents.sacrifice.${sacrifice.id}.cost`)}`, color: '#718096', size: 11 });
-    }
-    return rows;
-  }
-
   private showOutcome(outcome: 'completed' | 'suspended'): void {
     this.ended = true;
+    // Terminó la fase: se cierran las pantallas superpuestas para que se vea el mensaje final.
+    for (const [, scene] of OVERLAY_KEYS) this.scene.stop(scene);
     this.add
       .text(VIEW_WIDTH / 2, GAME_HEIGHT / 2, tr(this.outcomeKey(outcome)), {
         fontFamily: 'monospace',

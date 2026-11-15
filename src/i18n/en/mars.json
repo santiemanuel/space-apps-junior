@@ -38,5 +38,6 @@
   "uv.none": "No dust data today",
   "outcome.completed": "The stay on Mars is over! Now choose what the ship takes back home.",
   "outcome.suspended": "Mission suspended: the crew is safe in the shelter waiting for rescue.",
-  "log.sample": "Sample of {massKg} kg (value {value})"
+  "log.sample": "Sample of {massKg} kg (value {value})",
+  "curiosity.bubble": "Hi, neighbours! Today the low is {min} °C. {sky}"
 }

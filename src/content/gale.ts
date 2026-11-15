@@ -60,10 +60,12 @@ export const MARS_CONTENT: MarsContent = {
   routineOffsetHours: ROUTINE_OFFSET_HOURS,
   // [regla] Sin cuidado, MOXIE se gasta en 4 soles.
   wear: { systems: ['moxie'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
-  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'] },
+  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'], socketKw: 2 },
   crewSpeedTilesPerS: 3.5,
   infirmaryZone: 'infirmary',
   shelterZone: 'shelter',
+  // El comandante pide desde la radio; el diagnóstico acelera ×1,5 (game-design §3.7).
+  missionControl: { consoleZone: 'radio', diagnosisKwh: 0.5, diagnosisBoost: 1.5 },
   meterRules: METER_RULES,
   cascadeRules: CASCADE_RULES,
   incidents: INCIDENTS,
