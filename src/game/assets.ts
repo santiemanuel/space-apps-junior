@@ -7,7 +7,7 @@ import type { CrewId } from '../core/crew/types';
  * (docs/plan-de-trabajo.md §3.8). Las rutas son relativas para que funcione también bajo un subdirectorio.
  */
 export type AssetEntry =
-  | { kind: 'spritesheet'; key: string; url: string; frame: { frameWidth: number; frameHeight: number } }
+  | { kind: 'spritesheet'; key: string; url: string; frame: { frameWidth: number; frameHeight: number }; normalMap?: string }
   | { kind: 'image'; key: string; url: string }
   | { kind: 'audio'; key: string; urls: string[] };
 
@@ -30,6 +30,8 @@ export const CREW_ASSETS: readonly AssetEntry[] = CREW_ROSTER.map(({ id }) => ({
   kind: 'spritesheet',
   key: crewTextureKey(id),
   url: `assets/crew/${id}.png`,
+  // Normal map para la luz dinámica de los mapas (`scripts/art/normals.py`).
+  normalMap: `assets/crew/${id}_n.png`,
   frame: { frameWidth: CREW_SHEET.frameWidth, frameHeight: CREW_SHEET.frameHeight },
 }));
 
@@ -41,7 +43,7 @@ type AssetLoader = Pick<Phaser.Loader.LoaderPlugin, 'spritesheet' | 'image' | 'a
 /** Encola cada recurso en el loader de Phaser según su tipo. */
 export function queueAssets(load: AssetLoader, entries: readonly AssetEntry[]): void {
   for (const entry of entries) {
-    if (entry.kind === 'spritesheet') load.spritesheet(entry.key, entry.url, entry.frame);
+    if (entry.kind === 'spritesheet') load.spritesheet({ key: entry.key, url: entry.url, frameConfig: entry.frame, ...(entry.normalMap ? { normalMap: entry.normalMap } : {}) });
     else if (entry.kind === 'image') load.image(entry.key, entry.url);
     else load.audio(entry.key, entry.urls);
   }

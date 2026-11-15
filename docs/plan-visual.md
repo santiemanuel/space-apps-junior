@@ -58,6 +58,11 @@ imagen es **un cuarto o un objeto**, nunca un mapa entero.
 5. **Control de calidad por pieza:** sin texto, silueta legible a tamaño real, sin halo, paleta correcta. Si falla,
    se regenera con un solo cambio en el prompt.
 6. **Registro:** el prompt se anota en el `README.md` de cada carpeta de `public/assets/`.
+7. **Normal maps:** `python scripts/art/normals.py` genera `<recurso>_n.png` con el generador de Sprite Fusion ("Sprite
+   Normals", MIT; el mismo de la herramienta gratuita `create_normal_map` de su MCP), compilado en Docker
+   (`docker build -t sprite-normals:local scripts/art/normals`) y sin red. Trabaja a resolución de arte: reduce el
+   recurso a la mitad, genera y vuelve a ampliar ×2. Las hojas en grilla usan `--frame-size` para que el relieve de
+   una celda no se mezcle con el de la vecina. Se rehace cada vez que cambia un recurso.
 
 ## 5. Fases
 
@@ -293,6 +298,17 @@ Hecho el 15/11/2026. Capturas de los ocho cuartos en `art/capturas/nave-*.png`.
   de 1/60 s. Ahora la cámara es propia (`followCamera`): zona muerta de 96 × 64 px sin retraso (frena en el mismo
   cuadro que el jugador), siempre en un píxel entero de pantalla, y viaja 0,35 s al cambiar de tripulante. Todo lo
   que depende de la posición se ubica después de la física (`afterPhysics`) y la física va a paso variable.
+
+### Luz dinámica (normal maps)
+
+- Tileset, atlas de objetos y hojas de la tripulación tienen normal map; Phaser los carga con
+  `load.image(key, [url, normal])`, `load.atlas({ normalMap })` y `load.spritesheet({ normalMap })`.
+- Todo lo del mapa usa `setLighting(true)` (los brillos aditivos y los textos no). `HabitatFx` pone la luz ambiente
+  según el estado, una luz de techo por cuarto y por tramo de pasillo, una por lámpara, una por alarma (late con la
+  alerta) y un destello con las chispas. En el corte de energía la oscuridad la hace la luz ambiente.
+- Phaser ilumina hasta 10 luces por cámara (`maxLights`, en `config.ts`): usa las más cercanas al centro.
+- Por qué el generador local y no el MCP: el MCP pide iniciar sesión (OAuth) en Sprite Fusion y devuelve cada mapa
+  como imagen para guardar a mano; el CLI hace lo mismo en lote, sin red y con un resultado repetible.
 
 ### Queda para otras fases
 

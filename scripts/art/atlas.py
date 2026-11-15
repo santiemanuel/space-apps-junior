@@ -68,7 +68,7 @@ for sheet in group['sheets']:
             glass[name] = {k: v * args.scale for k, v in punch(sprite).items()}
         items.append((name, sprite.resize((sprite.width * args.scale, sprite.height * args.scale), Image.NEAREST)))
 
-PAD = 2
+PAD = 4
 x = y = row_height = 0
 frames, placed = {}, []
 for name, sprite in sorted(items, key=lambda it: -it[1].height):

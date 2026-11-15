@@ -16,7 +16,12 @@ export interface MapAssets {
   doorPanels: { left: number; right: number };
   /** Índices del tileset que son frentes de pared con una franja de luz. */
   lightTiles: readonly number[];
+  /** Tileset y atlas tienen normal map (`<nombre>_n.png`, de `scripts/art/normals.py`): el mapa recibe luz dinámica. */
+  normals: boolean;
 }
+
+/** URL del normal map de un recurso: `tiles.png` → `tiles_n.png`. */
+export const normalUrl = (url: string): string => url.replace(/\.png$/, '_n.png');
 
 /** Lo que choca: paredes y objetos. */
 export type Solid = Phaser.Types.Physics.Arcade.ArcadeColliderType;
@@ -45,6 +50,13 @@ export interface PlacedProp {
   image: Phaser.GameObjects.Image;
 }
 
+/** Fuente de luz del mapa: franja de luz en un frente de pared o lámpara de pie. */
+export interface MapLight {
+  x: number;
+  y: number;
+  kind: 'strip' | 'lamp';
+}
+
 /** Adorno colgado de la pared (ventana, alarma, monitores): `x` es su centro y `bottom` su borde de abajo. */
 export interface WallItem {
   key: string;
@@ -55,6 +67,8 @@ export interface WallItem {
 }
 
 export interface MapView {
+  /** El mapa recibe luz dinámica (tiene normal maps). */
+  lit: boolean;
   /** Tamaño del mapa (px) y clave del atlas de objetos. */
   width: number;
   height: number;
@@ -63,7 +77,7 @@ export interface MapView {
   props: PlacedProp[];
   decor: WallItem[];
   /** Centro de cada franja de luz de pared y de cada lámpara (px). */
-  lights: Point[];
+  lights: MapLight[];
   /** Tiles de frente de pared y de piso transitable (col, fila), para repartir adornos. */
   faceTiles: Point[];
   floorTiles: Point[];
@@ -80,8 +94,13 @@ const DOOR_OPEN_S = 0.22;
 const RIM = { outline: 0x1e162d, light: 0x63537f } as const;
 
 export function preloadMap(scene: Phaser.Scene, assets: MapAssets): void {
-  scene.load.image(`${assets.key}-tiles`, assets.tilesUrl);
-  scene.load.atlas(`${assets.key}-props`, assets.propsUrl, assets.propsAtlasUrl);
+  if (!assets.normals) {
+    scene.load.image(`${assets.key}-tiles`, assets.tilesUrl);
+    scene.load.atlas(`${assets.key}-props`, assets.propsUrl, assets.propsAtlasUrl);
+    return;
+  }
+  scene.load.image(`${assets.key}-tiles`, [assets.tilesUrl, normalUrl(assets.tilesUrl)]);
+  scene.load.atlas({ key: `${assets.key}-props`, textureURL: assets.propsUrl, atlasURL: assets.propsAtlasUrl, normalMap: normalUrl(assets.propsUrl) });
 }
 
 /** Puerta corrediza de dos hojas: cada hoja se esconde en su marco recortando lo que entra en la pared. */
@@ -137,7 +156,7 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
   const isWall = (col: number, row: number) => wall[row]?.[col] ?? true;
   const faceTiles: Point[] = [];
   const floorTiles: Point[] = [];
-  const lights: Point[] = [];
+  const lights: MapLight[] = [];
   const wallData = assets.map.layers.find((l) => l.name === 'paredes')?.data ?? [];
   const rims = scene.add.graphics().setDepth(MapDepth.rims);
   for (let row = 0; row < map.height; row++) {
@@ -148,7 +167,7 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
       }
       if (!isWall(col, row + 1)) {
         faceTiles.push({ x: col, y: row });
-        if (assets.lightTiles.includes((wallData[row * map.width + col] ?? 0) - 1)) lights.push({ x: col * T + T / 2, y: row * T + LIGHT_STRIP_Y });
+        if (assets.lightTiles.includes((wallData[row * map.width + col] ?? 0) - 1)) lights.push({ x: col * T + T / 2, y: row * T + LIGHT_STRIP_Y, kind: 'strip' });
         continue;
       }
       // Techo de pared junto al piso: contorno oscuro y una línea de luz, de un píxel de arte (2 px) cada uno.
@@ -158,7 +177,7 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
       if (!isWall(col + 1, row)) rims.fillStyle(RIM.outline).fillRect(x + T - 2, y, 2, T).fillStyle(RIM.light).fillRect(x + T - 4, y, 2, T);
     }
   }
-  for (const p of props) if (p.key === 'lamp') lights.push({ x: p.x, y: p.bottom - p.image.height + 14 });
+  for (const p of props) if (p.key === 'lamp') lights.push({ x: p.x, y: p.bottom - p.image.height + 14, kind: 'lamp' });
 
   // Puertas: las hojas son tiles del tileset, que se agregan como cuadros de su textura.
   const texture = scene.textures.get(tilesKey);
@@ -179,7 +198,14 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
       open: 0,
     }));
 
+  // Luz dinámica: todo lo del mapa la recibe (los normal maps le dan relieve); los brillos y textos no.
+  if (assets.normals) {
+    const lit = [...map.layers.map((l) => l.tilemapLayer), rims, ...props.map((p) => p.image), ...decor.map((d) => d.image), ...doors.flatMap((d) => [d.left, d.right])];
+    for (const object of lit) object?.setLighting(true);
+  }
+
   return {
+    lit: assets.normals,
     width: map.widthInPixels,
     height: map.heightInPixels,
     propsKey,

@@ -47,6 +47,7 @@ export class VoyageScene extends SimulationMapScene<VoyageSession, VoyageSceneDa
       propsAtlasUrl: 'assets/ship/props.json',
       doorPanels: { left: 18, right: 22 },
       lightTiles: [11],
+      normals: true,
     };
   }
 

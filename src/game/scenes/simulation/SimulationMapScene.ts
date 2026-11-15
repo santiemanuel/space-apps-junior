@@ -177,6 +177,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     for (const m of this.session.state.crew) {
       const p = toPx(this.session.positionOf(m.id));
       const sprite = createCrewSprite(this, m.id, p.x, p.y);
+      // Con luz dinámica los trajes toman relieve con su normal map.
+      if (this.mapView?.lit) sprite.sprite.setLighting(true);
       this.sprites.set(m.id, sprite);
       this.colliders.set(m.id, this.physics.add.collider(sprite.sprite, (doorBlock ? [...walls, doorBlock] : walls) as Solid));
       this.labels.set(m.id, this.add.text(p.x, p.y + 6, NAMES[m.id], { fontFamily: 'monospace', fontSize: '11px', color: '#e2e8f0' }).setOrigin(0.5, 0).setDepth(41).setResolution(2).setVertexRoundMode('full'));
@@ -417,7 +419,15 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       return prop ? [{ system, at: { x: prop.x, y: prop.bottom - prop.image.height + 18 } }] : [];
     });
     this.fxStations = placed.map((p) => p.system);
-    this.fx = new HabitatFx(this, view, { stations: placed.map((p) => p.at), worn: this.worn(), seed: this.session.state.seed });
+    // Una luz de techo por cuarto y por tramo de pasillo (de unos 10 tiles).
+    const px = (r: { col: number; row: number; cols: number; rows: number }) => ({ x: r.col * TILE, y: r.row * TILE, w: r.cols * TILE, h: r.rows * TILE });
+    const { corridor } = this.layout;
+    const segments = Math.max(1, Math.round(corridor.cols / 10));
+    const areas = [
+      ...this.layout.zones.map((z) => px(z.rect)),
+      ...Array.from({ length: segments }, (_, i) => px({ ...corridor, col: corridor.col + (i * corridor.cols) / segments, cols: corridor.cols / segments })),
+    ];
+    this.fx = new HabitatFx(this, view, { stations: placed.map((p) => p.at), worn: this.worn(), seed: this.session.state.seed, areas });
     this.mapCreated(view);
   }
 

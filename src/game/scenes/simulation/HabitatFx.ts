@@ -22,6 +22,8 @@ export interface HabitatFxOptions {
   /** Nave gastada (viaje de vuelta): cinta, cables, manchas y luces que titilan. */
   worn: boolean;
   seed: number;
+  /** Cuartos y tramos de pasillo (px): cada uno con su luz de techo, si el mapa recibe luz dinámica. */
+  areas: readonly { x: number; y: number; w: number; h: number }[];
 }
 
 /** Texturas de los efectos, dibujadas por código en píxeles de arte (2 px). */
@@ -68,8 +70,23 @@ function makeTextures(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+/**
+ * Luz dinámica (si el mapa tiene normal maps): luz ambiente según el estado y luces que le dan relieve a lo que
+ * tocan. Phaser ilumina hasta 10 luces por cámara: las más cercanas al centro.
+ */
+const AMBIENT: Record<AlertLevel | 'powerOut', number> = { calm: 0xc8c8d0, alert: 0xbcb4a8, impact: 0xb0a0a0, powerOut: 0x363050 };
+/** Luz de techo de cada cuarto: blanca y pareja; en las alertas toma su color. */
+const ROOM_LIGHT = { color: 0xfff0d8, intensity: 0.22, z: 220, reach: 0.85 } as const;
+const LAMP_LIGHT = { color: 0xffc46a, intensity: 0.55, radius: 120, z: 50 } as const;
+/** Baliza de alarma: una luz que late con el pulso de la alerta (los haces que giran son brillos). */
+const ALARM_LIGHT = { radius: 200, intensity: 1.4, z: 60 } as const;
+/** Destello de las chispas de una máquina averiada. */
+const SPARK_LIGHT = { color: 0xffd27a, radius: 110, intensity: 2.6, z: 30, decayMs: 140 } as const;
+
 interface Light {
   glow: Phaser.GameObjects.Image;
+  /** Luz dinámica de las lámparas (las franjas de pared sólo brillan). */
+  light?: Phaser.GameObjects.Light;
   emergency: boolean;
   /** Titila (nave gastada): próximo apagón y cuánto dura (ms de la escena). */
   flicker?: { next: number; until: number };
@@ -78,6 +95,8 @@ interface Light {
 interface Station {
   at: Point;
   glow: Phaser.GameObjects.Image;
+  flash?: Phaser.GameObjects.Light;
+  flashAt: number;
   sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   smoke: Phaser.GameObjects.Particles.ParticleEmitter;
   nextSpark: number;
@@ -91,19 +110,32 @@ interface Station {
  */
 export class HabitatFx {
   private readonly lights: Light[] = [];
-  private readonly alarms: { glow: Phaser.GameObjects.Image; beams: Phaser.GameObjects.Image[] }[] = [];
+  private readonly alarms: { glow: Phaser.GameObjects.Image; beams: Phaser.GameObjects.Image[]; light?: Phaser.GameObjects.Light }[] = [];
+  private readonly roomLights: Phaser.GameObjects.Light[] = [];
   private readonly stations: Station[];
   private readonly leaks = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private readonly darkness: Phaser.GameObjects.Rectangle;
   private readonly rng: Rng;
 
+  private readonly lit: boolean;
+
   constructor(private readonly scene: Phaser.Scene, view: MapView, options: HabitatFxOptions) {
     makeTextures(scene);
     this.rng = new Rng(options.seed);
+    this.lit = view.lit;
+    const lights = scene.lights;
+    if (this.lit) {
+      lights.enable().setAmbientColor(AMBIENT.calm);
+      for (const a of options.areas) {
+        const radius = Math.max(a.w, a.h) * ROOM_LIGHT.reach;
+        this.roomLights.push(lights.addLight(a.x + a.w / 2, a.y + a.h / 2, radius, ROOM_LIGHT.color, ROOM_LIGHT.intensity, ROOM_LIGHT.z));
+      }
+    }
     const add = (p: Point, scale: number) =>
       scene.add.image(p.x, p.y, Tex.glow).setBlendMode(Phaser.BlendModes.ADD).setDepth(MapDepth.lights).setScale(scale).setVertexRoundMode('full');
     view.lights.forEach((p, i) => {
-      const light: Light = { glow: add(p, 1), emergency: i % EMERGENCY_EVERY === 0 };
+      const light: Light = { glow: add(p, p.kind === 'lamp' ? 0.9 : 1), emergency: p.kind === 'lamp' || i % EMERGENCY_EVERY === 0 };
+      if (this.lit && p.kind === 'lamp') light.light = lights.addLight(p.x, p.y, LAMP_LIGHT.radius, LAMP_LIGHT.color, LAMP_LIGHT.intensity, LAMP_LIGHT.z);
       if (options.worn && this.rng.chance(FLICKER_SHARE)) light.flicker = { next: this.rng.between(500, 4000), until: 0 };
       this.lights.push(light);
     });
@@ -114,12 +146,15 @@ export class HabitatFx {
       const beams = [0, Math.PI].map((angle) =>
         scene.add.image(at.x, at.y, Tex.beam).setBlendMode(Phaser.BlendModes.ADD).setDepth(MapDepth.lights).setRotation(angle).setVisible(false),
       );
-      this.alarms.push({ glow: add(at, 0.8).setVisible(false), beams });
+      const light = this.lit ? lights.addLight(at.x, at.y + 30, ALARM_LIGHT.radius, 0xff3a2a, ALARM_LIGHT.intensity, ALARM_LIGHT.z).setVisible(false) : undefined;
+      this.alarms.push({ glow: add(at, 0.8).setVisible(false), beams, ...(light ? { light } : {}) });
     }
     this.darkness = scene.add.rectangle(0, 0, view.width, view.height, 0x060a1a, 0.62).setOrigin(0, 0).setDepth(MapDepth.darkness).setVisible(false);
     this.stations = options.stations.map((at) => ({
       at,
       glow: add(at, 0.7).setVisible(false),
+      ...(this.lit ? { flash: lights.addLight(at.x, at.y, SPARK_LIGHT.radius, SPARK_LIGHT.color, 0, SPARK_LIGHT.z).setVisible(false) } : {}),
+      flashAt: -Infinity,
       sparks: scene.add
         .particles(at.x, at.y, Tex.spark, {
           speed: { min: 60, max: 150 },
@@ -167,7 +202,9 @@ export class HabitatFx {
         if (time < light.flicker.until) alpha *= 0.15;
       }
       light.glow.setAlpha(alpha).setTint(tint);
+      light.light?.setColor(state.powerOut || state.level !== 'calm' ? tint : LAMP_LIGHT.color).setIntensity((alpha / Math.max(0.01, mode.alpha)) * LAMP_LIGHT.intensity * (state.powerOut ? 0.6 : 1));
     }
+    if (this.lit) this.updateRoomLights(state, mode, wave);
     const alarming = state.level !== 'calm' || state.powerOut;
     const urgent = state.level === 'impact' || state.powerOut;
     const tint = urgent ? 0xff3a2a : 0xffa020;
@@ -180,9 +217,20 @@ export class HabitatFx {
       alarm.glow.setTint(tint).setAlpha(0.6 + 0.4 * wave).setScale(0.8 + 0.2 * wave);
       alarm.beams.forEach((beam, i) => beam.setTint(tint).setAlpha(0.7).setRotation(spin + i * Math.PI));
     }
-    this.darkness.setVisible(state.powerOut);
+    for (const alarm of this.alarms) alarm.light?.setVisible(alarming).setColor(tint).setIntensity(ALARM_LIGHT.intensity * (0.35 + 0.65 * wave));
+    // Con luz dinámica el corte de energía lo hace la luz ambiente; si no, un velo oscuro.
+    this.darkness.setVisible(state.powerOut && !this.lit);
     this.updateStations(state.stations, time, wave);
     this.updateLeaks(state.leaks);
+  }
+
+  private updateRoomLights(state: HabitatFxState, mode: (typeof LIGHT_MODE)[AlertLevel], wave: number): void {
+    this.scene.lights.setAmbientColor(state.powerOut ? AMBIENT.powerOut : AMBIENT[state.level]);
+    for (const light of this.roomLights) {
+      light.setVisible(!state.powerOut);
+      if (state.level === 'calm') light.setColor(ROOM_LIGHT.color).setIntensity(ROOM_LIGHT.intensity);
+      else light.setColor(mode.tint).setIntensity(ROOM_LIGHT.intensity * (0.7 + 0.6 * wave));
+    }
   }
 
   private updateStations(statuses: readonly SystemStatus[], time: number, wave: number): void {
@@ -196,7 +244,12 @@ export class HabitatFx {
       }
       if (status === 'green') return;
       station.glow.setAlpha(0.35 + 0.4 * wave);
+      if (station.flash) {
+        const k = Math.max(0, 1 - (time - station.flashAt) / SPARK_LIGHT.decayMs);
+        station.flash.setVisible(k > 0).setIntensity(SPARK_LIGHT.intensity * k);
+      }
       if (time >= station.nextSpark) {
+        station.flashAt = time;
         station.sparks.explode(status === 'red' ? 7 : 4);
         station.nextSpark = time + (status === 'red' ? this.rng.between(350, 900) : this.rng.between(1200, 2600));
       }

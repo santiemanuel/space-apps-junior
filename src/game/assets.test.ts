@@ -5,7 +5,8 @@ import { CREW_ROSTER } from '../content/crew';
 import { BOOT_ASSETS, CREW_ASSETS, CREW_SHEET, crewTextureKey, queueAssets, type AssetEntry } from './assets';
 
 const PUBLIC_DIR = join(import.meta.dirname, '..', '..', 'public');
-const urlsOf = (entry: AssetEntry): string[] => (entry.kind === 'audio' ? entry.urls : [entry.url]);
+const urlsOf = (entry: AssetEntry): string[] =>
+  entry.kind === 'audio' ? entry.urls : entry.kind === 'spritesheet' && entry.normalMap ? [entry.url, entry.normalMap] : [entry.url];
 
 /** Ancho y alto de un PNG leídos de su cabecera IHDR. */
 function pngSize(path: string): { width: number; height: number } {
@@ -47,7 +48,7 @@ describe('recursos de Boot', () => {
       { kind: 'image', key: 'piso', url: 'assets/piso.png' },
       { kind: 'audio', key: 'alarma', urls: ['assets/alarma.ogg', 'assets/alarma.mp3'] },
     ]);
-    expect(load.spritesheet).toHaveBeenCalledWith('hoja', 'assets/hoja.png', frame);
+    expect(load.spritesheet).toHaveBeenCalledWith({ key: 'hoja', url: 'assets/hoja.png', frameConfig: frame });
     expect(load.image).toHaveBeenCalledWith('piso', 'assets/piso.png');
     expect(load.audio).toHaveBeenCalledWith('alarma', ['assets/alarma.ogg', 'assets/alarma.mp3']);
   });
