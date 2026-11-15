@@ -576,13 +576,17 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 
 - [x] `npm test`, `npm run typecheck` y `npm run build` en verde, incluido `src/architecture.test.ts`.
 - [x] Test de partida completa en Node: campaña 2024, modo corto, semilla fija, de `prep` a `report` (`src/fullGame.test.ts`).
-- [ ] Prueba manual en `npm run dev`: las 7 fases en orden, en ES y en EN.
-- [ ] Guardar en `Voyage`, recargar la página y continuar con el mismo estado.
-- [ ] La tormenta de mayo de 2024 frena el reloj, se tiñe de amarillo y abre su `DataCard`.
 - [x] Un medidor en cero entra en cascada y no termina la partida (`VoyageSession.test.ts`, "sin aire entra en emergencia").
 - [x] Los datos archivados nunca se presentan como en vivo: el tablero dice "Dato real archivado del <fecha> · <fuente>" y cada tarjeta muestra la fecha del dato. (Reemplaza al criterio de `EnvironmentSnapshot.source`, que sólo usaba el prototipo lunar.)
 - [x] Ningún texto de UI escrito en el código; todas las claves existen en `es` y `en`.
-- [ ] Revisión cruzada: cada uno revisa la parte del otro. (En la integración se revisaron las convenciones de `AGENTS.md` en todo el código: sin `Math.random`, sin textos en el código, capas respetadas; falta la revisión entre personas.)
+- [x] Revisión cruzada: cada uno revisa la parte del otro (confirmada por Santiago y Facundo; además se revisaron las convenciones de `AGENTS.md` en todo el código).
+
+Pruebas manuales postergadas por decisión del equipo hasta después de fusionar en `master` (se cubren en Node con
+`src/fullGame.test.ts`; quedan para la primera sesión de juego):
+
+- [ ] Prueba manual en `npm run dev`: las 7 fases en orden, en ES y en EN.
+- [ ] Guardar en `Voyage`, recargar la página y continuar con el mismo estado.
+- [ ] La tormenta de mayo de 2024 frena el reloj, se tiñe de amarillo y abre su `DataCard`.
 
 ---
 
