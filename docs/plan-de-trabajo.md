@@ -302,6 +302,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Contenido en `src/content/incidents.ts`: tormenta de radiación, tormenta de polvo, depurador averiado,
   micrometeorito, aislamiento, noche extrema, CO2 alto, plaga, polvo en los sellos, conjunción solar.
 - Emite `realEvent:shown` con un `RealEvent` completo para cada evento del dataset.
+- Hecho: `core/incidents/` (`definitions.ts` con el formato de §3.4, `timeline.ts`, `planner.ts`), `content/incidents.ts`,
+  `data/incidentTimeline.ts`. Los avisos dinámicos llegan al reloj con `MissionClock.addAlert`; el estado del
+  planificador (`IncidentPlannerState`) viaja junto al `GameState`, como el de la cascada.
 
 ### S6 · Datos — `src/data/`
 
@@ -317,6 +320,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - API: `seriesFor(phase, date)` y `eventsBetween(from, to)`.
 - Cada serie nueva se documenta en `datasets/README.md` (fuente, URL, uso).
 - Cuando se recorta un valor de BioSentinel: `capped: true` en el `RealEvent`.
+- Hecho: `src/data/realData.ts` (`seriesFor(phase, date)`, `eventsBetween(from, to, rules)`), `vanAllen.ts`
+  (`VAN_ALLEN` con su `RealEvent` para el ascenso), `notices.ts` (`DONKI_NOTICES` + `noticeText`) y picos a
+  resolución completa en las tarjetas. Todo sale de `node scripts/build-events.mjs`.
 
 ### S7 · Escena `Voyage`
 
@@ -326,6 +332,11 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
   nivel 3.
 - Tormenta de radiación: alarma, todos al refugio, tiempo de llegada según la reacción de cada tripulante.
 - `leg: 'back'`: nave gastada, sólo los repuestos que sobraron, el ejercicio cuenta doble.
+- Hecho: `core/voyage/` (`ship.ts` con zonas y rutas óptima o a ciegas, `VoyageSession.ts` que junta reloj, medidores,
+  rutinas, cascada e incidentes y publica en el bus), `content/ship.ts` (plano de 19 × 15 tiles, tareas, rutinas por
+  defecto, desgaste) y `VoyageScene` con un tablero provisional a la derecha (lo reemplaza `Hud` en S9). El estado de
+  la cascada, del planificador y del desgaste viaja con la sesión, como en S3/S5. Provisional hasta F2: Tab emite
+  `crew:switched` desde la escena (quitar en la integración). Dev: `?scene=Voyage&leg=back&from=2024-05-07&help=1&level=2&length=long`.
 
 ### S8 · Escena `Mars`
 
@@ -334,6 +345,13 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Puntos de muestreo ubicados por semilla, con masa y valor según la distancia.
 - MOXIE escalado, invernadero, esclusa.
 - Entrega a Facundo el `inventory.samples` para `Loadout` en modo `return`.
+- Hecho: el motor de `Voyage` pasó a `core/habitat/` (`HabitatSession` + `layout.ts`, con esclusa y exterior) y
+  `Voyage` y `Mars` son subclases. `core/mars/MarsSession.ts`: luz del sol marciano (día de 6 a 18 h UTC, aproximación),
+  polvo por el UV de REMS, calefacción con la mínima real, MOXIE, invernadero, EVA de día con dosis sin blindaje y
+  puntos de muestreo por semilla (más lejos si el aterrizaje quedó lejos). `content/gale.ts` y `MarsScene` (mapa de
+  48 × 15 tiles con cámara). `GALE_POWER` pasó a 100 kW a 1 UA y 160 kWh para que alcance con cielo limpio y una noche.
+  Las muestras quedan en `inventory.samples` del `PhaseResult`. Dev: `?scene=Mars&km=6&where=airlock&from=2024-05-20`.
+  `HabitatScene` (prototipo lunar) sigue hasta la integración.
 
 ### S9 · Escenas superpuestas: `Hud`, `Planning`, `MissionControl`, `DataPanel`
 
@@ -342,14 +360,24 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - `Planning`: rutinas y tablero de energía con el mouse.
 - `MissionControl`: demora real con cuenta regresiva y bloqueo durante la conjunción solar.
 - `DataPanel`: gráficas con la posición del jugador en el tiempo.
+- Hecho: las superpuestas hablan con la sesión por un bus propio, `SimulationEvents` (`core/habitat/events.ts`):
+  `sim:snapshot` en cada cuadro y pedidos `sim:pause|respond|sacrifice|routines|loads|ask`. No toca `GameEvents.ts`;
+  se puede unir en la integración. Las escenas de mapa lanzan `Hud` y abren `Planning` (P, pausa), `MissionControl`
+  (C, el reloj sigue) y `DataPanel` (G, pausa). `HudScene` conserva el tablero del prototipo lunar si `Boot` la abre
+  con `{ session }`. Demora de la señal con las órbitas aproximadas de JPL (`datasets/curated/planet-elements.json`);
+  consejos y diagnóstico remoto (×1,5) los pide la comandante desde la radio. El monitor de partículas suena con
+  Web Audio (M silencia).
+- Después de S9: la planificación se abre sola con cada aviso nuevo; el tablero tiene tantos enchufes como alcanza
+  el sol de hoy (`power.socketKw`, con polvo "Low" en Gale no queda ninguno); Control de Misión suma noticias de casa
+  cada 3 días; Curiosity está estacionado en el exterior con el dato del día; el tablero titila en Alerta.
 
 ### Entregables de Santiago
 
-- [ ] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
-- [ ] Series de `src/data/` documentadas en `datasets/README.md`.
-- [ ] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
-- [ ] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
-- [ ] Textos en `voyage/mars/hud/incidents.json` (es + en).
+- [x] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
+- [x] Series de `src/data/` documentadas en `datasets/README.md`.
+- [x] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
+- [x] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
+- [x] Textos en `voyage/mars/hud/incidents.json` (es + en).
 
 ---
 
@@ -466,7 +494,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/core/clock/`, `meters/`, `cascade/`, `crew/`, `incidents/`, `environment/`, `resources/` | Santiago |
 | `src/core/flow/` (salvo `types.ts`), `maneuvers/`, `save/`, `progression/` | Facundo |
 | `src/data/`, `datasets/`, `scripts/` | Santiago |
-| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts` | Santiago |
+| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts`, `campaign.ts`, `meters.ts`, `cascade.ts` | Santiago |
 | `src/content/maneuvers.ts`, `loadouts.ts`, `achievements.ts` | Facundo |
 | `src/game/scenes/simulation/*`, `simulationScenes.ts` | Santiago |
 | `src/game/scenes/flow/*` (incluye `BootScene.ts`), `flowScenes.ts` | Facundo |
@@ -514,6 +542,7 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 | `Mars` → `inventory.samples` → `Loadout(return)` | Santiago |
 | Resultado del aterrizaje (distancia) → puntos de muestreo y EVA en `Mars` | Santiago |
 | Guardado: serializa reloj, medidores, tripulación e incidentes activos | Facundo |
+| `CascadeState` (`src/core/cascade/types.ts`) entra en `GameState` como campo opcional `cascade` para guardarlo; hasta entonces viaja aparte para no tocar los contratos | Santiago (tipo) · Facundo (guardado) |
 | Historial de decisiones e incidentes → `Report` | Facundo |
 | Desbloqueos de `progression` → filtro del planificador de incidentes | Santiago |
 
@@ -538,10 +567,10 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 
 | Tema | Responsable | Antes de |
 |---|---|---|
-| Fechas de las conjunciones solares de Marte (§10 del diseño) | Santiago | S5 |
-| Antelación real DONKI→RadLab en mayo y octubre de 2024 | Santiago | S1 |
-| Factores Q por fase (Hassler 2014, Zeitlin 2013) | Santiago | S2 |
-| Mínimas de REMS por debajo de −90 °C | Santiago | S8 |
+| ~~Fechas de las conjunciones solares de Marte (§10 del diseño)~~ Hecho: 2015, 2017, 2019, 2021 y 2023 (JPL), en `datasets/curated/mars-conjunctions.json` | Santiago | S5 |
+| ~~Antelación real DONKI→RadLab en mayo y octubre de 2024~~ Hecho: mayo 69 h, octubre 1,9 h (ver `datasets/README.md`) | Santiago | S1 |
+| ~~Factores Q por fase (Hassler 2014, Zeitlin 2013)~~ Hecho: 3,05 y 3,8, citados en `datasets/curated/radiation-dose.json` | Santiago | S2 |
+| ~~Mínimas de REMS por debajo de −90 °C~~ Hecho: son artefactos aislados, se reemplazan por la mediana vecina (ver `datasets/README.md`) | Santiago | S8 |
 | Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I) | Facundo | F5 |
 | Límites de masa de las cargas de ida y vuelta | Facundo | F6 |
 | Pesos de la eficiencia y márgenes de la cascada: ajustar con pruebas con niños | Ambos | Después de la integración |

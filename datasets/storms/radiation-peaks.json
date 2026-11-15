@@ -1,0 +1,29 @@
+{
+ "source": "NASA OSDR RadLab — series de evento a resolución completa. Derivado por scripts/build-events.mjs",
+ "url": "https://visualization.osdr.nasa.gov/radlab/",
+ "rule": "Fondo: mediana de las lecturas previas al día de la tormenta. Inicio: primera lectura de ese día por encima de 5 × el fondo",
+ "peaks": [
+  {
+   "id": "peak-deep-space-2024-05",
+   "site": "deepSpace",
+   "instrument": "BPD",
+   "mission": "BioSentinel",
+   "onsetAt": "2024-05-11T03:14:00Z",
+   "peakAt": "2024-05-13T20:52:00Z",
+   "peakUGyH": 652.7,
+   "baselineUGyH": 7.38,
+   "file": "raw/radlab/events/2024-05-gannon-storm_heliocentric.csv"
+  },
+  {
+   "id": "peak-mars-2024-05-20",
+   "site": "marsSurface",
+   "instrument": "RAD",
+   "mission": "Curiosity",
+   "onsetAt": "2024-05-20T05:38:56Z",
+   "peakAt": "2024-05-20T06:15:19Z",
+   "peakUGyH": 304,
+   "baselineUGyH": 3.9,
+   "file": "raw/radlab/events/2024-05-20-mars-sep_curiosity.csv"
+  }
+ ]
+}

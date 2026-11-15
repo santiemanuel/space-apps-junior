@@ -1,3 +1,22 @@
 {
-  "sceneTitle": "Life on the ship"
+  "sceneTitle": "Life on the ship",
+  "zone.command": "Command module",
+  "zone.exercise": "Exercise",
+  "zone.scrubber": "CO2 scrubber",
+  "zone.recycler": "Water recycler",
+  "zone.infirmary": "Beds and sick bay",
+  "zone.pantry": "Pantry",
+  "zone.shelter": "Water shelter",
+  "zone.radio": "Radio",
+  "station.exercise": "Bike",
+  "station.scrubber": "CO2",
+  "station.recycler": "Water",
+  "station.callHome": "Radio",
+  "task.exercise": "E: exercise",
+  "task.scrubber": "E: check the scrubber",
+  "task.recycler": "E: check the recycler",
+  "task.callHome": "E: call home",
+  "outcome.out": "You made it to Mars! Next comes the landing.",
+  "outcome.back": "You made it back to Earth! Next comes reentry.",
+  "outcome.suspended": "Mission suspended: the crew is safe in the shelter waiting for rescue."
 }

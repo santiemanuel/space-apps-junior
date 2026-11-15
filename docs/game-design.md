@@ -288,7 +288,7 @@ de segundos al principio del viaje a ~20 min en Marte, mostrada con una cuenta r
 | **Consejos** | Preguntás qué hacer ante una falla; la respuesta llega después de la demora. Enseña por qué hay que decidir solos | Ninguno, solo el tiempo de espera |
 | **Diagnóstico remoto** | Acelera una reparación en curso (×1,5) [regla] cuando llega | Energía de la radio |
 
-- Durante la **conjunción solar** (cuando el Sol queda entre la Tierra y Marte) no hay Control de Misión, solo mensajes guardados [verificar fechas].
+- Durante la **conjunción solar** (cuando el Sol queda entre la Tierra y Marte) no hay Control de Misión, solo mensajes guardados. Fechas reales: moratorias de comandos de la NASA de 2015, 2017, 2019, 2021 y 2023 (`datasets/curated/mars-conjunctions.json`) [dato]. La campaña 2024 no tiene ninguna: la siguiente es en enero de 2026.
 - El **comandante** es quien pide consejos y diagnósticos, desde la consola de comunicaciones.
 
 ### 3.8 Los datos reales, a la vista
@@ -398,7 +398,7 @@ Los soles tranquilos pasan en avance rápido (3.1), y se juegan a mano los que t
 | Tormenta de polvo | UV = Low en REMS | Repartir energía: calor, aire o ciencia; si la energía llega a cero, soporte vital mínimo y limpieza de paneles (3.5) | [dato] REMS (2018) |
 | Noche extrema | Mínima real muy baja | Más calefacción o una zona apagada | [dato] REMS |
 | **Tormenta de radiación** | Pico real en RAD (20/05/2024) | Refugio; suspender la EVA | [dato] RadLab |
-| Conjunción solar | Fechas reales en que el Sol tapa a Marte | Dos semanas sin Control de Misión | [verificar fechas: ¿nov. 2023?] |
+| Conjunción solar | Fechas reales en que el Sol tapa a Marte | Dos semanas sin Control de Misión | [dato] NASA JPL (p. ej. 11–25/11/2023); solo en el modo libre |
 | CO2 alto | Depurador o MOXIE descuidados | Reparar o reasignar energía | [norma] |
 | Plaga en el invernadero | Poco cuidado | Botánico | [dato] OSD-177 |
 | Polvo en los sellos | Muchas EVA | Mantenimiento de la esclusa | [regla] |
@@ -484,14 +484,14 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 
 ## 10. Pendientes de verificar
 
-- [ ] Fechas de las conjunciones solares de Marte (moratoria de comandos de la NASA) en los rangos de datos.
+- [x] Fechas de las conjunciones solares de Marte: moratorias de 2015, 2017, 2019, 2021 y 2023 según JPL (`datasets/curated/mars-conjunctions.json`). Ninguna cae en la estancia de la campaña 2024.
 - [ ] Ventana de lanzamiento a Marte 2026 (fechas reales, posible gancho de "desafío actual").
 - [ ] Simulaciones WSA-ENLIL de DONKI con impactos en Marte (para eventos en superficie fuera de RAD).
 - [ ] Error típico de las predicciones de llegada de CME (CCMC CME Scoreboard).
-- [ ] Mínimas < −90 °C de REMS (40 soles). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
+- [x] Mínimas < −90 °C de REMS (40 soles): caídas aisladas de ~30 °C, tratadas como artefacto (ver `datasets/README.md`). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
 - [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas) y de la reentrada de Orion.
-- [ ] Factores Q por fase: confirmar en Hassler 2014 y Zeitlin 2013.
-- [ ] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña (mayo y octubre de 2024).
+- [x] Factores Q por fase: Marte 3,05 (0,64 mSv / 0,21 mGy, Hassler 2014); crucero 3,8 (1,84 mSv / 0,48 mGy, Zeitlin 2013).
+- [x] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña: mayo de 2024, 69 h (X1.0 de la región 13664 el 08/05 → subida en BioSentinel el 11/05); octubre de 2024, 1,9 h (X1.8 del 09/10). Detalle en `datasets/README.md`.
 - [ ] Hallazgos de Mars-500 sobre sueño y actividad (Basner et al. 2013, PNAS).
 - [ ] Pesos de la fórmula de eficiencia, márgenes de la falla en cascada y límites de masa de las cargas: ajustarlos con pruebas de juego con niños.
 

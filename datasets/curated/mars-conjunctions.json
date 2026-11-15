@@ -1,0 +1,40 @@
+{
+  "notes": "Moratorias de comandos de la NASA durante las conjunciones solares de Marte (el Sol queda entre la Tierra y Marte). Fechas de inicio y fin inclusivas, en UTC. Cubren el rango de Curiosity RAD/REMS (2015 → 06/2024); la siguiente conjunción es en enero de 2026, fuera de los datos.",
+  "conjunctions": [
+    {
+      "id": "conjunction-2015",
+      "start": "2015-06-07",
+      "end": "2015-06-21",
+      "source": "NASA JPL, 'Mars Missions to Pause Commanding in June, Due to Sun' (03/06/2015): del 7 al 21 de junio",
+      "url": "https://www.jpl.nasa.gov/news/mars-missions-to-pause-commanding-in-june-due-to-sun/"
+    },
+    {
+      "id": "conjunction-2017",
+      "start": "2017-07-22",
+      "end": "2017-08-01",
+      "source": "NASA JPL, 'For Moratorium on Sending Commands to Mars, Blame the Sun' (14/07/2017): del 22 de julio al 1 de agosto",
+      "url": "https://www.jpl.nasa.gov/news/for-moratorium-on-sending-commands-to-mars-blame-the-sun/"
+    },
+    {
+      "id": "conjunction-2019",
+      "start": "2019-08-28",
+      "end": "2019-09-07",
+      "source": "NASA JPL, 'What's Mars Solar Conjunction, and Why Does It Matter?' (2019): del 28 de agosto al 7 de septiembre",
+      "url": "https://www.jpl.nasa.gov/news/whats-mars-solar-conjunction-and-why-does-it-matter/"
+    },
+    {
+      "id": "conjunction-2021",
+      "start": "2021-10-02",
+      "end": "2021-10-16",
+      "source": "NASA JPL, 'NASA's Mars Fleet Lies Low With Sun Between Earth and Red Planet' (28/09/2021): del 2 al 16 de octubre",
+      "url": "https://www.jpl.nasa.gov/news/nasas-mars-fleet-lies-low-with-sun-between-earth-and-red-planet/"
+    },
+    {
+      "id": "conjunction-2023",
+      "start": "2023-11-11",
+      "end": "2023-11-25",
+      "source": "NASA JPL, 'NASA's Mars Fleet Will Still Conduct Science While Lying Low' (10/11/2023): del 11 al 25 de noviembre",
+      "url": "https://www.jpl.nasa.gov/news/nasas-mars-fleet-will-still-conduct-science-while-lying-low/"
+    }
+  ]
+}

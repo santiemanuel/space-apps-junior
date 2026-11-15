@@ -1,0 +1,493 @@
+{
+  "source": "NASA OSDR RadLab (BioSentinel/BPD, medias diarias) + NASA CCMC DONKI (FLR, SEP). Derivado por scripts/build-storms.mjs",
+  "links": {
+    "radlab": "https://visualization.osdr.nasa.gov/radlab/",
+    "donki": "https://ccmc.gsfc.nasa.gov/tools/DONKI/"
+  },
+  "rules": {
+    "stormFactor": 5,
+    "baselineDays": 27,
+    "warningWindowHours": 72,
+    "fallbackLeadHours": 48,
+    "capUGyH": 650
+  },
+  "range": {
+    "start": "2022-11-16",
+    "end": "2025-11-13"
+  },
+  "storms": [
+    {
+      "id": "storm-2023-02-25",
+      "warnAt": "2023-02-23T12:00:00Z",
+      "impactAt": "2023-02-25T12:00:00Z",
+      "endAt": "2023-02-27T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-02-26",
+      "peakMeanUGyH": 202.9,
+      "capped": false,
+      "baselineUGyH": 10.3
+    },
+    {
+      "id": "storm-2023-03-13",
+      "warnAt": "2023-03-11T12:00:00Z",
+      "impactAt": "2023-03-13T12:00:00Z",
+      "endAt": "2023-03-14T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-03-13",
+      "peakMeanUGyH": 66.6,
+      "capped": false,
+      "baselineUGyH": 9.7
+    },
+    {
+      "id": "storm-2023-05-10",
+      "warnAt": "2023-05-08T12:00:00Z",
+      "impactAt": "2023-05-10T12:00:00Z",
+      "endAt": "2023-05-11T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-05-10",
+      "peakMeanUGyH": 93.4,
+      "capped": false,
+      "baselineUGyH": 9.3
+    },
+    {
+      "id": "storm-2023-07-18",
+      "warnAt": "2023-07-16T12:00:00Z",
+      "impactAt": "2023-07-18T12:00:00Z",
+      "endAt": "2023-07-19T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-07-18",
+      "peakMeanUGyH": 129.1,
+      "capped": false,
+      "baselineUGyH": 8.7
+    },
+    {
+      "id": "storm-2023-07-29",
+      "warnAt": "2023-07-27T12:00:00Z",
+      "impactAt": "2023-07-29T12:00:00Z",
+      "endAt": "2023-07-30T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-07-29",
+      "peakMeanUGyH": 202.1,
+      "capped": false,
+      "baselineUGyH": 9
+    },
+    {
+      "id": "storm-2023-08-05",
+      "warnAt": "2023-08-03T12:00:00Z",
+      "impactAt": "2023-08-05T12:00:00Z",
+      "endAt": "2023-08-06T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-08-05",
+      "peakMeanUGyH": 64.6,
+      "capped": false,
+      "baselineUGyH": 9.9
+    },
+    {
+      "id": "storm-2023-08-08",
+      "warnAt": "2023-08-06T12:00:00Z",
+      "impactAt": "2023-08-08T12:00:00Z",
+      "endAt": "2023-08-10T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-08-08",
+      "peakMeanUGyH": 123.1,
+      "capped": false,
+      "baselineUGyH": 10.7
+    },
+    {
+      "id": "storm-2023-12-15",
+      "warnAt": "2023-12-13T12:00:00Z",
+      "impactAt": "2023-12-15T12:00:00Z",
+      "endAt": "2023-12-16T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2023-12-15",
+      "peakMeanUGyH": 45.9,
+      "capped": false,
+      "baselineUGyH": 6.6
+    },
+    {
+      "id": "storm-2024-01-03",
+      "warnAt": "2024-01-01T00:15:00Z",
+      "impactAt": "2024-01-03T00:15:00Z",
+      "endAt": "2024-01-05T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "MODEL: REleASE:SOHO/EPHIN 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/28446/-1"
+      },
+      "peakDay": "2024-01-03",
+      "peakMeanUGyH": 84.3,
+      "capped": false,
+      "baselineUGyH": 6.6
+    },
+    {
+      "id": "storm-2024-01-29",
+      "warnAt": "2024-01-29T04:38:00Z",
+      "impactAt": "2024-01-29T05:11:00Z",
+      "endAt": "2024-01-30T00:00:00Z",
+      "leadHours": 0.6,
+      "warning": {
+        "kind": "flare",
+        "classType": "M6.8",
+        "activeRegion": 13559,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/28834/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "STEREO A: IMPACT 13-100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/28836/-1"
+      },
+      "peakDay": "2024-01-29",
+      "peakMeanUGyH": 42.6,
+      "capped": false,
+      "baselineUGyH": 6.7
+    },
+    {
+      "id": "storm-2024-02-09",
+      "warnAt": "2024-02-07T03:31:00Z",
+      "impactAt": "2024-02-09T15:09:00Z",
+      "endAt": "2024-02-16T00:00:00Z",
+      "leadHours": 59.6,
+      "warning": {
+        "kind": "flare",
+        "classType": "M5.1",
+        "activeRegion": 13575,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/29025/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "STEREO A: IMPACT 13-100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/29076/-1"
+      },
+      "peakDay": "2024-02-10",
+      "peakMeanUGyH": 655.7,
+      "capped": true,
+      "baselineUGyH": 6.8
+    },
+    {
+      "id": "storm-2024-03-23",
+      "warnAt": "2024-03-23T01:33:00Z",
+      "impactAt": "2024-03-23T05:57:00Z",
+      "endAt": "2024-03-26T00:00:00Z",
+      "leadHours": 4.4,
+      "warning": {
+        "kind": "flare",
+        "classType": "X1.1",
+        "activeRegion": 13614,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/29708/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "SOHO: COSTEP 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/29721/-1"
+      },
+      "peakDay": "2024-03-23",
+      "peakMeanUGyH": 1204.1,
+      "capped": true,
+      "baselineUGyH": 6.3
+    },
+    {
+      "id": "storm-2024-05-11",
+      "warnAt": "2024-05-08T05:09:00Z",
+      "impactAt": "2024-05-11T02:10:00Z",
+      "endAt": "2024-05-16T00:00:00Z",
+      "leadHours": 69,
+      "warning": {
+        "kind": "flare",
+        "classType": "X1.0",
+        "activeRegion": 13664,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/30551/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "GOES-P: SEISS >100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/30714/-1"
+      },
+      "peakDay": "2024-05-14",
+      "peakMeanUGyH": 380.7,
+      "capped": false,
+      "baselineUGyH": 6.3
+    },
+    {
+      "id": "storm-2024-06-08",
+      "warnAt": "2024-06-06T15:06:00Z",
+      "impactAt": "2024-06-08T02:25:00Z",
+      "endAt": "2024-06-11T00:00:00Z",
+      "leadHours": 35.3,
+      "warning": {
+        "kind": "flare",
+        "classType": "M6.1",
+        "activeRegion": 13697,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/31320/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "GOES-P: SEISS >100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/31338/-1"
+      },
+      "peakDay": "2024-06-08",
+      "peakMeanUGyH": 2513.3,
+      "capped": true,
+      "baselineUGyH": 7.9
+    },
+    {
+      "id": "storm-2024-07-23",
+      "warnAt": "2024-07-21T01:20:00Z",
+      "impactAt": "2024-07-23T01:20:00Z",
+      "endAt": "2024-07-24T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "STEREO A: IMPACT 13-100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/32110/-1"
+      },
+      "peakDay": "2024-07-23",
+      "peakMeanUGyH": 132.7,
+      "capped": false,
+      "baselineUGyH": 6.5
+    },
+    {
+      "id": "storm-2024-09-15",
+      "warnAt": "2024-09-13T12:00:00Z",
+      "impactAt": "2024-09-15T12:00:00Z",
+      "endAt": "2024-09-18T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2024-09-16",
+      "peakMeanUGyH": 83.8,
+      "capped": false,
+      "baselineUGyH": 7.2
+    },
+    {
+      "id": "storm-2024-10-09",
+      "warnAt": "2024-10-09T01:56:00Z",
+      "impactAt": "2024-10-09T03:50:00Z",
+      "endAt": "2024-10-12T00:00:00Z",
+      "leadHours": 1.9,
+      "warning": {
+        "kind": "flare",
+        "classType": "X1.8",
+        "activeRegion": 13848,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/33863/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "GOES-P: SEISS >100 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/33868/-1"
+      },
+      "peakDay": "2024-10-09",
+      "peakMeanUGyH": 2194,
+      "capped": true,
+      "baselineUGyH": 9
+    },
+    {
+      "id": "storm-2024-10-26",
+      "warnAt": "2024-10-26T06:23:00Z",
+      "impactAt": "2024-10-26T16:45:00Z",
+      "endAt": "2024-11-01T00:00:00Z",
+      "leadHours": 10.4,
+      "warning": {
+        "kind": "flare",
+        "classType": "M9.5",
+        "activeRegion": 13873,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/34204/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "MODEL: REleASE:ACE/EPAM 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/34214/-1"
+      },
+      "peakDay": "2024-10-27",
+      "peakMeanUGyH": 983.5,
+      "capped": true,
+      "baselineUGyH": 6.9
+    },
+    {
+      "id": "storm-2024-11-22",
+      "warnAt": "2024-11-19T19:25:00Z",
+      "impactAt": "2024-11-21T19:25:00Z",
+      "endAt": "2024-11-23T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "GOES-P: SEISS >10 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/35208/-1"
+      },
+      "peakDay": "2024-11-22",
+      "peakMeanUGyH": 30.8,
+      "capped": false,
+      "baselineUGyH": 6
+    },
+    {
+      "id": "storm-2024-12-20",
+      "warnAt": "2024-12-18T12:00:00Z",
+      "impactAt": "2024-12-20T12:00:00Z",
+      "endAt": "2024-12-23T00:00:00Z",
+      "leadHours": 48,
+      "warning": {
+        "kind": "rule48h"
+      },
+      "impact": {
+        "kind": "radlabDay"
+      },
+      "peakDay": "2024-12-21",
+      "peakMeanUGyH": 55.1,
+      "capped": false,
+      "baselineUGyH": 5.7
+    },
+    {
+      "id": "storm-2025-03-30",
+      "warnAt": "2025-03-28T15:20:00Z",
+      "impactAt": "2025-03-30T21:50:00Z",
+      "endAt": "2025-04-02T00:00:00Z",
+      "leadHours": 54.5,
+      "warning": {
+        "kind": "flare",
+        "classType": "X1.1",
+        "activeRegion": 14046,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/38062/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "MODEL: REleASE:ACE/EPAM 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/38117/-1"
+      },
+      "peakDay": "2025-03-31",
+      "peakMeanUGyH": 650.7,
+      "capped": true,
+      "baselineUGyH": 5.8
+    },
+    {
+      "id": "storm-2025-05-31",
+      "warnAt": "2025-05-31T00:05:00Z",
+      "impactAt": "2025-05-31T15:00:00Z",
+      "endAt": "2025-06-02T00:00:00Z",
+      "leadHours": 14.9,
+      "warning": {
+        "kind": "flare",
+        "classType": "M8.1",
+        "activeRegion": 14100,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/39182/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "SOHO: COSTEP 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/39197/-1"
+      },
+      "peakDay": "2025-05-31",
+      "peakMeanUGyH": 400,
+      "capped": false,
+      "baselineUGyH": 5.8
+    },
+    {
+      "id": "storm-2025-11-10",
+      "warnAt": "2025-11-09T07:35:00Z",
+      "impactAt": "2025-11-10T10:24:00Z",
+      "endAt": "2025-11-14T00:00:00Z",
+      "leadHours": 26.8,
+      "warning": {
+        "kind": "flare",
+        "classType": "X1.7",
+        "activeRegion": 14274,
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/FLR/42543/-1"
+      },
+      "impact": {
+        "kind": "sep",
+        "instruments": [
+          "MODEL: REleASE:ACE/EPAM 15.8-39.8 MeV"
+        ],
+        "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/42581/-1"
+      },
+      "peakDay": "2025-11-12",
+      "peakMeanUGyH": 1824,
+      "capped": true,
+      "baselineUGyH": 6.1
+    }
+  ]
+}
