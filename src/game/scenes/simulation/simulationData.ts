@@ -20,12 +20,13 @@ export function toggleOverlay(plugin: Phaser.Scenes.ScenePlugin, key: SceneKey, 
   else if (canOpen) plugin.launch(key, data);
 }
 
-/** Opciones de vista del mapa para probar escalas (docs/plan-visual.md, Fase 0): `&zoom=1.5&layout=large`. */
+/** Opciones de vista del mapa para probar (docs/plan-visual.md): `&zoom=2&at=gediz`. */
 export interface MapViewOptions {
   zoom?: number;
-  largeLayout?: boolean;
-  /** Fuerza los efectos del mapa para verlos: nivel de alerta y corte de energía (`&fx=impact,powerOut`). */
-  fx?: { level?: 'alert' | 'impact'; powerOut?: boolean };
+  /** Dónde arranca el jugador en `Mars`: una franja del exterior (`plain`, `dunes`, `gediz`…) o `curiosity`. */
+  at?: string;
+  /** Fuerza los efectos del mapa para verlos: nivel de alerta, corte de energía y, en `Mars`, tormenta de polvo (`&fx=impact,powerOut,storm`). */
+  fx?: { level?: 'alert' | 'impact'; powerOut?: boolean; storm?: boolean };
 }
 
 /** Datos de escena con las opciones de vista: los agrega `simulationDev.ts`. */

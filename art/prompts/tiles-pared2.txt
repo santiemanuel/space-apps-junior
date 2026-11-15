@@ -1,0 +1,14 @@
+Create ONE square opaque image: a production sprite TILESET sheet for a kids' top-down 2D space game. Use the two attached images ONLY as style references: dark outlines, soft CEL shading in discrete flat color bands, lavender-gray metal, blue tech accents, orange/yellow lights. The second reference specifically guides chunky beveled wall panel colors. Do not copy either scene's layout.
+
+The complete image is a STRICT 2 x 2 array of FOUR square wall tiles, touching edge to edge. Imagine drawing the ENTIRE sheet on a 48 x 48 logical pixel canvas, then enlarging with nearest-neighbor: each of the four cells is exactly 24 x 24 large chunky square pixels. Keep ALL pixel blocks on ONE uniform coarse square pixel grid throughout. Lines and bevel steps are exactly one logical pixel thick. Extremely simple low resolution pixel art, limited palette. No fine detail or tiny pixels.
+
+All four tiles are wall FRONT FACES seen directly from the front, FLAT orthographic elevation, evenly lit, absolutely no perspective or visible floors. Every wall fills its entire square cell, fully opaque lavender-gray metal up to every edge. NO gutters, NO margins, NO separator grid lines, NO outer border. The join between the two columns is just adjoining wall material, never an added vertical divider. Only the natural wall structure repeats between rows.
+
+MATCHED SEAMLESS HORIZONTAL STRUCTURE IN EVERY TILE: same full-width top edge at logical local y=0, same thin dark horizontal seam near the top at local y=3, same darker full-width baseboard band at local y=21..23. These horizontal features align exactly between left and right tiles. Use the same lavender-gray metal palette and panel relief across all four. Edge pixels on the left and right support seamless horizontal repetition.
+
+TOP LEFT cell: simple beveled lavender metal wall panel, exactly two small rivets.
+TOP RIGHT cell: same wall panel with two vertical orange pipes and one small round valve.
+BOTTOM LEFT cell: same wall panel with a recessed HORIZONTAL pill-shaped light capsule centered in the tile, warm orange and pale yellow center using solid flat pixel colors. Convey emitted light ONLY inside the capsule, absolutely no bloom or surrounding glow halo.
+BOTTOM RIGHT cell: same wall panel with one small blue screen and one tiny vent grille. Screen has only simple abstract flat blue pixel marks, never writing.
+
+Absolutely NO text, letters, numbers, logos, watermarks, characters, UI, scenery, additional tiles, transparency, anti-aliasing, gradients, glow halos, blur, smooth curves, photorealism or texture noise. Square sheet, four tiles only.

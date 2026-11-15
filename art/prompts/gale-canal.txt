@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game set on Mars. The FIRST attached image (the spaceship scene) is ONLY a style reference for the pixel-art technique (dark outlines, soft cel shading, chunky pixels); do not copy its layout or its lavender colors. The other attached photos are real NASA photos of the place: use them ONLY as color and material reference and translate them into simple pixel art. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur, no photo textures. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square TILESET sheet for the surface of Mars in Gale crater: a strict 2 x 2 grid of FOUR square tiles. Draw it as if on a 48 x 48 pixel canvas enlarged: each tile is exactly 24 x 24 big chunky pixels, with simple shapes and details exactly 1 big pixel thick. Every tile fills its grid cell completely, edge to edge; neighbouring cells touch directly with NO gaps, NO margins, NO grid lines and NO outer border. Fully opaque image, no transparency. Flat orthographic view, no perspective distortion, lit evenly, no shadows falling outside the tile.
+
+All four are GROUND tiles seen from straight above. IMPORTANT: every tile is completely covered by its ground material from edge to edge and corner to corner: NO patches, NO blobs, NO islands on a different background, NO dark sand around the edges. Each one must tile seamlessly with itself: same base color at every edge, no border, no seam lines, no vignette.
+Tiles:
+- Top-left: brown gravel floor of a dry river channel: medium brown ground densely covered with tiny darker and lighter brown grains
+- Top-right: the same brown gravel floor with four or five small gray angular stones scattered over it
+- Bottom-left: pale tan ground densely covered by flat whitish stones; a few of the stones show tiny bright YELLOW sulfur crystals
+- Bottom-right: the same pale tan ground with fewer whitish stones and one small cluster of bright YELLOW sulfur crystals

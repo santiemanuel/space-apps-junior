@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The FIRST attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Any other attached image is a real NASA photo used only as reference for shapes and colors. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+These props go inside a base on Mars.
+Quadrants:
+- Top-left: greenhouse plant bed: a long metal planter tray full of green leafy plants and a few small red tomatoes, under a glowing violet-pink grow-light bar held by two thin posts
+- Top-right: MOXIE oxygen machine: a boxy GOLD-colored instrument box with a vent grille, a small blue oxygen tank and two tubes on its side
+- Bottom-left: space suit rack: a white space suit with orange stripes hanging on a metal stand, its helmet resting on top
+- Bottom-right: supply crate covered in reddish Martian dust: lavender-gray box with blue straps and a yellow latch, dust on its top and edges

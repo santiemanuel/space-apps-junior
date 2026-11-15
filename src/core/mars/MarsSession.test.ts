@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GALE_LAYOUT, MARS_CONTENT } from '../../content/gale';
+import { GALE_LANDMARKS, GALE_LAYOUT, MARS_CONTENT, SULFUR_EVENT } from '../../content/gale';
 import { INCIDENT_RULES } from '../../content/incidents';
 import { makeGameState, makeMeters } from '../../test-utils/factories';
 import type { PhaseCalendar } from '../clock/schedule';
@@ -73,8 +73,8 @@ describe('plano de la base en Gale', () => {
     return true;
   };
 
-  it('se sale al exterior por la esclusa y se vuelve sin atravesar paredes', () => {
-    const outside = { x: 40.5, y: 3.5 };
+  it('se sale al exterior por la esclusa, se llega hasta Curiosity esquivando el terreno y se vuelve', () => {
+    const outside = { x: GALE_LANDMARKS.curiosity!.x, y: GALE_LANDMARKS.curiosity!.y + 1.5 };
     const out = routeToPoint(GALE_LAYOUT, zoneSpot(zoneById(GALE_LAYOUT, 'command')), outside);
     expect(walkable(out)).toBe(true);
     expect(out.some((p) => zoneAt(GALE_LAYOUT, p) === 'airlock')).toBe(true);
@@ -84,13 +84,28 @@ describe('plano de la base en Gale', () => {
 });
 
 describe('Mars: puntos de muestreo', () => {
-  it('se ubican por semilla en el exterior; los lejanos valen más', () => {
+  it('se ubican por semilla en terreno transitable del exterior; los lejanos valen más', () => {
     const a = sampleSites(CONTENT, 7, null);
     expect(sampleSites(CONTENT, 7, null)).toEqual(a);
     expect(sampleSites(CONTENT, 8, null)).not.toEqual(a);
-    for (const s of a) expect(zoneAt(GALE_LAYOUT, s)).toBe(EXTERIOR);
+    for (let seed = 1; seed <= 40; seed++)
+      for (const s of sampleSites(CONTENT, seed, seed % 30))
+        for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]])
+          expect(zoneAt(GALE_LAYOUT, { x: s.x + dx!, y: s.y + dy! }), `semilla ${seed}: ${s.x},${s.y} (+${dx},${dy})`).toBe(EXTERIOR);
     const [near, far] = [...a].sort((x, y) => x.distance - y.distance).filter((_, i, all) => i === 0 || i === all.length - 1);
     expect(far!.value).toBeGreaterThan(near!.value);
+  });
+
+  it('hay al menos una muestra de cada tipo de roca, y cada una está en la franja de su tipo', () => {
+    const rocks = CONTENT.samples.rocks;
+    for (let seed = 1; seed <= 20; seed++) {
+      const sites = sampleSites(CONTENT, seed, null);
+      expect(new Set(sites.map((s) => s.rock))).toEqual(new Set(rocks.map((r) => r.rock)));
+      for (const s of sites) {
+        const zone = rocks.find((r) => r.rock === s.rock)!.rect;
+        expect(s.y >= zone.row && s.y < zone.row + zone.rows, `${s.rock}: ${s.x},${s.y}`).toBe(true);
+      }
+    }
   });
 
   it('un aterrizaje lejos de la base deja las muestras más lejos (§4.3)', () => {
@@ -98,13 +113,23 @@ describe('Mars: puntos de muestreo', () => {
     expect(closest(8)).toBeGreaterThan(closest(0));
   });
 
+  it('lo que pasó de verdad en Gale sale como tarjeta al llegar su fecha, una sola vez, y queda en el historial', () => {
+    const moment = { ...SULFUR_EVENT, date: at(30) };
+    const { session, bus } = mars({ length: 'long', simDate: at(26) }, { content: { ...CONTENT, realMoments: [moment] } });
+    const shown: string[] = [];
+    bus.on('realEvent:shown', (e) => shown.push(e.id));
+    runUntil(session, () => Date.parse(session.simDate) >= Date.parse(at(36)));
+    expect(shown).toEqual([SULFUR_EVENT.id]);
+    expect(session.state.history.filter((e) => e.kind === 'realEvent').map((e) => e.key)).toEqual([SULFUR_EVENT.id]);
+  });
+
   it('el jugador junta una muestra afuera, de día: queda en el inventario con su masa', () => {
     const { session } = mars({ length: 'long', simDate: at(10) });
     const site = session.sites[0]!;
     expect(session.evaOpen).toBe(true);
     runUntil(session, () => session.state.inventory.samples.length > 0, { activeZone: EXTERIOR, activePosition: site, interacting: true }, 0.25, 400);
-    expect(session.state.inventory.samples).toEqual([{ id: site.id, siteId: site.id, massKg: site.massKg, value: site.value }]);
-    expect(session.state.history.at(-1)).toMatchObject({ key: 'mars.log.sample' });
+    expect(session.state.inventory.samples).toEqual([{ id: site.id, siteId: site.id, massKg: site.massKg, value: site.value, rock: site.rock }]);
+    expect(session.state.history.at(-1)).toMatchObject({ key: 'mars.log.sample', data: { rock: site.rock } });
     expect(session.remainingSites().map((r) => r.site.id)).not.toContain(site.id);
   });
 });
@@ -128,6 +153,17 @@ describe('Mars: polvo, frío, MOXIE e invernadero', () => {
     const { session } = mars({ simDate: at(20) });
     expect(session.daylight).toBe(false);
     expect(session.evaOpen).toBe(false);
+  });
+
+  it('el cielo: el Sol sube hasta el mediodía y de noche no está; el polvo del día sale del UV real', () => {
+    const sky = (hours: number, uv: UvIndex = 'High') => mars({ simDate: at(hours) }, { uv }).session.sky;
+    expect(sky(3).sun).toBe(0);
+    expect(sky(7).sun).toBeGreaterThan(0);
+    expect(sky(7).sun).toBeLessThan(sky(12).sun);
+    expect(sky(12).sun).toBeCloseTo(1);
+    expect(sky(12).dust).toBe(1);
+    expect(sky(12, 'Low').dust).toBeLessThan(0.5);
+    expect(sky(12).storm).toBe(false);
   });
 
   it('MOXIE fabrica oxígeno: sin él se gasta el doble de rápido', () => {

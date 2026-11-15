@@ -1,3 +1,5 @@
+import type { TileRect } from '../habitat/layout';
+import type { RealEvent } from '../events/RealEvent';
 import type { HabitatContent } from '../habitat/types';
 
 /** Reglas de la base en Gale que no tiene la nave (§4.4) [regla salvo que se indique]. */
@@ -10,6 +12,11 @@ export interface MarsContent extends HabitatContent {
     /** Con la prioridad del invernadero (sacrificio de §3.5). */
     priorityMultiplier: number;
   };
+  /**
+   * Cosas que pasaron de verdad en Gale durante la estancia (p. ej. el azufre de Curiosity, 30/05/2024): al llegar el
+   * reloj a su fecha se publican como tarjeta "Esto pasó de verdad" y quedan en el historial.
+   */
+  realMoments: readonly RealEvent[];
   /** Hora local de salida y puesta del Sol (se aproxima con la hora UTC del dato). La EVA es de día. */
   daylight: { sunriseHour: number; sunsetHour: number };
   samples: {
@@ -26,6 +33,11 @@ export interface MarsContent extends HabitatContent {
     /** Distancia mínima a la esclusa (tiles) y cuánto se aleja por cada km que se erró el aterrizaje (§4.3). */
     minTiles: number;
     tilesPerLandingKm: number;
+    /**
+     * Dónde aparece cada tipo de roca (una franja del exterior por tipo). Las muestras se reparten entre las franjas
+     * en orden, así que con tantas muestras como tipos o más hay una de cada tipo. Sin franjas, sin tipo.
+     */
+    rocks: readonly { rect: TileRect; rock: string }[];
   };
 }
 
@@ -38,4 +50,6 @@ export interface SampleSite {
   value: number;
   /** Distancia a la esclusa (tiles). */
   distance: number;
+  /** Tipo de roca: el de la franja donde está ('' si el contenido no define franjas). */
+  rock: string;
 }

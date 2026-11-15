@@ -3,12 +3,14 @@
 // correr este script pisa esos cambios.
 // Uso: node scripts/maps/build-ship.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
+import { formatTiledJson } from './tiled.mjs';
 
 const T = 48;
 const ROOM_COLS = 9;
 const ROOM_ROWS = 6;
-const TOP = ['command', 'exercise', 'scrubber', 'recycler'];
-const BOTTOM = ['infirmary', 'pantry', 'shelter', 'radio'];
+// Arriba van los cuartos con ventanal (la pared de arriba tiene techo y frente: entra uno de casi 2 tiles de alto).
+const TOP = ['command', 'exercise', 'shelter', 'radio'];
+const BOTTOM = ['infirmary', 'pantry', 'scrubber', 'recycler'];
 const COLS = 1 + TOP.length * (ROOM_COLS + 1);
 // Filas: 0 techo, 1 frente de pared, cuartos de arriba, pared, pasillo (3), pared, cuartos de abajo, techo.
 const TOP_ROW = 2;
@@ -26,8 +28,10 @@ const FACE = 8;
 const FACE_VENT = 9;
 const FACE_PIPES = 10;
 const FACE_LIGHT = 11;
+// Techos de pared: maquinaria, caños horizontales (tramos a lo largo) y caños verticales (tramos entre cuartos).
 const CAP = 12;
-const CAP_LINE = 13;
+const CAP_PIPES_H = 13;
+const CAP_PIPES_V = 14;
 // Marco de las puertas: pilar en el borde derecho (a la izquierda del vano) y en el izquierdo (a la derecha).
 const PILLAR_RIGHT = 16;
 const PILLAR_LEFT = 20;
@@ -66,15 +70,24 @@ rooms(BOTTOM, BOTTOM_ROW, BOTTOM_ROW - 1);
 for (let r = CORRIDOR_ROW; r < CORRIDOR_ROW + 3; r++)
   for (let c = 1; c < COLS - 1; c++) {
     walkable[at(c, r)] = true;
-    put(floor, c, r, r === CORRIDOR_ROW + 1 && c % 3 === 0 ? CORRIDOR_MARK : CORRIDOR);
+    put(floor, c, r, r === CORRIDOR_ROW + 1 ? CORRIDOR_MARK : CORRIDOR);
   }
 
-// Paredes: si abajo hay piso se ve el frente de la pared; si no, el techo.
+// Paredes: si abajo hay piso se ve el frente de la pared; si no, el techo. Los techos junto a un cuarto llevan caños
+// que siguen la pared (verticales a los costados, horizontales arriba y abajo), como en las referencias.
+const open = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS && walkable[at(c, r)];
+const isFace = (c, r) => r + 1 < ROWS && !open(c, r) && open(c, r + 1);
+const capFor = (c, r) => {
+  const side = open(c - 1, r) || open(c + 1, r) || isFace(c - 1, r) || isFace(c + 1, r);
+  const along = open(c, r - 1) || open(c, r + 1) || isFace(c, r + 1) || isFace(c, r - 1) || r === 0;
+  if (side && !along) return CAP_PIPES_V;
+  if (along && !side) return random() < 0.15 ? CAP : CAP_PIPES_H;
+  return CAP;
+};
 for (let r = 0; r < ROWS; r++)
   for (let c = 0; c < COLS; c++) {
     if (walkable[at(c, r)]) continue;
-    const faces = r + 1 < ROWS && walkable[at(c, r + 1)];
-    if (!faces) put(walls, c, r, random() < 0.12 ? CAP_LINE : CAP);
+    if (!isFace(c, r)) put(walls, c, r, capFor(c, r));
     else put(walls, c, r, c % 4 === 2 ? FACE_LIGHT : random() < 0.14 ? FACE_VENT : random() < 0.1 ? FACE_PIPES : FACE);
   }
 for (const zone of zones) {
@@ -84,30 +97,41 @@ for (const zone of zones) {
 
 // Objetos: [sprite, columna del centro, fila del borde de abajo], en tiles desde la esquina del cuarto.
 // Los cuartos de arriba tienen la puerta abajo al centro; los de abajo, arriba al centro: ese carril queda libre.
+// Mando = sala común de las referencias (ventanal, consolas bajo la ventana, sillón con holomesa); radio = sala de
+// comunicaciones (escritorio de dos pantallas con su silla y radar); refugio = sala de la alerta de radiación
+// (ventanal al Sol, pantalla de aviso y tanques de agua de escudo). Los cuartos de arriba tienen la puerta abajo al
+// centro y los de abajo arriba: ese carril queda libre.
 const PROPS = {
-  command: [['console', 4.5, 1.7], ['helm', 1.5, 2], ['seat', 1.5, 3.3], ['navtable', 7.3, 4.2], ['plant', 8.3, 1.6], ['crate', 0.9, 5.9]],
+  command: [
+    ['lowconsole', 2.6, 1.45], ['helm', 6.6, 1.9], ['seat', 6.6, 3.1], ['plant', 8.35, 1.7],
+    ['couch', 1.6, 5.9], ['holotable', 1.6, 5.95], ['console', 6.3, 5.9], ['crate', 8.2, 5.9],
+  ],
   exercise: [['bike', 4.5, 2.1], ['treadmill', 1.6, 2.4], ['crate', 8.1, 1.8], ['plant', 8.3, 5.8], ['lamp', 0.5, 5.8]],
-  scrubber: [['scrubber', 4.5, 2.1], ['canisters', 1.5, 1.9], ['pump', 7.7, 2], ['crates', 1.4, 5.9]],
-  recycler: [['recycler', 4.5, 2.1], ['tank', 1, 2.1], ['tank', 2.1, 2.1], ['pump', 7.6, 2], ['crate', 8.1, 5.9]],
+  shelter: [
+    ['tank', 0.7, 2.6], ['tank', 1.8, 2.6], ['tank', 7.2, 2.6], ['tank', 8.3, 2.6],
+    ['tank', 0.7, 5.9], ['tank', 1.8, 5.9], ['tank', 7.2, 5.9], ['tank', 8.3, 5.9], ['crate', 4.5, 1.5],
+  ],
+  radio: [
+    ['commsdesk', 2.2, 2.0], ['chair', 2.2, 3.15], ['radar', 6.2, 2.1], ['radio', 7.95, 2.0],
+    ['headset', 8.1, 4.3], ['plant', 0.75, 5.9], ['crate', 7.9, 5.9],
+  ],
   infirmary: [['bed', 1.3, 2.4], ['bed', 1.3, 5.2], ['medcabinet', 8, 2.2], ['pod', 7.8, 5.8], ['plant', 2.9, 5.9]],
   pantry: [['shelf', 1.3, 2.4], ['shelf', 7.8, 2.4], ['crates', 1.5, 5.9], ['crate', 7.9, 5.8], ['crate', 4.5, 5.9]],
-  shelter: [
-    ['tank', 0.7, 2.1], ['tank', 1.8, 2.1], ['tank', 7.2, 2.1], ['tank', 8.3, 2.1],
-    ['tank', 0.7, 5.9], ['tank', 1.8, 5.9], ['tank', 7.2, 5.9], ['tank', 8.3, 5.9], ['crate', 4.5, 5.9],
-  ],
-  radio: [['radio', 4.5, 5.9], ['console', 1.4, 5.9], ['headset', 6.4, 5.9], ['plant', 0.8, 1.9], ['lamp', 8.5, 1.9]],
+  scrubber: [['scrubber', 4.5, 5.9], ['canisters', 1.5, 5.9], ['pump', 7.7, 5.9], ['crates', 1.4, 2.0], ['plant', 8.3, 1.8]],
+  recycler: [['recycler', 4.5, 5.9], ['tank', 1, 5.9], ['tank', 2.1, 5.9], ['pump', 7.6, 5.9], ['crate', 8.1, 1.8]],
 };
-// Colgados de la pared de arriba del cuarto (sin colisión): [sprite, columna del centro].
-// Las alarmas se encienden en las alertas (HabitatFx).
+// Colgados de la pared de arriba del cuarto (sin colisión): [sprite, columna del centro]. En los cuartos de abajo la
+// pared mide un tile (encima está el pasillo): sólo entra lo bajo (alarmas, luces).
+// Las alarmas se encienden en las alertas (HabitatFx); por los ventanales se ve el espacio (SpaceWindows).
 const WALL_DECOR = {
-  command: [['window', 2], ['monitors', 4.5], ['window', 7], ['alarm', 0.6]],
+  command: [['bigwindow', 2.6], ['wallscreen', 6.6], ['alarm', 8.5]],
   exercise: [['window', 4.5], ['alarm', 7.5]],
-  scrubber: [['alarm', 7.5]],
-  recycler: [['monitors', 7.5], ['alarm', 1.5]],
+  shelter: [['bigwindow', 2.6], ['warnscreen', 6.6], ['alarm', 8.5]],
+  radio: [['bigwindow', 2.6], ['wallscreen', 6.6], ['alarm', 8.5]],
   infirmary: [['alarm', 7.5]],
   pantry: [['alarm', 7.5]],
-  shelter: [['alarm', 1.5], ['alarm', 7.5]],
-  radio: [['alarm', 7.5]],
+  scrubber: [['alarm', 7.5], ['redlight', 1.5]],
+  recycler: [['alarm', 1.5]],
 };
 // Donde se para quien trabaja en el cuarto (tiles desde la esquina).
 const SPOT = { top: [4.5, 3.4], bottom: [4.5, 3.6] };
@@ -151,8 +175,10 @@ for (const zone of zones) {
   }
   for (const [key, col] of WALL_DECOR[zone.id] ?? []) decorObjects.push(object('', key, Math.round(x + col * T), y - 6));
 }
-// Pasillo: dos alarmas en la pared de arriba.
+// Pasillo: dos alarmas en la pared de arriba y una luz roja al lado de la puerta del refugio (se prende en las alertas).
 for (const i of [0, 2]) decorObjects.push(object('', 'alarm', Math.round((1 + i * (ROOM_COLS + 1) + 1.5) * T), CORRIDOR_ROW * T - 6));
+const shelterZone = zones.find((z) => z.id === 'shelter');
+decorObjects.push(object('', 'redlight', Math.round((shelterZone.doorCol + 4) * T), CORRIDOR_ROW * T - 6));
 // Pasillo: luces contra la pared de arriba, entre las puertas.
 for (let i = 1; i < TOP.length; i++) {
   const { w, h } = sizeOf('lamp');
@@ -194,18 +220,5 @@ const map = {
 };
 map.nextlayerid = layerId;
 map.nextobjectid = nextId;
-// Una fila del mapa por línea y un objeto por línea, para que los cambios se lean en git.
-const json = JSON.stringify(map, (key, value) => (key === 'data' || (key === 'objects' && Array.isArray(value)) ? { __inline: key, value } : value), 1)
-  .replace(/\{\s*"__inline": "data",\s*"value": \[([^\]]*)\]\s*\}/g, (_, body) => {
-    const values = body.split(',').map((v) => v.trim());
-    const lines = [];
-    for (let i = 0; i < values.length; i += COLS) lines.push(values.slice(i, i + COLS).join(','));
-    return `[\n${lines.join(',\n')}\n]`;
-  });
-const compact = json.replace(/\{\s*"__inline": "objects",\s*"value": (\[[\s\S]*?\n\s*\])\s*\}/g, (_, body) => {
-  const objects = JSON.parse(body);
-  return `[\n${objects.map((o) => JSON.stringify(o)).join(',\n')}\n]`;
-});
-writeFileSync('src/content/maps/ship.json', compact + '\n');
-JSON.parse(compact);
+writeFileSync('src/content/maps/ship.json', formatTiledJson(map, COLS));
 console.log(`src/content/maps/ship.json: ${COLS} x ${ROWS} tiles, ${zones.length} zonas, ${propObjects.length} objetos, ${decorObjects.length} adornos de pared`);

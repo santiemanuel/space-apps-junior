@@ -1,6 +1,6 @@
 import type { CrewId } from '../core/crew/types';
 import { DEFAULT_ROUTINE, type RoutinePlan } from '../core/crew/routines';
-import type { ShipLayout, ShipZone } from '../core/habitat/layout';
+import type { ShipLayout } from '../core/habitat/layout';
 import type { HabitatTask } from '../core/habitat/types';
 import type { VoyageContent } from '../core/voyage/types';
 import { CAMPAIGN_2024 } from './campaign';
@@ -10,13 +10,6 @@ import shipMap from './maps/ship.json';
 import { METER_RULES, SHIP_POWER } from './meters';
 import { layoutFromTiled, type TiledMap } from './tiledLayout';
 
-/** Cuartos de 4 tiles de alto arriba y abajo del pasillo; la puerta queda en la pared, en el medio del cuarto. */
-export const room = (id: string, col: number, cols: number, top: boolean): ShipZone => ({
-  id,
-  rect: { col, row: top ? 1 : 10, cols, rows: 4 },
-  door: { col: col + Math.floor(cols / 2), row: top ? 5 : 9 },
-});
-
 /**
  * Plano de la nave (game-design §4.2): sale del mapa de Tiled `maps/ship.json` (41 × 20 tiles de 48 px, cuartos de
  * 9 × 6 a los dos lados de un pasillo; la cámara sigue al jugador). Ids de zona = `CrewMemberState.location`
@@ -24,28 +17,6 @@ export const room = (id: string, col: number, cols: number, top: boolean): ShipZ
  */
 export const SHIP_MAP: TiledMap = shipMap;
 export const SHIP_LAYOUT: ShipLayout = layoutFromTiled(SHIP_MAP);
-
-/**
- * Plano agrandado con el mismo esquema (docs/plan-visual.md, Fase 0; lo usa el Gale agrandado de prueba): una fila de cuartos arriba y otra abajo de un
- * pasillo de 3 tiles, con una pared de 1 tile entre cuartos. `originRow` deja filas libres arriba y abajo.
- */
-export function habitatLayout(o: { top: readonly string[]; bottom: readonly string[]; roomCols: number; roomRows: number; originRow?: number }): ShipLayout {
-  const origin = o.originRow ?? 0;
-  const corridorRow = origin + o.roomRows + 2;
-  const rooms = (ids: readonly string[], row: number, doorRow: number): ShipZone[] =>
-    ids.map((id, i) => {
-      const col = 1 + i * (o.roomCols + 1);
-      return { id, rect: { col, row, cols: o.roomCols, rows: o.roomRows }, door: { col: col + Math.floor(o.roomCols / 2), row: doorRow } };
-    });
-  const cols = 1 + Math.max(o.top.length, o.bottom.length) * (o.roomCols + 1);
-  return {
-    cols,
-    rows: 2 * origin + 2 * o.roomRows + 7,
-    corridor: { col: 1, row: corridorRow, cols: cols - 2, rows: 3 },
-    zones: [...rooms(o.top, origin + 1, corridorRow - 1), ...rooms(o.bottom, corridorRow + 4, corridorRow + 3)],
-    spawnZone: o.top[0]!,
-  };
-}
 
 /** Tareas del viaje (§4.2). Textos en `voyage.task.<id>`. */
 export const VOYAGE_TASKS: readonly HabitatTask[] = [

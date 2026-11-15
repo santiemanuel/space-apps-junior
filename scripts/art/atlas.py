@@ -7,6 +7,9 @@ vecino más cercano y se acomodan en filas. Un nombre `null` en el manifiesto de
 centro) para ver lo que se dibuje detrás, y anota su rectángulo en el JSON (`glass`, en `frame.customData` de
 Phaser). El rectángulo queda cubierto por vidrio o marco opaco: lo de atrás no se asoma por fuera.
 
+`"stretch": {"<nombre>": [ancho, alto]}` agranda ese sprite (en píxeles de arte) repitiendo columnas a un cuarto y a
+tres cuartos del ancho y la fila del medio: sirve para marcos lisos (el ventanal) sin cambiar el tamaño del píxel.
+
 Uso: python scripts/art/atlas.py <grupo del manifiesto> [--scale 2]
 """
 import argparse
@@ -51,6 +54,31 @@ def punch(sprite):
     return {'x': x0, 'y': y0, 'w': x1 - x0 + 1, 'h': y1 - y0 + 1}
 
 
+def stretch(sprite, width, height):
+    """Repite columnas (a 1/4 y 3/4) y la fila del medio hasta llegar al tamaño pedido."""
+    def grow(im, extra, vertical):
+        if extra <= 0:
+            return im
+        n = im.width if vertical else im.height
+        cuts = [n // 4, n * 3 // 4] if vertical else [n // 2]
+        parts, start = [], 0
+        for i, cut in enumerate(cuts):
+            box = (start, 0, cut, im.height) if vertical else (0, start, im.width, cut)
+            parts.append(im.crop(box))
+            line = im.crop((cut, 0, cut + 1, im.height) if vertical else (0, cut, im.width, cut + 1))
+            share = extra // len(cuts) + (1 if i < extra % len(cuts) else 0)
+            parts += [line] * share
+            start = cut
+        parts.append(im.crop((start, 0, im.width, im.height) if vertical else (0, start, im.width, im.height)))
+        size = (sum(p.width for p in parts), im.height) if vertical else (im.width, sum(p.height for p in parts))
+        out, pos = Image.new('RGBA', size), 0
+        for p in parts:
+            out.paste(p, (pos, 0) if vertical else (0, pos))
+            pos += p.width if vertical else p.height
+        return out
+    return grow(grow(sprite, width - sprite.width, True), height - sprite.height, False)
+
+
 items = []
 glass = {}
 for sheet in group['sheets']:
@@ -63,6 +91,8 @@ for sheet in group['sheets']:
     for name, sprite in zip(sheet['names'], found):
         if not name:
             continue
+        if name in sheet.get('stretch', {}):
+            sprite = stretch(sprite, *sheet['stretch'][name])
         if sheet.get('punch', {}).get(name):
             sprite = sprite.copy()
             glass[name] = {k: v * args.scale for k, v in punch(sprite).items()}

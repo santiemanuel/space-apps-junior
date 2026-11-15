@@ -15,6 +15,8 @@ export interface Sample {
   massKg: number;
   /** Valor científico (más lejos → más valor). */
   value: number;
+  /** Tipo de roca (id del contenido, p. ej. 'sulfur'); no cambia el puntaje. Falta en partidas guardadas antes. */
+  rock?: string;
 }
 
 export interface Inventory {

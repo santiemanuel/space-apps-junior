@@ -1,0 +1,9 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The FIRST attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Any other attached image is a real NASA photo used only as reference for shapes and colors. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Quadrants:
+- Top-left: NASA's Curiosity Mars rover seen from a high three-quarter overhead angle: six dark wheels, a white boxy body, a tall mast with a camera head, a folded robotic arm at the front, the round power unit at the back
+- Top-right: the SAME rover in the same pose, but covered in a layer of reddish Martian dust
+- Bottom-left: a small pile of very dark gray basaltic dune sand with tiny ripples (a sand sample), about 24 big pixels wide
+- Bottom-right: a small white sample tube with an orange cap lying on its side, about 20 big pixels wide

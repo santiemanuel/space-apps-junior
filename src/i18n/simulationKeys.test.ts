@@ -3,7 +3,8 @@ import { CAMPAIGN_2024 } from '../content/campaign';
 import { INCIDENT_RULES, INCIDENTS } from '../content/incidents';
 import { CLOCK_RULES } from '../core/clock/MissionClock';
 import { stormAlert } from '../core/clock/schedule';
-import { GALE_LAYOUT, GALE_TASKS, MARS_CONTENT } from '../content/gale';
+import { GALE_LAYOUT, GALE_TASKS, GALE_TERRAIN, MARS_CONTENT, SULFUR_EVENT } from '../content/gale';
+import { ROCK_TYPES } from '../content/galeTerrain';
 import { SHIP_LAYOUT, VOYAGE_CONTENT, VOYAGE_TASKS } from '../content/ship';
 import { SACRIFICES } from '../core/cascade/sacrifices';
 import { CORRIDOR, EXTERIOR } from '../core/habitat/layout';
@@ -51,6 +52,12 @@ describe('claves de texto de la simulación', () => {
     ...['Very_High', 'High', 'Moderate', 'Low', 'none'].map((uv) => `mars.uv.${uv}`),
     ...['completed', 'suspended'].map((o) => `mars.outcome.${o}`),
     'mars.log.sample',
+    ...GALE_TERRAIN.flatMap((strip) => [`mars.terrain.${strip.id}.name`, `mars.terrain.${strip.id}.fact`]),
+    ...ROCK_TYPES.flatMap((rock) => [`mars.rock.${rock}.name`, `mars.rock.${rock}.fact`]),
+    'mars.rock.collected',
+    ...['title', 'subtitle', 'rim', 'sharp', 'landing', 'curiosity', 'scale', 'credit', 'inset', 'compressed', 'close', 'hint'].map((k) => `mars.crater.${k}`),
+    SULFUR_EVENT.kidValueKey,
+    SULFUR_EVENT.explanationKey,
     ...['cruise', 'mars'].map((place) => `hud.source.${place}`),
     ...[...new Set([...Object.keys(VOYAGE_CONTENT.power.loadsKw), ...Object.keys(MARS_CONTENT.power.loadsKw)])].map((id) => `hud.load.${id}`),
     ...['sleepHours', 'exerciseHours', 'workHours'].map((b) => `hud.planning.block.${b}`),
@@ -62,6 +69,9 @@ describe('claves de texto de la simulación', () => {
     ...METERS.map((m) => `hud.meterName.${m}`),
     ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),
     'hud.log.allInShelter',
+    ...['cruise', 'mars'].map((place) => `hud.info.title.${place}`),
+    ...['move', 'use', 'switch', 'decide', 'sound', 'status', 'plan', 'missionControl', 'charts', 'crater'].map((k) => `hud.info.key.${k}`),
+    ...['condition', 'fatigue', 'food', 'radiation'].map((k) => `hud.health.${k}`),
   ];
 
   it.each(LOCALES)('existen en %s', (locale) => {

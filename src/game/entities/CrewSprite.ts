@@ -3,6 +3,7 @@ import { CREW_ROSTER } from '../../content/crew';
 import type { CrewId, CrewMemberState } from '../../core/crew/types';
 import { hasKey, t, type TranslationKey } from '../../i18n';
 import { CREW_SHEET, crewTextureKey } from '../assets';
+import { HUD_ICONS, SLOW_REASON_ICON } from '../hudIcons';
 import { TextureKeys } from '../textures';
 import {
   animFrameDurations, animFrameRate, animFrames, CREW_DIRECTIONS, crewAnimKey, directionFor, walkTimeScale, type CrewAnimKind, type CrewDirection,
@@ -67,12 +68,20 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
 
   const ring = scene.add.ellipse(x, y - 2, 44, 16).setStrokeStyle(2, 0xfbd38d).setVisible(false).setDepth(9);
   const arrow = scene.add.triangle(x, y, 0, 0, 12, 0, 6, 8, 0xfbd38d).setVisible(false).setDepth(12);
+  // Globo con el motivo de la lentitud: un ícono si hay (el texto completo está en el tablero) o, si no, el texto.
+  const icons = scene.textures.exists(HUD_ICONS);
   const bubble = scene.add
     .text(x, y, '', { fontFamily: 'monospace', fontSize: '11px', color: '#1a202c', backgroundColor: '#fefcbf', padding: { x: 4, y: 2 } })
     .setOrigin(0.5, 1)
     .setVisible(false)
     .setDepth(13)
     .setVertexRoundMode('full');
+  const balloon = scene.add.graphics().setDepth(13).setVisible(false);
+  // Globo en píxeles de arte (2 px): contorno oscuro, relleno claro y la colita hacia abajo.
+  balloon
+    .fillStyle(0x1a202c).fillRect(-18, -40, 36, 32).fillRect(-4, -8, 8, 4).fillRect(-2, -4, 4, 2)
+    .fillStyle(0xfefcbf).fillRect(-16, -38, 32, 28).fillRect(-2, -10, 4, 4);
+  const balloonIcon = icons ? scene.add.image(x, y, HUD_ICONS).setScale(2).setDepth(13.1).setVisible(false).setVertexRoundMode('full') : null;
   let direction: CrewDirection = 'down';
   let reasonKey: string | undefined;
   let selected = false;
@@ -94,6 +103,8 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
     ring.setPosition(x, snap(sprite.y - 2));
     arrow.setPosition(x, top - 6);
     bubble.setPosition(x, top - (selected ? 14 : 4));
+    balloon.setPosition(x, top - (selected ? 10 : 0));
+    balloonIcon?.setPosition(x, top - (selected ? 10 : 0) - 24);
     sprite.setDepth(10 + sprite.y / 10000);
   };
 
@@ -114,7 +125,11 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
       if (state.slowReasonKey !== reasonKey) {
         reasonKey = state.slowReasonKey;
         const visible = reasonKey !== undefined && hasKey(reasonKey);
-        bubble.setText(visible ? t(reasonKey as TranslationKey, { name: NAMES[crewId] }) : '').setVisible(visible);
+        const icon = reasonKey && balloonIcon ? SLOW_REASON_ICON[reasonKey] : undefined;
+        bubble.setText(visible && !icon ? t(reasonKey as TranslationKey, { name: NAMES[crewId] }) : '').setVisible(visible && !icon);
+        balloon.setVisible(!!icon);
+        if (icon) balloonIcon!.setFrame(icon);
+        balloonIcon?.setVisible(!!icon);
       }
       place();
     },
@@ -128,6 +143,8 @@ export function createCrewSprite(scene: Phaser.Scene, crewId: CrewId, x: number,
       ring.destroy();
       arrow.destroy();
       bubble.destroy();
+      balloon.destroy();
+      balloonIcon?.destroy();
       sprite.destroy();
     },
   };

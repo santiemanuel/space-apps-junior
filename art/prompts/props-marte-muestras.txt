@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The FIRST attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Any other attached image is a real NASA photo used only as reference for shapes and colors. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Four small rock SAMPLES that the astronauts collect, each about 24 to 30 big pixels wide (smaller than usual), each one clearly different:
+Quadrants:
+- Top-left: conglomerate rock: a brown rock with small ROUNDED pebbles embedded in it
+- Top-right: pale tan mudstone slab crossed by bright WHITE mineral veins
+- Bottom-left: chunk of layered sandstone with thin orange, tan and brown stripes
+- Bottom-right: a pale whitish rock cracked open showing bright YELLOW sulfur crystals inside

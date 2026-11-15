@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, REPORT_RULES } from '../../content/achievements';
+import { ROCK_TYPES } from '../../content/galeTerrain';
 import { makeCrew, makeGameState, makeRealEvent, makeSample } from '../../test-utils/factories';
 import { buildReport, earnedAchievements, realEventFromLog, realEventLogEntry } from './report';
 
@@ -46,6 +47,14 @@ describe('informe de misión', () => {
     const report = buildReport(state, 'completed', ACHIEVEMENTS, REPORT_RULES);
     expect(earnedAchievements(report)).toEqual(['shelterInTime', 'likeOpportunity', 'survivedX9']);
     expect(earnedAchievements(buildReport(finalState({ mode: 'free' }), 'suspended', ACHIEVEMENTS, REPORT_RULES))).toEqual([]);
+  });
+
+  it('"Coleccionista de rocas": juntar en Marte una de cada tipo, aunque no todas vuelvan en la nave', () => {
+    const logOf = (rocks: readonly string[]) =>
+      rocks.map((rock, i) => ({ simDate: '2024-05-20T00:00:00Z', phase: 'mars' as const, kind: 'decision' as const, key: 'mars.log.sample', data: { siteId: `s${i}`, rock } }));
+    const earned = (rocks: readonly string[]) => earnedAchievements(buildReport(finalState({ history: logOf(rocks) }), 'completed', ACHIEVEMENTS, REPORT_RULES));
+    expect(earned(ROCK_TYPES)).toContain('allRockTypes');
+    expect(earned(ROCK_TYPES.slice(1))).not.toContain('allRockTypes');
   });
 
   it('las decisiones salen en orden y sin el detalle de cada etapa de maniobra', () => {

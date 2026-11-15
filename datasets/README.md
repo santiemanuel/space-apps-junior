@@ -98,6 +98,27 @@ Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 40
 - **Dosis de la tripulación**: se acumula a la tasa medida en la superficie lunar (1,37 mSv/día) y se
   compara con el límite de carrera de la NASA (600 mSv) y con radiografías de tórax (0,1 mSv).
 
+## Fuentes del terreno de Gale (no es un dataset)
+
+El exterior de `Mars` es un corte comprimido y **no a escala** del camino real de Curiosity (docs/plan-visual.md,
+Fase 4). No hay archivo en `datasets/`: las cifras y las fotos de referencia viven en `src/content/galeTerrain.ts`
+(con la cita textual y la URL de cada una) y las fotos en `docs/gale/`. Verificado el 15/11/2026:
+
+| Dato | Valor | Fuente |
+|---|---|---|
+| Diámetro del cráter Gale | 154 km | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Altura del monte Sharp | 5,5 km sobre el piso del cráter (la NASA también lo redondea a 5 km) | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Edad del cráter | más de 3000 millones de años | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Curiosity en Gediz Vallis | desde febrero de 2024 (toda la estancia del juego, 15/05 → 04/06/2024); canal de ~91 m de ancho | [NASA, PIA26241](https://science.nasa.gov/photojournal/curiositys-route-to-gediz-vallis-channel-rendering/) |
+| Azufre puro | 30/05/2024, sol 4200: Curiosity pisa la piedra "Convict Lake"; APXS confirma azufre elemental, el primero en Marte | [JPL, PIA26307](https://www.jpl.nasa.gov/images/pia26307-curiosity-captures-close-up-of-sulfur-crystals/) (foto de MAHLI, no de Mastcam) · [NASA, 18/07/2024](https://www.nasa.gov/missions/mars-science-laboratory/curiosity-rover/nasas-curiosity-rover-discovers-a-surprise-in-a-martian-rock/) |
+| Dunas Bagnold | avanzan hasta ~1 m por año terrestre | [JPL, PIA20283](https://www.jpl.nasa.gov/images/pia20283-mastcam-telephoto-of-a-martian-dunes-downwind-face/) |
+| Cerros Murray | mesetas de 8 y 10 m de alto, restos de arenisca de dunas antiguas | [JPL, PIA20841](https://www.jpl.nasa.gov/images/pia20841-martian-mesas-in-murray-buttes-area-sol-1434/) |
+| Arena de las dunas Bagnold | basáltica (tipo de roca de las muestras de esa franja) | [NASA, Recap of the Bagnold Dune Investigation](https://science.nasa.gov/blog/recap-of-the-bagnold-dune-investigation/) |
+| Coordenadas del mapa del cráter | centro de Gale 5,37° S 137,81° E; monte Sharp 5,08° S 137,85° E; Gediz Vallis (extremo norte) 4,775° S 137,403° E; Bradbury Landing 4,5895° S 137,4417° E | [USGS: Gale](https://planetarynames.wr.usgs.gov/Feature/2071), [Aeolis Mons](https://planetarynames.wr.usgs.gov/Feature/15000), [Gediz Vallis](https://planetarynames.wr.usgs.gov/Feature/15571); [Malin et al. 2017](https://doi.org/10.1002/2016ea000252) |
+| Imagen del mapa del cráter | PIA15687, vista desde arriba; la elipse de aterrizaje dibujada (20 × 7 km) da la escala | [NASA, PIA15687](https://science.nasa.gov/photojournal/destination-gale-crater-in-august-2012/) |
+| Piedras redondeadas de la llanura | las arrastró una corriente de agua (no el viento) | [JPL, PIA16156](https://www.jpl.nasa.gov/images/pia16156-remnants-of-ancient-streambed-on-mars/) |
+| Yellowknife Bay | depósitos de un lago y arroyos antiguos | [NASA, PIA17595](https://science.nasa.gov/photojournal/view-of-yellowknife-bay-formation-with-drilling-sites/) |
+
 ## Datasets descartados
 
 | Dataset | Motivo |

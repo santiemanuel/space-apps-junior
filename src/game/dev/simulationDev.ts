@@ -30,7 +30,8 @@ function phaseState(base: GameState, phase: TimedPhase, params: URLSearchParams)
 function calendarState(base: GameState, phase: TimedPhase, params: URLSearchParams): GameState {
   const window = CAMPAIGN_2024.windows[phase];
   const from = params.get('from');
-  const simDate = from ? new Date(`${from}T00:00:00Z`).toISOString() : window.start;
+  // `from=AAAA-MM-DD` arranca a medianoche (UTC); `from=AAAA-MM-DDTHH`, a esa hora (de día en Marte: 06–18).
+  const simDate = from ? new Date(from.includes('T') ? `${from}:00:00Z` : `${from}T00:00:00Z`).toISOString() : window.start;
   const days = ((Date.parse(window.end) - Date.parse(simDate)) / DAY_MS) * 1.2;
   const crew = base.crew.length;
   return {
@@ -48,15 +49,19 @@ function calendarState(base: GameState, phase: TimedPhase, params: URLSearchPara
   };
 }
 
-/** Opciones de vista: `zoom=2` (zoom de la cámara; por defecto 1,5), `fx=alert|impact,powerOut` (efectos forzados) y, en `Mars`, `layout=large`. */
+/**
+ * Opciones de vista: `zoom=2` (zoom de la cámara; por defecto 1,5), `fx=alert|impact,powerOut,storm` (efectos
+ * forzados; `storm`, la tormenta de polvo de `Mars`) y, en `Mars`, `at=<franja>|curiosity` (el jugador arranca afuera,
+ * en esa franja del exterior o junto a Curiosity).
+ */
 const fxOf = (params: URLSearchParams): MapViewOptions['fx'] => {
   const fx = (params.get('fx') ?? '').split(',');
   const level = fx.includes('impact') ? 'impact' : fx.includes('alert') ? 'alert' : undefined;
-  return { ...(level ? { level } : {}), ...(fx.includes('powerOut') ? { powerOut: true } : {}) };
+  return { ...(level ? { level } : {}), ...(fx.includes('powerOut') ? { powerOut: true } : {}), ...(fx.includes('storm') ? { storm: true } : {}) };
 };
 
 const viewOf = (params: URLSearchParams): MapViewData => ({
-  view: { ...(params.get('zoom') ? { zoom: Math.min(3, Math.max(0.5, Number(params.get('zoom')) || 1)) } : {}), largeLayout: params.get('layout') === 'large', fx: fxOf(params) },
+  view: { ...(params.get('zoom') ? { zoom: Math.min(3, Math.max(0.5, Number(params.get('zoom')) || 1)) } : {}), ...(params.get('at') ? { at: params.get('at')! } : {}), fx: fxOf(params) },
 });
 
 /**

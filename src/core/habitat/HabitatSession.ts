@@ -125,7 +125,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   readonly window: PhaseWindow;
   protected abstract readonly place: Place;
   protected readonly content: C;
-  private readonly bus: EventBus<GameEvents>;
+  protected readonly bus: EventBus<GameEvents>;
   private readonly doseRate: (date: string) => DailyDose;
   private readonly ctx: IncidentContext;
   private readonly clock: MissionClock;
@@ -136,6 +136,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private _dose: DailyDose;
   private _outcome: PhaseResult['outcome'] | null = null;
   private readonly positions = {} as Record<CrewId, Point>;
+  /** Última posición del jugador que pasó la escena (la de la física, no la de la sesión). */
+  private activeAt: Point | null = null;
   private readonly travel: Partial<Record<CrewId, Travel>> = {};
   /** Automáticos con orden de ir al refugio. */
   private readonly sheltering = new Set<CrewId>();
@@ -394,6 +396,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       manual: this.manual,
       paused: this.paused,
       state: this._state,
+      activePosition: this.activeAt ?? this.positions[this._state.activeCrewId],
       dose: this._dose,
       decisions,
       hints: this._state.helpMode
@@ -431,6 +434,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   }
 
   update(realSeconds: number, input: HabitatInput): void {
+    if (input.activePosition) this.activeAt = input.activePosition;
     if (this._outcome || this.clock.isPaused) {
       this.publishSnapshot();
       return;

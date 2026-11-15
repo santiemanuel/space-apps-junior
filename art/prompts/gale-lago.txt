@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game set on Mars. The FIRST attached image (the spaceship scene) is ONLY a style reference for the pixel-art technique (dark outlines, soft cel shading, chunky pixels); do not copy its layout or its lavender colors. The other attached photos are real NASA photos of the place: use them ONLY as color and material reference and translate them into simple pixel art. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur, no photo textures. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square TILESET sheet for the surface of Mars in Gale crater: a strict 2 x 2 grid of FOUR square tiles. Draw it as if on a 48 x 48 pixel canvas enlarged: each tile is exactly 24 x 24 big chunky pixels, with simple shapes and details exactly 1 big pixel thick. Every tile fills its grid cell completely, edge to edge; neighbouring cells touch directly with NO gaps, NO margins, NO grid lines and NO outer border. Fully opaque image, no transparency. Flat orthographic view, no perspective distortion, lit evenly, no shadows falling outside the tile.
+
+All four are GROUND tiles seen from straight above. Each one must tile seamlessly with itself and with the other three: same base color at every edge, no border, no seam lines, no vignette, details kept away from the edges. Palette: pale tan and light brown mudstone (an ancient dry lake bed), with dark brown cracks.
+Tiles:
+- Top-left: flat pale tan rock slabs separated by thin dark irregular cracks
+- Top-right: the same slabs crossed by one thin bright WHITE mineral vein
+- Bottom-left: the same slabs dotted with a few tiny dark round concretions (little spheres)
+- Bottom-right: darker tan-brown bedrock broken into polygons by dark crack lines

@@ -1,0 +1,14 @@
+Create ONE square sprite sheet with FOUR small isolated game props arranged in a 2 x 2 grid on a genuinely TRANSPARENT background with real alpha.
+
+Use case: stylized-concept. Asset: retro pixel art props for a kids' top-down 2D space game. The first attached image (docs/ref-nave.png) is ONLY a STYLE reference: dark outlines, soft CEL shading using flat colors, lavender-gray metal, blue technology accents, orange/yellow lights. Do not copy its layout, rooms, characters, UI or text.
+
+VERY LOW RESOLUTION: draw as if on a 128 x 128 pixel canvas enlarged with nearest-neighbor blocks. Every pixel block is the same large square size across the entire sheet. Each prop only about 40 to 48 logical pixels wide, centered in its own 64 x 64 quadrant, with wide empty margins. Clean ONE logical pixel dark silhouette outlines. Simple chunky shapes, limited palette, hard stepped pixel edges, flat discrete cel-shaded colors. No anti-aliasing, gradients, blur, glow halos, fine high-resolution detail or smooth curves.
+
+Camera: high three-quarter overhead top-down game view; see both the top and front face. These props are intended for outdoors on Mars, but DO NOT DRAW ANY ground or environment.
+
+TOP LEFT: solar panel array on a low lavender-gray metal stand, tilted toward the viewer. Clean deep-blue rectangular cells separated by simple silver lines and a silver frame.
+TOP RIGHT: the SAME solar panel array, identical dimensions, stand, frame, perspective and orientation as top-left, covered in reddish-orange Martian dust. Blue cells barely visible beneath a thick flat dusty coating.
+BOTTOM LEFT: white dish antenna on a short tripod. Concave dish pointing up and to the left, with a simple feed arm, white and lavender-gray flat shading.
+BOTTOM RIGHT: navigation beacon, short gray pole with a round orange lamp on top and a small square base. Lamp is solid orange with a small flat yellow highlight, NO emitted glow.
+
+Only these four props, no additional objects. Props never touch or overlap. No floor, no ground shadows, no backdrop, no visible checkerboard, no grid lines, no frames around quadrants. Absolutely NO text, letters, numbers, logos or watermark. Preserve actual transparent alpha around every silhouette.

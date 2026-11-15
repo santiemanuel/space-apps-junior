@@ -1,0 +1,9 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sheet with FOUR small flat game UI ICONS arranged in a 2 x 2 grid, each icon centered in its own quadrant with wide empty margins (icons never touch). Draw it as if on a 64 x 64 pixel canvas enlarged: each icon is only about 16 big pixels wide and tall, very simple and bold, readable at tiny size, seen straight from the front (flat, not 3D). Clean 1-pixel dark outline around each icon, at most 4 colors per icon plus the outline. Genuinely TRANSPARENT background (real alpha channel): no backdrop, no tiles, no circles or frames behind the icons, no grid lines.
+
+Quadrants:
+- Top-left: infirmary: a white first aid kit with a red cross
+- Top-right: pantry: a brown cardboard box, slightly open
+- Bottom-left: radiation shelter: a blue shield with a white water drop on it
+- Bottom-right: radio: a small antenna tower with two orange signal arcs

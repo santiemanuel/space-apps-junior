@@ -124,7 +124,7 @@ describe('Voyage con los datos reales de 2024', () => {
 });
 
 describe('Mars con los datos reales de 2024', () => {
-  it('los 19 soles en Gale: la tormenta del 20/05 y el polvo del 28/05 llegan, y la tripulación aguanta', () => {
+  it('los 19 soles en Gale: la tormenta del 20/05, el polvo del 28/05 y el azufre de Curiosity del 30/05 llegan, y la tripulación aguanta', () => {
     const bus = new EventBus<GameEvents>();
     const shown: string[] = [];
     const cascade: string[] = [];
@@ -148,7 +148,7 @@ describe('Mars con los datos reales de 2024', () => {
       for (const d of session.pendingDecisions()) session.respond(d.incident.id, d.options[0]!.response.id);
       session.update(0.25, { activeZone: 'shelter', interacting: false });
     }
-    expect(shown).toEqual(['mars-storm-2024-05-20', 'dust-2024-05-28']);
+    expect(shown).toEqual(['mars-storm-2024-05-20', 'dust-2024-05-28', 'curiositySulfur2024']);
     expect(completed).toEqual(['completed']);
     // El polvo real de fines de mayo deja la batería en cero: la base entra en emergencia pero no se termina.
     expect(cascade).toContain('energy');

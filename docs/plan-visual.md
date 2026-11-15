@@ -5,7 +5,7 @@ Plan para llevar `Voyage` y `Mars` al aspecto de las referencias de
 [`biblia-visual.md`](biblia-visual.md) (qué piezas hacen falta) y a [`plan-de-trabajo.md`](plan-de-trabajo.md)
 (quién es dueño de cada archivo). El sonido queda fuera por ahora.
 
-Estado: **Fases 0–3 hechas (nave completa)**; sigue la Fase 4 (Marte). Ver [Avance de la nave](#avance-de-la-nave) (ver [§ Resultados de la Fase 0](#resultados-de-la-fase-0)).
+Estado: **Fases 0–6 hechas** (nave, Marte, efectos y tablero). Falta el cierre (Fase 7): [§ 8. Pendientes](#8-pendientes-en-orden).
 
 ---
 
@@ -121,16 +121,18 @@ enseña una forma del terreno:
 | Cerros testigo (Murray Buttes) | Mesetas con capas | Cada capa es una página de la historia de Marte |
 | Canal Gediz Vallis | Cauce con escombros y rocas pálidas | Rocas con cristales amarillos de azufre |
 
-- **Fecha real:** Curiosity estaba en el canal Gediz Vallis durante la estancia del juego y encontró cristales de
-  azufre puro el 30/05/2024 (sol 4200; [JPL PIA26307](https://www.jpl.nasa.gov/images/pia26307-curiosity-captures-close-up-of-sulfur-crystals/)).
-  Justifica dónde está estacionado y da una tarjeta "Esto pasó de verdad".
-- **Mapa del cráter:** una vista general (borde de ~154 km, monte Sharp de ~5 km en el centro, "estás acá") que
-  aclare que el mapa jugable está comprimido.
-- **Antes de dibujar:** reunir fotos de HiRISE y Mastcam y guardar las citas en `src/content/` y
-  `datasets/README.md`. **Las cifras de esta sección faltan verificar una por una contra su fuente.**
+- **Fecha real:** Curiosity explora el canal Gediz Vallis desde febrero de 2024 (toda la estancia del juego) y
+  encontró cristales de azufre puro el 30/05/2024 (sol 4200, piedra "Convict Lake"; foto de MAHLI
+  [PIA26307](https://www.jpl.nasa.gov/images/pia26307-curiosity-captures-close-up-of-sulfur-crystals/) y de Mastcam
+  PIA26309). Justifica dónde está estacionado y da una tarjeta "Esto pasó de verdad".
+- **Mapa del cráter:** una vista general (cráter de 154 km, monte Sharp de 5,5 km sobre el piso del cráter en el
+  centro, "estás acá") que aclare que el mapa jugable está comprimido.
+- **Fuentes (hecho, 15/11/2026):** cifras verificadas una por una y fotos de HiRISE y Mastcam de cada franja; citas en
+  `src/content/galeTerrain.ts` y `datasets/README.md`, fotos en `docs/gale/` (ver "Avance de Marte").
 - **Piezas:** suelo en mosaico con variantes, acantilados y borde de cráter modulares, rocas en 3 tamaños, rocas
   de muestra por tipo, huellas, Curiosity limpio y con polvo.
-- **Opcional:** dar tipo de roca a las muestras (toca `core/mars`).
+- **Tipos de roca** (decidido): cada muestra tiene tipo, sprite y dato para chicos, más un logro por juntar todos los
+  tipos; no cambia el puntaje. Toca `core/mars`, i18n y `achievements.ts` (de Facundo).
 
 ### Fase 5 — Efectos (sin sonido)
 
@@ -171,6 +173,40 @@ enseña una forma del terreno:
 | Tripulación | Se regeneran las hojas como pixel art real, con las actuales de referencia, y pasan por el pixel-snapper. Se editan `CrewSprite.ts`, `assets.ts` y `public/assets/crew/` |
 | Tipos de roca | Entran ahora: cada muestra tiene tipo, sprite y dato para chicos, más un logro por juntar todos los tipos. **No cambia el puntaje** |
 | Revisión | Se frena al terminar la nave completa, antes de Marte |
+
+## 8. Pendientes (en orden)
+
+Para retomar en un chat nuevo: leer `AGENTS.md`, este documento y las capturas de `art/capturas/`. Arrancar por el
+primer punto que no esté hecho.
+
+1. ~~**Marte — ambiente**~~: hecho (ver "Ambiente: día, noche y tormenta" en "Avance de Marte").
+2. ~~**Efectos que faltan (Fase 5)**~~: hechos (ver "Fase 5: efectos").
+3. ~~**Tablero e interfaz (Fase 6)**~~: hecho (ver "Fase 6: tablero e interfaz").
+4. ~~**Rework según los recortes (Fase 7)**~~: hecho (ver "Fase 7: rework según los recortes de las referencias").
+5. **Cierre:** comparar con los recortes que faltan (enfermería, MOXIE, exterior), medir rendimiento.
+
+Detalles sueltos:
+- Tripulantes automáticos que quedan encimados en el mismo cuarto (posiciones de `SLOTS` en `HabitatSession`).
+- Confirmar en una pantalla de 144 Hz el arreglo de la vibración y de la cámara (sólo se probó a 60 Hz).
+- `maxLights` (10 por cámara) está en `config.ts`, congelado: revisar si alcanza en Marte.
+- Gale: los carteles de las franjas siguen siendo texto (son nombres de lugares reales; no hay ícono que los reemplace) y el aviso con el dato de cada franja sale una vez
+  por visita a la escena. A los automáticos que vuelven desde afuera los guía `exteriorPath`; el jugador choca con
+  el terreno por tiles, así que conviene probar a mano que no se trabe en las esquinas de los cerros.
+- Recursos de Gale que quedaron para después: transiciones entre franjas (hoy el borde es un escalón de tiles), más
+  variantes del techo del monte Sharp (se repite mucho), hojas de la puerta exterior de la esclusa (hoy sólo la franja
+  de peligro y la marca roja), huellas de rover (tile 38, sin usar) y las ventanas de la base (no se pusieron: en
+  Marte no hay `SpaceWindows`; harían falta con cielo marciano). Las muestras miden ~1,5 tiles: si se ven grandes,
+  regenerarlas más chicas.
+- El bundle pasa el aviso de 2000 kB de Vite (2,1 MB; `gale.json` suma ~40 kB).
+- Avisar a Facundo del logro nuevo `allRockTypes` en `src/content/achievements.ts` (suyo) y de `Sample.rock`
+  (opcional, no cambia el puntaje ni la carga de vuelta). El informe y `Loadout` todavía no muestran el tipo de cada
+  muestra.
+- Avisar a Facundo de los cambios en sus archivos de tripulación (`CrewSprite.ts`, `assets.ts`, `crewAnimations.ts`,
+  `TitleScene.ts`, hojas de 80 × 96 con normal maps) y del globo con ícono de `CrewSprite.ts` (Fase 6).
+- Documentación vieja: `biblia-visual.md` (tabla de reglas) y `plan-de-trabajo.md` §3.8 todavía dicen cuadros de
+  176 × 216; el README de las referencias menciona `03_documentacion`, que no existe.
+- Decidir si `art/` (~39 MB de originales) se versiona o va a `.gitignore`.
+- MCP de Sprite Fusion: opcional, no configurado (se usa el generador local en Docker).
 
 ---
 
@@ -220,7 +256,7 @@ Hecha el 15/11/2026. Originales, registros de codex y capturas en `art/raw/fase0
 | `scripts/art/post.py` | Recorte (también por celda de una hoja), relleno a la grilla y exportación ×2 |
 | `scripts/art/capture.mjs` | Captura de una escena con Chrome sin ventana, con teclas opcionales. `chrome --screenshot` solo falla seguido con WebGL |
 | `&zoom=`, `&layout=large`, `&props=1` | Parámetros de `?scene=Voyage` y `?scene=Mars` para probar escalas |
-| `SHIP_LAYOUT_LARGE`, `GALE_LAYOUT_LARGE` | Planos agrandados de prueba (41 × 19 y 90 × 31 tiles) con `habitatLayout()` |
+| `SHIP_LAYOUT_LARGE`, `GALE_LAYOUT_LARGE` | Planos agrandados de prueba (41 × 19 y 90 × 31 tiles) con `habitatLayout()`; retirados al llegar los mapas de Tiled |
 | `prototypeProps.ts`, `public/assets/proto/` | Piezas de prueba; se retiran al llegar los recursos definitivos |
 
 ### Decisiones que cambian respecto del plan
@@ -244,9 +280,9 @@ Hecho el 15/11/2026. Capturas de los ocho cuartos en `art/capturas/nave-*.png`.
 - **Render** (`TiledMapView.ts`): piso en `TilemapGPULayer`, paredes en capa común con colisión de tilemap, objetos
   desde un atlas (`load.atlas`) ordenados por su pie, cajas de colisión en un grupo estático. Zoom 1,5 por defecto.
   La capa GPU sólo se usa para el piso: en Phaser 4.2.1 tiñe los tiles vacíos, así que no sirve para capas ralas.
-- **Tileset** `public/assets/ship/tiles.png`: 16 tiles de 48 px (4 pisos, 4 pisos especiales, 4 frentes de pared,
-  techos, rejilla y espacio).
-- **Objetos** `public/assets/ship/props.png` + `.json`: 27 sprites, listados en `art/manifest.json`.
+- **Tileset** `public/assets/ship/tiles.png`: 24 tiles de 48 px (4 pisos, 4 pisos especiales, 4 frentes de pared,
+  techos, rejilla, espacio, marcos y hojas de puerta).
+- **Objetos** `public/assets/ship/props.png` + `.json`: 31 sprites (con los de desgaste), listados en `art/manifest.json`.
 - **Tripulación** regenerada como pixel art: hojas de 720 × 384 (cuadros de 80 × 96), de 36 a 42 px de arte de alto.
 - **Reglas tocadas:** la nave es más larga, así que el jugador camina a 210 px/s y la tripulación a 4,5 tiles/s.
   `ShipZone` admite puertas de varios tiles y un lugar de trabajo propio.
@@ -313,4 +349,235 @@ Hecho el 15/11/2026. Capturas de los ocho cuartos en `art/capturas/nave-*.png`.
 ### Queda para otras fases
 
 - Los carteles de zona y de estación siguen siendo texto (Fase 6: íconos).
-- `GALE_LAYOUT` (Marte) sigue con rectángulos hasta la Fase 4; `&layout=large` queda sólo para `Mars`.
+- ~~`GALE_LAYOUT` (Marte) sigue con rectángulos hasta la Fase 4~~: ya sale de `gale.json` (ver "Avance de Marte").
+
+---
+
+## Avance de Marte
+
+Hecho el 15/11/2026. Capturas en `art/capturas/gale-*.png` (`gale-mapa.png` es la vista general).
+
+### Fuentes (antes de dibujar)
+
+- Cifras verificadas contra la NASA: cráter de **154 km**; monte Sharp de **5,5 km** sobre el piso del cráter (el plan
+  decía ~5; la NASA usa las dos, 5 redondeado); cráter de más de 3000 millones de años; Curiosity en Gediz Vallis
+  **desde febrero de 2024** (canal de ~91 m de ancho); azufre puro el **30/05/2024, sol 4200** (la foto PIA26307 es de
+  MAHLI, no de Mastcam; la de Mastcam es PIA26309, del 07/06).
+- Cada franja tiene su lugar real, qué dibujar, la cita y 2–5 fotos (HiRISE y Mastcam): `GALE_STRIPS` en
+  `src/content/galeTerrain.ts`. Las fotos (1600 px, dominio público) están en `docs/gale/` con su README; la tabla de
+  cifras, en `datasets/README.md`.
+- Textos para chicos de cada franja en `mars.terrain.<id>.name|fact` (es y en).
+
+### Mapa en Tiled
+
+- `src/content/maps/gale.json` (72 × 72 tiles) lo arma `node scripts/maps/build-gale.mjs` (pisa lo editado a mano).
+  La base son los mismos 8 cuartos de 9 × 6 que la nave más la **esclusa** (6 × 6) en la fila de abajo, con una puerta
+  al pasillo y otra al exterior, alineadas. Afuera, de norte a sur: llanura de Aeolis (con la base y rocas sueltas),
+  lecho de lago de Yellowknife Bay, dunas Bagnold (crestas que no se pisan), cerros Murray (mesetas) y el canal Gediz
+  Vallis entre las laderas del monte Sharp, con montículos de bloques, el campo de azufre y Curiosity.
+- **Máscara de terreno:** el exterior es todo el mapa menos el borde; lo que no se pisa sale de la capa `paredes` y de
+  las cajas de los objetos (`ExteriorLayout.blocked`). `zoneAt` mira el pasillo antes que el exterior. La puerta
+  exterior tiene 2 tiles (`doorTiles`). El script falla si queda terreno al que no se llega desde la esclusa, y
+  `tiledLayout.test.ts` lo vuelve a comprobar.
+- **Caminos:** `exteriorPath` (búsqueda en anchura por tiles y atajos en línea recta) guía a los automáticos por el
+  exterior; `route` y `routeToPoint` lo usan. Las muestras sólo caen en terreno transitable; `valuePerTile` bajó a 1
+  porque el exterior es más grande (lo más lejano sigue valiendo ~70) y la tripulación camina a 4,5 tiles/s como en
+  la nave.
+- **Capas extra en `zonas`:** rectángulos `terrain` (una franja cada uno, `GALE_TERRAIN`) y puntos `landmark`
+  (`curiosity`, `GALE_LANDMARKS`).
+- **Tileset:** primero fue un provisorio dibujado por código; lo reemplazaron los recursos de abajo.
+- **Escena:** `MarsScene` pinta el mapa con `TiledMapView` (los bordes de pared sólo en los techos de la base:
+  `rimTiles`), pone a Curiosity en su punto, carteles con el nombre de cada franja, un aviso con el dato real al
+  entrar a cada una y un velo de noche sólo sobre el exterior. Se quitaron `GALE_LAYOUT_LARGE`, `habitatLayout`,
+  `&layout=large` y el mapa de rectángulos. Para probar: `?scene=Mars&at=<franja>|curiosity`.
+- Vista general sin abrir el juego: `python scripts/maps/preview.py <mapa.json> <salida.png> [escala]`.
+
+### Recursos de Marte
+
+- **Tileset** `public/assets/mars/tiles.png` (48 tiles): la base es el tileset de la nave con la paleta corrida del
+  lavanda al beige tostado y motas de polvo en los pisos (`scripts/art/gale-tiles.py`; se dejan igual el piso azul del
+  refugio y las luces azules y naranjas). El suelo son 22 tiles generados con codex en 6 hojas de 2 × 2 (`gale-*`),
+  con las fotos de `docs/gale/` adjuntas como referencia de color y material; cada tile pasó solo por el snapper con
+  `pixel_size: 26.125` y lo armó `tiles.py` (`art/tiles-gale.args`). `gale-tiles.py` también borra los bordes que se
+  veían como costura al repetir dos tiles (`EDGE_FIX`).
+- **Lo aprendido:** con "tiles that tile seamlessly" el generador a veces dibuja manchas sobre otro fondo (la grava y el
+  azufre salieron como islas sobre arena oscura); lo arregló pedir "completely covered ... edge to edge, NO patches"
+  (`gale-canal`). Revisar cada tile repetido 3 × 3 antes de darlo por bueno.
+- **Objetos** (`public/assets/mars/props.*`, grupo `mars-props` de `art/manifest.json`, que incluye los de la nave):
+  invernadero con luz violeta, MOXIE dorado, traje en su soporte, caja con polvo, paneles solares limpio y con polvo,
+  antena, baliza, rocas en 3 tamaños, bloque anguloso, una muestra por franja, Curiosity limpio y con polvo y un tubo
+  de muestras. Todos salieron bien en la primera tanda (5 hojas).
+- **Normal maps** de los dos (`normals.py`); el mapa de Gale ya recibe luz dinámica (`normals: true`).
+- **Mapa** (`build-gale.mjs`): invernadero con 4 canteros, MOXIE en su cuarto (es la máquina que echa chispas cuando
+  se avería), traje y caja en la esclusa; afuera, 5 paneles solares, la antena, dos balizas junto a la puerta, rocas
+  grandes y bloques como objetos con colisión (tapan su tile) y 60 piedras chicas y medianas en `decorado` (se pisan).
+  Curiosity (con polvo) es un objeto con colisión en el canal.
+- **Escena:** cada muestra se dibuja con la roca de su franja y un anillo a los pies (el arco azul es el avance); los
+  bordes de los techos usan la paleta cálida (`rimColors`) y también van en los cerros, las crestas y el monte Sharp.
+- Para probar de día: `&from=2024-05-16T12&length=long` (`from` acepta una hora; con `length=short` la partida
+  arrancó a medianoche del día siguiente).
+
+### Tipos de roca y logro
+
+- **Tipos** (uno por franja, `GALE_ROCKS` en `src/content/galeTerrain.ts`, con su fuente): conglomerado (llanura),
+  lutita de lago (Yellowknife Bay), arena de basalto (dunas Bagnold; la NASA las llama "basaltic Bagnold sands"),
+  arenisca en capas (cerros Murray) y azufre puro (Gediz Vallis).
+- **Reglas:** `MarsContent.samples.rocks` dice en qué franja aparece cada tipo. `sampleSites` reparte las muestras
+  entre las franjas en orden (8 muestras para 5 tipos: siempre hay una de cada uno) y sólo las pone donde hay lugar
+  alrededor para llegar (no pegadas a una roca o una ladera). Cada muestra lleva `rock` (también en `Sample`, opcional
+  para partidas viejas, y en la anotación `mars.log.sample` del historial). **El puntaje no cambia.**
+- **Logro** `allRockTypes` ("Coleccionista de rocas"): juntar en Marte una de cada tipo, aunque después no todas
+  entren en la nave (se lee del historial).
+- **Escena:** cada muestra se dibuja con su sprite (`sample-<tipo>`; se renombraron los del atlas) y al juntarla un
+  aviso dice qué roca es y su dato para chicos (`mars.rock.<tipo>.name|fact`, `mars.rock.collected`). El globo de
+  Curiosity quedó centrado arriba del rover (se salía de la pantalla).
+- **Tests:** una muestra de cada tipo en su franja con 20 semillas, lugar libre alrededor de cada una, el logro, las
+  claves de texto, y que cada fuente sea de la NASA, cada foto exista en `docs/gale/` y cada tipo tenga su sprite
+  (`galeTerrain.test.ts`).
+
+### Mapa del cráter y tarjeta del azufre
+
+- **Imagen:** `public/assets/mars/crater.png` sale de una foto real, PIA15687 (vista desde arriba de Gale,
+  NASA/JPL-Caltech/ESA/DLR/FU Berlin/MSSS), con `python scripts/art/crater-map.py`: se borra la elipse de aterrizaje
+  dibujada en la foto, se reduce a 200 × 200 píxeles de arte con 28 colores y se exporta ×3 (cada píxel de arte mide
+  3 px de pantalla, como en el mapa del juego).
+- **Georreferencia:** la elipse de 2012 (20 × 7 km, centro en 4,5965° S, 137,4019° E) da la escala (1,18 píxeles de
+  arte por km) y el ancla. Con eso el borde de 154 km cae justo sobre el del cráter (control con `--check`, en
+  `art/raw/crater-check.png`). Los lugares tienen coordenadas de fuentes citadas (`GALE_PLACES`: centro del cráter,
+  monte Sharp y Gediz Vallis del nomenclátor del USGS; Bradbury Landing de Malin et al. 2017) y `craterPoint` los
+  ubica en la imagen. Del aterrizaje al extremo norte de Gediz Vallis hay 11 km en línea recta.
+- **Vista** (`CraterView.ts`, dibujada por el tablero en Marte): se abre con **V**, y sola al llegar a Gale; pausa el
+  reloj. Muestra el borde punteado de 154 km, el monte Sharp (5,5 km de alto), dónde aterrizó Curiosity y dónde está
+  hoy, la escala y el norte, y una lupa ×6 sobre el camino con las cinco franjas del mapa en orden y una cruz que
+  titila en la fila del jugador ("estás acá"; la posición sale de `SimSnapshot.activePosition`). Un texto aclara que el
+  juego encoge esos 11 km.
+- **Tarjeta del azufre:** `MarsContent.realMoments` (por ahora sólo `SULFUR_EVENT`): cuando el reloj pasa el mediodía
+  del 30/05/2024, `MarsSession` publica `realEvent:shown` (el flujo abre la tarjeta "Esto pasó de verdad") y lo anota
+  en el historial una sola vez. Sol 4200, APXS y MAHLI, con el enlace a PIA26307. La campaña 2024 ahora tiene tres
+  tarjetas en Marte (tormenta, polvo y azufre).
+
+### Ambiente: día, noche y tormenta
+
+- **Cielo** (`MarsSession.sky`): altura del Sol (`sunAt`, el mismo seno de 6 a 18 que usa la energía), polvo del día
+  (f_polvo del UV real de REMS) y si hay una tormenta de polvo en curso. `marsSky.ts` lo pasa a color de luz ambiente:
+  noche azul oscura, amanecer y atardecer azulados (en Marte el cielo se ve azul alrededor del Sol al ponerse),
+  mediodía caramelo; el polvo la apaga y la vuelve ocre, y la tormenta más.
+- **Luz dinámica** (`HabitatFx`, con `outdoor`): la luz ambiente es la del cielo en todo el mapa; con el cielo oscuro las
+  luces de techo de la base suben (`NIGHT_ROOM_BOOST`), así de noche la base se ve iluminada desde adentro y la luz se
+  derrama afuera. Se quitó el velo fijo de la noche de `MarsScene`.
+- **Corte de energía:** con exterior, oscurece sólo el rectángulo de la base (`interior`) hasta el brillo de un corte;
+  afuera sigue la luz del Sol. De noche no hace falta velo.
+- **Luces de afuera:** al oscurecer se prenden las balizas junto a la esclusa (laten despacio) y una linterna de casco
+  (luz en cono, `setCone` de Phaser 4.2) por tripulante afuera, hacia donde camina; el del jugador lleva además una luz
+  chica alrededor. Usan pocas luces: el cono del jugador es el más cercano al centro de la cámara y nunca queda afuera
+  de las 10 (`maxLights`).
+- Para probar: `&from=2024-05-16T12|T17|T22` (mediodía, atardecer, noche), `&fx=storm` (tormenta forzada) y
+  `&fx=powerOut`. Capturas en `art/capturas/ambiente/`.
+
+---
+
+## Fase 5: efectos
+
+Hecha el 15/11/2026. Capturas en `art/capturas/ambiente/`.
+
+- **Detalles con vida** (`MapLife.ts`, en la nave y en la base): pantallas que respiran y parpadean cada tanto (y se
+  apagan en un corte de energía), burbujas que suben en los tanques, vapor que sale cada tanto de los tanques y del
+  reciclador, y las hojas de la planta que se mecen (una copia recortada del sprite que gira apenas sobre la base de
+  las hojas; la maceta queda quieta). Los rectángulos de pantallas, líquido y hojas están medidos sobre el atlas
+  (`SCREENS`, `LIQUID`, `LEAVES`): si se regenera un objeto, hay que volver a medirlos.
+- **Clima de afuera** (`MarsWeatherFx.ts`): polvo en el aire que lleva el viento (más en días con polvo y mucho más en
+  la tormenta), nubes de polvo que cruzan la vista en la tormenta, polvo que levantan las botas y huellas que se borran
+  (24 s; 5 s con tormenta). El polvo nace en lo que se ve y nunca adentro de la base.
+- **Calima:** filtro `ColorMatrix` externo de la cámara (pierde color y contraste) según el polvo del día y la
+  tormenta, sólo con el jugador afuera (aparece y se va en 0,8 s al cruzar la esclusa). Los píxeles siguen nítidos.
+- **Cámara:** sacudón al llegar la tormenta de polvo y ráfagas cada 5–11 s en su pico, con el jugador afuera; fundido
+  corto al cruzar la puerta exterior de la esclusa.
+- **Balizas:** además del latido, un haz que gira como un faro.
+- Las plantas del invernadero no se mecen (están dentro del cantero con vidrio).
+
+## Fase 6: tablero e interfaz
+
+Hecha el 15/11/2026.
+
+- **Íconos** (`public/assets/hud/icons.*`, 24 íconos generados con codex en 6 hojas de 2 × 2, `scripts/art/icons.py`):
+  salieron todos bien en la primera tanda. Snapper con `pixel_size: 19.6` fijo para que todas las hojas tengan el
+  mismo tamaño de píxel. Constantes en `src/game/hudIcons.ts`.
+- **Tablero** (`HudScene`, `PanelColumn`): marco de metal con remaches y franjas de luz; barras en segmentos (avance de
+  la fase, energía, aire y agua); una fila con aire, agua, comida y CO2 en ícono y días; repuestos; leyenda de salud
+  con íconos; cada tripulante con su retrato (el cuadro de frente de su hoja), nombre y cuarto, y los cuatro íconos de
+  salud con una luz del semáforo debajo. `PanelColumn` acepta `icon`, `icons` (con `frame`), `cells`, `bar` y
+  `portrait`; `MissionControl` sigue igual.
+- **Minimapa** (`Minimap.ts`): abajo a la derecha de la vista: plano (piso, paredes, terreno de afuera), tripulación
+  con el color de su traje, el jugador con un anillo que titila, las muestras en Marte, el refugio titilando en una
+  tormenta de radiación y el rectángulo de lo que se ve.
+- **Sobre el mapa:** cada cuarto con su ícono en la esquina (el nombre aparece sólo con el jugador adentro); las
+  estaciones son una placa con el ícono, el borde del color del semáforo y la barra de avance; los globos de los
+  tripulantes muestran el ícono del motivo (sueño, estado físico, CO2, extrañar la Tierra; el texto entero está en el
+  tablero) y en una tormenta de radiación tres flechas ámbar al lado del jugador apuntan al refugio.
+- Textos nuevos: `hud.meter.daysShort|manyDaysShort|co2Short|co2OkShort`, `hud.health.*`, `hud.panel.sparesShort`.
+- **Tablero simplificado (15/11/2026):** el tablero quedó con lo justo: reloj y semáforo, tres barras (energía, aire y
+  agua, comida), la tripulación con retrato y nombre (sólo se prende el ícono de salud que no está en verde) y los
+  avisos. CO2 alto, falta de repuestos y polvo en Marte aparecen sólo cuando son un problema. El detalle pasó al
+  **estado completo** (`StatusView.ts`, tecla I, pausa el reloj): reservas con sus días, máquinas, salud de cada
+  tripulante en barras, dosis de afuera con fecha y fuente, tiempo de Curiosity y todas las teclas. Es una vista de
+  `HudScene` (como `CraterView`), no una escena nueva. Capturas en `art/capturas/hud/`.
+- **Luz y sombras (15/11/2026):** la grilla de tiles que se marcaba bajo la linterna no venía de los normal maps (el
+  de la llanura es casi plano) sino de `TilemapGPULayer`, que en Phaser 4.2.1 lee el normal map cabeza abajo: el piso
+  pasó a una capa común. La linterna del casco sale del frente del casco, corrida hacia donde mira (`HELMET_LAMP`): el
+  cuerpo ya no se ilumina a sí mismo y de espaldas tapa el arranque del haz. Los objetos de afuera arrojan sombra
+  (`castShadows` en `HabitatFx`): su silueta en negro, acostada del lado opuesto a cada linterna o baliza y más larga
+  cuanto más alto el objeto y más lejos la luz. La tripulación todavía no arroja sombra. Capturas en
+  `art/capturas/luz/`.
+- No se probaron a mano las flechas al refugio (hace falta una tormenta de radiación real en la partida).
+
+## Fase 7: rework según los recortes de las referencias
+
+Hecha el 15/11/2026, tomando `01_03_base_invernadero`, `02_01_nave_comunicaciones`, `03_01_nave_sala_comun`,
+`03_02_nave_alerta_radiacion` y las láminas 05 y 06 (se ignoraron las pantallas de side-scroller). Capturas en
+`art/capturas/rework/` (las `antes-*` son del estado anterior).
+
+- **Salas:** el mando pasó a ser la sala común (ventanal, consolas bajas, sillón curvo con holomesa); la radio, la sala
+  de comunicaciones (escritorio de dos pantallas con silla, radar, pantalla de pared); el refugio, la sala de la alerta
+  de radiación (ventanal al Sol, pantalla de aviso, tanques de escudo y luz roja junto a su puerta). Los cuartos con
+  ventanal quedaron arriba (su pared tiene techo y frente: entra un ventanal de casi 2 tiles): en la nave se cambiaron
+  de lugar el refugio con el CO2 y la radio con el agua; en Gale, arriba quedaron mando, gimnasio, refugio e
+  invernadero, y MOXIE al lado de la esclusa. El invernadero de Gale sigue la referencia: gabinetes de cultivo con luz
+  violeta, el ventanal a Gale entre ellos, monitor de plantas, tanque hidropónico y dos canteros.
+- **Recursos nuevos (codex + pixel-snapper):** `props-comunicaciones`, `props-sala-comun`, `props-ventanas`,
+  `props-invernadero` (con el recorte de referencia adjunto a cada prompt), `tiles-piso2`, `tiles-pared2`,
+  `tiles-relleno` (maquinaria con caños naranjas entre cuartos y piso del pasillo), `vista-marte` (paisaje detrás de
+  los ventanales de la base) y los íconos `hud-iconos-botones` y `hud-iconos-objetivo`. Todos salieron bien en la
+  primera tanda. Normal maps rehechos.
+- **Lo aprendido:** el piso liso pasado por el snapper deja la junta en un lado distinto en cada tile y la rejilla no se
+  entiende a 24 px: `scripts/art/tile-fix.py` empareja bordes y redibuja la rejilla con los colores del mismo tile. El
+  ventanal salió de 2 tiles; `atlas.py` acepta `stretch` en el manifiesto (repite columnas y filas lisas sin cambiar el
+  tamaño del píxel) y quedó de 4 × 1,8 tiles.
+- **Paredes:** los techos llevan caños que siguen la pared (verticales entre cuartos, horizontales a lo largo) y los
+  cuartos un borde grueso biselado con chaflanes en las esquinas (`bevel` en `MapAssets`, dibujado por código en
+  `TiledMapView` porque la geometría tiene que ser exacta).
+- **Ventanales:** cada uno muestra lo de su cuarto (`SpaceWindows` con `role`): el mando, el planeta de destino; la
+  radio, el planeta del que se sale (grande al salir); el refugio, el Sol, que encandila en una tormenta de radiación.
+  El planeta llega a 14 píxeles de arte de radio. En Gale, el paisaje teñido con la luz del cielo.
+- **Luz:** brillos y luces de color por objeto (`GLOWS` en `HabitatFx`): violeta de los cultivos, cian de la holomesa
+  y las pantallas, rojo de las luces de alarma (sólo en alertas). Flechas ámbar en el piso del pasillo hacia la puerta
+  del refugio en una tormenta de radiación. La cámara mira 64 px más arriba del jugador para que se vean los ventanales.
+- **Tablero:** la vista del mapa pasó a 21 tiles y el panel a 272 px, en cajas como en las referencias: minimapa (lo
+  dibuja el tablero; el mapa le pasa los puntos por el `registry`, `MINIMAP_FRAME`), medidores con los días que duran
+  (y si la energía carga o gasta), tripulación, **datos reales de hoy** (radiación medida, demora de la señal a la
+  Tierra, distancia al Sol o el tiempo de Curiosity, paneles contra gasto, siempre "dato archivado") y abajo el
+  objetivo tildable o la caja roja de alerta. Sobre el mapa: placa del tripulante del jugador (cara, cuarto, cuatro
+  luces de salud), franja de la misión arriba al centro, botones con ícono y tecla (P, C, G, I, V) y la tarjeta de la
+  decisión pendiente (opciones con su riesgo, tecla y coste). Todo eso se esconde con una pantalla superpuesta abierta.
+
+Pendientes de esta fase:
+- Avisar a Facundo del cambio de lugar de los cuartos y del ancho de la vista (`VIEW_WIDTH` = 21 tiles).
+- Las puertas siguen siendo las corredizas de antes: faltan marcos octogonales con columnas de luz como en las
+  referencias (habría que generar el marco del tamaño exacto de la puerta).
+- El refugio no tiene la compuerta con el trébol en su puerta (el sprite `shelterhatch` está en el atlas sin usar).
+- Las mascotas de las láminas siguen sin usarse: se mantiene la tripulación Vega, Miga, Brote y Senda.
+- **Puertas, franja de peligro y pasillo (15/11/2026, segunda pasada):** `tiles-puerta2` (marco con barra de luz
+  naranja, o roja en la variante, y hojas lisas con ranura y luz cian) y `tiles-pasillo2` (placa azul lavanda, placa con
+  línea guía, franja de peligro y piso del refugio), generados con el recorte de referencia adjunto. `tile-fix.py`
+  (antes `floor-fix.py`) también junta los colores casi iguales de las hojas de puerta y les redibuja ranura y zócalo,
+  dibuja la línea guía de borde a borde y redibuja la franja de peligro a 45° con período de 8 píxeles para que siga
+  sin corte entre los dos tiles de cada puerta. La línea guía ahora recorre toda la fila del medio del pasillo.

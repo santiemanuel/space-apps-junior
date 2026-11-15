@@ -30,6 +30,13 @@ export interface ExteriorLayout {
   airlock: string;
   /** Tile de la puerta exterior de la esclusa. */
   door: { col: number; row: number };
+  /** Otros tiles de la puerta exterior, si es más ancha que un tile. */
+  doorTiles?: readonly { col: number; row: number }[];
+  /**
+   * Terreno que no se pisa dentro del rectángulo (acantilados, cerros, rocas grandes y las paredes de la base), por
+   * filas de todo el plano: `blocked[row * cols + col]`. Sin máscara, todo el rectángulo es transitable.
+   */
+  blocked?: readonly boolean[];
 }
 
 /** Plano top-down de la nave o la base (§4.2, §4.4): cuartos alrededor de un pasillo central. */
@@ -49,6 +56,7 @@ export const CORRIDOR = 'corridor';
 export const EXTERIOR = 'exterior';
 
 const center = (col: number, row: number): Point => ({ x: col + 0.5, y: row + 0.5 });
+const dist = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
 const inRect = (r: TileRect, col: number, row: number): boolean =>
   col >= r.col && col < r.col + r.cols && row >= r.row && row < r.row + r.rows;
 
@@ -72,17 +80,84 @@ export const doorPoint = (zone: ShipZone): Point => {
 /** Se puede caminar por los cuartos, el pasillo y las puertas; el resto es pared. */
 export const isWalkable = (layout: ShipLayout, col: number, row: number): boolean => zoneAt(layout, center(col, row)) !== null;
 
-const isExteriorTile = (ext: ExteriorLayout | undefined, col: number, row: number): boolean =>
-  !!ext && (inRect(ext.rect, col, row) || (ext.door.col === col && ext.door.row === row));
+const exteriorDoorTiles = (ext: ExteriorLayout) => [ext.door, ...(ext.doorTiles ?? [])];
 
-/** Zona de un punto: un cuarto (su puerta cuenta como parte del cuarto), el pasillo, el exterior o null si es pared. */
+/** Centro de la puerta exterior de la esclusa (de todos sus tiles). */
+export const exteriorDoorPoint = (ext: ExteriorLayout): Point => {
+  const tiles = exteriorDoorTiles(ext);
+  return { x: tiles.reduce((sum, t) => sum + t.col + 0.5, 0) / tiles.length, y: tiles.reduce((sum, t) => sum + t.row + 0.5, 0) / tiles.length };
+};
+
+const isExteriorTile = (layout: ShipLayout, col: number, row: number): boolean => {
+  const ext = layout.exterior;
+  if (!ext) return false;
+  if (exteriorDoorTiles(ext).some((d) => d.col === col && d.row === row)) return true;
+  return inRect(ext.rect, col, row) && !ext.blocked?.[row * layout.cols + col];
+};
+
+/**
+ * Zona de un punto: un cuarto (su puerta cuenta como parte del cuarto), el pasillo, el exterior o null si es pared o
+ * terreno que no se pisa. El pasillo va antes que el exterior: el rectángulo del exterior puede rodear la base.
+ */
 export function zoneAt(layout: ShipLayout, p: Point): string | null {
   const col = Math.floor(p.x);
   const row = Math.floor(p.y);
   const zone = layout.zones.find((z) => inRect(z.rect, col, row) || doorTilesOf(z).some((d) => d.col === col && d.row === row));
   if (zone) return zone.id;
-  if (isExteriorTile(layout.exterior, col, row)) return EXTERIOR;
-  return inRect(layout.corridor, col, row) ? CORRIDOR : null;
+  if (inRect(layout.corridor, col, row)) return CORRIDOR;
+  return isExteriorTile(layout, col, row) ? EXTERIOR : null;
+}
+
+/** Se ve de `a` a `b` caminando por el exterior: ningún punto del segmento cae en terreno que no se pisa. */
+function clearLine(layout: ShipLayout, a: Point, b: Point): boolean {
+  const steps = Math.ceil(dist(a, b) / 0.2);
+  for (let i = 1; i < steps; i++) {
+    const k = i / steps;
+    if (!isExteriorTile(layout, Math.floor(a.x + (b.x - a.x) * k), Math.floor(a.y + (b.y - a.y) * k))) return false;
+  }
+  return true;
+}
+
+const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
+
+/**
+ * Camino por el exterior esquivando el terreno que no se pisa: búsqueda en anchura por tiles (en diagonal sólo si
+ * no corta una esquina) y después se saltean los puntos intermedios que se ven entre sí. Devuelve `[from, …, to]`;
+ * si no hay camino, la línea recta.
+ */
+export function exteriorPath(layout: ShipLayout, from: Point, to: Point): Point[] {
+  if (clearLine(layout, from, to)) return [from, to];
+  const cols = layout.cols;
+  const key = (col: number, row: number) => row * cols + col;
+  const start = key(Math.floor(from.x), Math.floor(from.y));
+  const goal = key(Math.floor(to.x), Math.floor(to.y));
+  const previous = new Map<number, number>([[start, start]]);
+  const queue = [start];
+  for (let i = 0; i < queue.length && !previous.has(goal); i++) {
+    const at = queue[i]!;
+    const col = at % cols;
+    const row = Math.floor(at / cols);
+    for (const [dc, dr] of NEIGHBORS) {
+      const next = key(col + dc, row + dr);
+      if (previous.has(next) || !isExteriorTile(layout, col + dc, row + dr)) continue;
+      if (dc && dr && !(isExteriorTile(layout, col + dc, row) && isExteriorTile(layout, col, row + dr))) continue;
+      previous.set(next, at);
+      queue.push(next);
+    }
+  }
+  if (!previous.has(goal)) return [from, to];
+  const tiles: Point[] = [];
+  for (let at = previous.get(goal)!; at !== start; at = previous.get(at)!) tiles.unshift(center(at % cols, Math.floor(at / cols)));
+  const points = [from];
+  let i = 0;
+  const all = [...tiles, to];
+  while (i < all.length) {
+    let j = all.length - 1;
+    while (j > i && !clearLine(layout, points[points.length - 1]!, all[j]!)) j--;
+    points.push(all[j]!);
+    i = j + 1;
+  }
+  return points;
 }
 
 /**
@@ -93,7 +168,7 @@ export function route(layout: ShipLayout, from: Point, to: string, blind = false
   const ext = layout.exterior;
   if (zoneAt(layout, from) === EXTERIOR && ext) {
     const lock = zoneById(layout, ext.airlock);
-    return [from, center(ext.door.col, ext.door.row), ...route(layout, zoneSpot(lock), to, blind)];
+    return [...exteriorPath(layout, from, exteriorDoorPoint(ext)), ...route(layout, zoneSpot(lock), to, blind)];
   }
   const target = zoneById(layout, to);
   const here = zoneAt(layout, from);
@@ -121,11 +196,9 @@ export function routeToPoint(layout: ShipLayout, from: Point, target: Point, bli
   const ext = layout.exterior;
   const zone = zoneAt(layout, target);
   if (zone !== EXTERIOR || !ext) return zone && zone !== CORRIDOR ? [...route(layout, from, zone, blind).slice(0, -1), target] : [from, target];
-  if (zoneAt(layout, from) === EXTERIOR) return [from, target];
-  return [...route(layout, from, ext.airlock, blind), center(ext.door.col, ext.door.row), target];
+  if (zoneAt(layout, from) === EXTERIOR) return exteriorPath(layout, from, target);
+  return [...route(layout, from, ext.airlock, blind), ...exteriorPath(layout, exteriorDoorPoint(ext), target)];
 }
-
-const dist = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
 
 export const pathLength = (points: readonly Point[]): number =>
   points.slice(1).reduce((sum, p, i) => sum + dist(points[i]!, p), 0);

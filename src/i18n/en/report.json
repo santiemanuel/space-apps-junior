@@ -54,5 +54,7 @@
   "dataCard.source": "See the original source",
   "dataCard.capped": "This value is capped: the game uses a limit for the most extreme peaks.",
   "dataCard.continue": "Continue",
-  "dataCard.controls": "Enter, Space or Esc to continue · click the source to open it"
+  "dataCard.controls": "Enter, Space or Esc to continue · click the source to open it",
+  "achievement.allRockTypes": "Rock Collector",
+  "achievement.allRockTypes.description": "You collected one rock of each kind on Mars: conglomerate, mudstone, basalt, sandstone and sulfur."
 }

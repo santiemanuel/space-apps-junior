@@ -108,6 +108,401 @@
           "scorch",
           "grime"
         ]
+      },
+      {
+        "file": "art/snapped/props-comunicaciones.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "commsdesk",
+          "chair",
+          "radar",
+          null
+        ]
+      },
+      {
+        "file": "art/snapped/props-sala-comun.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "couch",
+          "holotable",
+          "lowconsole",
+          "wallscreen"
+        ]
+      },
+      {
+        "file": "art/snapped/props-ventanas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bigwindow",
+          "shelterhatch",
+          "redlight",
+          "warnscreen"
+        ],
+        "punch": {
+          "bigwindow": true
+        },
+        "stretch": {
+          "bigwindow": [
+            96,
+            44
+          ]
+        }
+      }
+    ]
+  },
+  "mars-props": {
+    "atlas": "public/assets/mars/props",
+    "sheets": [
+      {
+        "file": "art/snapped/props-base.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "console",
+          "tank",
+          null,
+          "crate"
+        ]
+      },
+      {
+        "file": "art/snapped/props-mando.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "seat",
+          "navtable",
+          "monitors",
+          "helm"
+        ]
+      },
+      {
+        "file": "art/snapped/props-gimnasio.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bike",
+          "treadmill",
+          "scrubber",
+          "canisters"
+        ]
+      },
+      {
+        "file": "art/snapped/props-agua.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "recycler",
+          "pump",
+          "shelf",
+          "crates"
+        ]
+      },
+      {
+        "file": "art/snapped/props-salud.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bed",
+          "medcabinet",
+          "pod",
+          "shelterdoor"
+        ]
+      },
+      {
+        "file": "art/snapped/props-radio.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "radio",
+          "headset",
+          "plant",
+          "lamp"
+        ]
+      },
+      {
+        "file": "art/snapped/props-pared.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "window",
+          "door-closed",
+          "door-open",
+          "alarm"
+        ],
+        "punch": {
+          "window": true
+        }
+      },
+      {
+        "file": "art/snapped/props-desgaste.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "tape",
+          "cables",
+          "scorch",
+          "grime"
+        ]
+      },
+      {
+        "file": "art/snapped/props-marte-base.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "greenhouse",
+          "moxie",
+          "suitrack",
+          "dustcrate"
+        ]
+      },
+      {
+        "file": "art/snapped/props-marte-afuera.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "solar",
+          "solar-dusty",
+          "antenna",
+          "beacon"
+        ]
+      },
+      {
+        "file": "art/snapped/props-marte-rocas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "rock-s",
+          "rock-m",
+          "rock-l",
+          "block"
+        ]
+      },
+      {
+        "file": "art/snapped/props-marte-muestras.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "sample-conglomerate",
+          "sample-mudstone",
+          "sample-sandstone",
+          "sample-sulfur"
+        ]
+      },
+      {
+        "file": "art/snapped/props-marte-curiosity.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "curiosity",
+          "curiosity-dusty",
+          "sample-basalticSand",
+          "sampletube"
+        ]
+      },
+      {
+        "file": "art/snapped/props-comunicaciones.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "commsdesk",
+          "chair",
+          "radar",
+          null
+        ]
+      },
+      {
+        "file": "art/snapped/props-sala-comun.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "couch",
+          "holotable",
+          "lowconsole",
+          "wallscreen"
+        ]
+      },
+      {
+        "file": "art/snapped/props-ventanas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bigwindow",
+          "shelterhatch",
+          "redlight",
+          "warnscreen"
+        ],
+        "punch": {
+          "bigwindow": true
+        },
+        "stretch": {
+          "bigwindow": [
+            96,
+            44
+          ]
+        }
+      },
+      {
+        "file": "art/snapped/props-invernadero.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "growcabinet",
+          "hydrotank",
+          "plantmonitor",
+          "seedcart"
+        ]
+      }
+    ]
+  },
+  "hud-icons": {
+    "atlas": "public/assets/hud/icons",
+    "sheets": [
+      {
+        "file": "art/snapped/hud-iconos-medidores.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "energy",
+          "air",
+          "water",
+          "food"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-recursos.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "co2",
+          "spares",
+          "radiation",
+          "samples"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-salud.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "condition",
+          "fatigue",
+          "morale",
+          "warning"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-cuartos1.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "command",
+          "exercise",
+          "scrubber",
+          "recycler"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-cuartos2.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "infirmary",
+          "pantry",
+          "shelter",
+          "radio"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-cuartos3.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "greenhouse",
+          "moxie",
+          "airlock",
+          "dustStorm"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-botones.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "plan",
+          "missionControl",
+          "charts",
+          "status"
+        ]
+      },
+      {
+        "file": "art/snapped/hud-iconos-objetivo.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "target",
+          "check",
+          "map",
+          "earthSignal"
+        ]
       }
     ]
   }

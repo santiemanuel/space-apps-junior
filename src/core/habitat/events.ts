@@ -5,6 +5,7 @@ import type { RoutinePlan } from '../crew/routines';
 import type { DailyDose, MarsWeather } from '../environment/series';
 import type { AlertLevel } from '../meters/types';
 import type { GameState } from '../state/types';
+import type { Point } from './layout';
 import type { HabitatTask } from './types';
 import type { PendingDecision } from './HabitatSession';
 
@@ -42,6 +43,8 @@ export interface SimSnapshot {
   manual: boolean;
   paused: boolean;
   state: GameState;
+  /** Dónde está el tripulante del jugador (tiles): lo marca "estás acá" en el mapa del cráter. */
+  activePosition: Point;
   dose: DailyDose;
   decisions: PendingDecision[];
   /** Modo ayuda: pista de Control de Misión para cada decisión, sin demora (§3.3). */

@@ -13,9 +13,9 @@ describe('lo que se ve por las ventanas', () => {
 
   it('el planeta de destino crece de un punto a un disco al llegar', () => {
     expect(planetRadius(0)).toBe(1);
-    expect(planetRadius(1)).toBe(6);
+    expect(planetRadius(1)).toBe(14);
     expect(planetRadius(0.5)).toBeLessThan(planetRadius(0.9));
     expect(planetRadius(-1)).toBe(1);
-    expect(planetRadius(2)).toBe(6);
+    expect(planetRadius(2)).toBe(14);
   });
 });

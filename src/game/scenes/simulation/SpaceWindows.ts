@@ -11,7 +11,14 @@ export interface SpaceView {
   progress: number;
   /** Planeta al que se viaja: el que se ve cada vez más grande. */
   destination: 'mars' | 'earth';
+  /** Planeta del que se sale: se ve cada vez más chico. */
+  origin: 'mars' | 'earth';
+  /** Tormenta de radiación: el Sol encandila (0..1, late). */
+  flare: number;
 }
+
+/** Qué se ve por cada ventana: el Sol, el planeta de destino, el de salida o sólo estrellas. */
+export type PaneView = 'sun' | 'destination' | 'origin' | 'stars';
 
 /** Velocidad (px/s) con la que se corren las estrellas: la nave avanza. */
 const STAR_DRIFT = 3;
@@ -72,7 +79,9 @@ function starsTexture(scene: Phaser.Scene): string {
 interface Pane {
   stars: Phaser.GameObjects.TileSprite;
   body?: Phaser.GameObjects.Image;
-  shows: 'sun' | 'planet' | 'stars';
+  /** Resplandor sobre el vidrio cuando el Sol encandila. */
+  glare?: Phaser.GameObjects.Rectangle;
+  shows: PaneView;
   /** Centro del cuerpo celeste (px del mundo). */
   cx: number;
   cy: number;
@@ -81,13 +90,14 @@ interface Pane {
 
 /**
  * Espacio detrás del vidrio de cada ventana (la ventana tiene el vidrio transparente y su rectángulo anotado): un
- * fondo de estrellas que se corre despacio, el Sol (más chico cuanto más lejos) en la primera ventana y el planeta
- * de destino (más grande cuanto más cerca) en la segunda.
+ * fondo de estrellas que se corre despacio y lo que diga `role` para cada ventana: el Sol (más chico cuanto más
+ * lejos, y que encandila en una tormenta de radiación), el planeta de destino (más grande cuanto más cerca) o el de
+ * salida (cada vez más chico). Sin `role`, la primera ventana muestra el Sol y la segunda el destino.
  */
 export class SpaceWindows {
   private readonly panes: Pane[];
 
-  constructor(private readonly scene: Phaser.Scene, windows: readonly WallItem[]) {
+  constructor(private readonly scene: Phaser.Scene, windows: readonly WallItem[], role?: (window: WallItem) => PaneView) {
     const stars = starsTexture(scene);
     this.panes = [...windows]
       .filter((w) => w.glass)
@@ -98,8 +108,9 @@ export class SpaceWindows {
         const top = w.bottom - w.image.height + g.y;
         const tile = scene.add.tileSprite(left, top, g.w, g.h, stars).setOrigin(0, 0).setDepth(MapDepth.behindDecor).setVertexRoundMode('full');
         tile.tilePositionX = i * 37;
-        const shows = i === 0 ? 'sun' : i === 1 ? 'planet' : 'stars';
-        return { stars: tile, shows, cx: left + g.w * (shows === 'sun' ? 0.38 : 0.62), cy: top + g.h * 0.48, radius: -1 };
+        const shows: PaneView = role ? role(w) : i === 0 ? 'sun' : i === 1 ? 'destination' : 'stars';
+        const glare = shows === 'sun' ? scene.add.rectangle(left, top, g.w, g.h, 0xff6a2a, 0).setOrigin(0, 0).setDepth(MapDepth.behindDecor + 0.02).setBlendMode(Phaser.BlendModes.ADD) : undefined;
+        return { stars: tile, shows, cx: left + g.w * (shows === 'sun' ? 0.38 : 0.62), cy: top + g.h * 0.48, radius: -1, ...(glare ? { glare } : {}) };
       });
   }
 
@@ -107,10 +118,12 @@ export class SpaceWindows {
     for (const pane of this.panes) {
       pane.stars.tilePositionX += STAR_DRIFT * dt;
       if (pane.shows === 'stars') continue;
-      const radius = pane.shows === 'sun' ? sunRadius(view.sunDistanceAu) : planetRadius(view.progress);
+      pane.glare?.setAlpha(view.flare * 0.45);
+      const radius =
+        pane.shows === 'sun' ? sunRadius(view.sunDistanceAu) + (view.flare > 0 ? 2 : 0) : planetRadius(pane.shows === 'origin' ? 1 - view.progress : view.progress);
       if (radius === pane.radius) continue;
       pane.radius = radius;
-      const key = pane.shows === 'sun' ? sunTexture(this.scene, radius) : planetTexture(this.scene, view.destination, radius);
+      const key = pane.shows === 'sun' ? sunTexture(this.scene, radius) : planetTexture(this.scene, pane.shows === 'origin' ? view.origin : view.destination, radius);
       pane.body ??= this.scene.add.image(0, 0, key).setDepth(MapDepth.behindDecor + 0.01).setVertexRoundMode('full');
       // Centrado en un píxel de arte entero para que no se vea borroso.
       pane.body.setTexture(key).setPosition(Math.round(pane.cx / ART) * ART, Math.round(pane.cy / ART) * ART);

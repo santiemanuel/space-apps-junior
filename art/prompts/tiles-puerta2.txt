@@ -1,0 +1,12 @@
+Use case: stylized-concept. Create ONE square opaque PNG tileset image for a kids' top-down 2D space game. The two attached images are ONLY style references, never copy their layout. First reference: dark outlines, soft cel-shaded lavender-gray metal, blue technology accents, orange and yellow lights. Second reference: thick beveled lavender door frames, orange vertical light bars, clean sliding metal door panels.
+
+STRICT PIXEL GEOMETRY: draw as if on a 48 x 48 pixel canvas enlarged with nearest-neighbor. Exactly 48 equal-sized chunky square pixel blocks across and 48 down. All shapes use this same coarse pixel grid; lines exactly one chunky pixel thick. Limited flat-color palette; no anti-aliasing, no gradients, no blur, no glow halos. The word glowing means solid bright-colored pixels only.
+
+The sheet is a strict 2 x 2 arrangement of FOUR square 24 x 24 logical-pixel tiles. Each tile fills its entire quarter edge to edge. Cells touch directly. NO gaps, margins, separating grid lines or outer border. Fully opaque. All four are front-facing wall-front tiles, exactly one wall tile high, flat orthographic elevation with no perspective distortion, evenly lit. Same lavender-gray metal palette throughout. All four tiles share exactly the same thin lighter band at their very top and the same dark baseboard band at their very bottom.
+
+TOP LEFT: plain lavender wall panel across the leftmost 17 logical pixels; the RIGHTMOST 7 logical pixels are a thick darker metal beveled door-frame pillar. A solid bright ORANGE vertical light bar runs down the pillar's middle, stopping before the common top trim and baseboard. Simple shapes.
+TOP RIGHT: exact duplicate of top-left with identical geometry and colors, except its pillar light bar is RED instead of orange.
+BOTTOM LEFT: LEFT half of a CLOSED sliding double door filling this whole tile. Smooth beveled lavender metal panel. Vertical dark meeting seam along its RIGHT edge, where the absent right half would meet it. One horizontal groove crosses the middle. One small vertical CYAN light slit near the RIGHT edge. No stripes. This is a single LEFT HALF panel, not a complete two-leaf door, not a doorway arch.
+BOTTOM RIGHT: exact duplicate of the bottom-left LEFT door half, with identical geometry and colors, adding only a tiny RED lock light above the cyan slit.
+
+Absolutely no text, letters, numbers, logos, labels, characters, scenery, floor tiles, hazard stripes, decoration outside the stated features. Preserve simple low-resolution chunky pixel art with a uniform 48 x 48 logical-pixel grid.

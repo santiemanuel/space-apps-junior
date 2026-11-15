@@ -2,9 +2,10 @@ import type { ExteriorLayout, Point, ShipLayout, ShipZone, TileRect } from '../c
 
 /**
  * Lo que se lee de un mapa de Tiled (JSON) para las reglas y para el render (docs/plan-visual.md §7). Capas:
- * `piso` y `paredes` (tiles), `zonas` (rectángulos `zone`, `corridor`, `door`, `exterior`; puntos `spot` y `spawn`;
- * el nombre de `zone`, `door` y `spot` es el id de la zona), `objetos` (rectángulo = caja de colisión; `type` =
- * sprite) y `decorado` (puntos sin colisión, colgados de la pared).
+ * `piso` y `paredes` (tiles), `zonas` (rectángulos `zone`, `corridor`, `door`, `exterior` y `terrain`; puntos `spot`,
+ * `spawn` y `landmark`; el nombre de `zone`, `door` y `spot` es el id de la zona, el de `terrain` el de la franja y el
+ * de `landmark` el del punto), `objetos` (rectángulo = caja de colisión; `type` = sprite) y `decorado` (puntos sin
+ * colisión, colgados de la pared).
  */
 export interface TiledObject {
   name: string;
@@ -78,10 +79,44 @@ export function layoutFromTiled(map: TiledMap): ShipLayout {
   if (outside) {
     const door = doors.find((d) => d.name === 'exterior');
     if (!door) throw new Error('El exterior no tiene puerta');
-    exterior = { rect: rect(outside), airlock: 'airlock', door: tiles(rect(door))[0]! };
+    const [first, ...rest] = tiles(rect(door));
+    exterior = { rect: rect(outside), airlock: 'airlock', door: first!, ...(rest.length ? { doorTiles: rest } : {}), blocked: blockedTiles(map) };
   }
   return { cols: map.width, rows: map.height, corridor: rect(only('corridor')), zones, spawnZone: spawnZone.id, ...(exterior ? { exterior } : {}) };
 }
+
+/**
+ * Terreno que no se pisa, por filas (`[row * width + col]`): los tiles de la capa `paredes` y los que tienen el
+ * centro dentro de la caja de colisión de un objeto (rocas grandes).
+ */
+function blockedTiles(map: TiledMap): boolean[] {
+  const t = map.tilewidth;
+  const walls = wallTilesFromTiled(map);
+  const props = propsFromTiled(map);
+  return Array.from({ length: map.width * map.height }, (_, i) => {
+    const col = i % map.width;
+    const row = Math.floor(i / map.width);
+    const x = (col + 0.5) * t;
+    const y = (row + 0.5) * t;
+    return walls[row]![col]! || props.some((p) => x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height);
+  });
+}
+
+/** Franja del terreno (rectángulo `terrain` de la capa `zonas`): `id` es su nombre. */
+export interface TerrainStrip {
+  id: string;
+  rect: TileRect;
+}
+
+export const terrainFromTiled = (map: TiledMap): TerrainStrip[] =>
+  objectsOf(map, 'zonas', 'terrain').map((o) => ({
+    id: o.name,
+    rect: { col: Math.round(o.x / map.tilewidth), row: Math.round(o.y / map.tilewidth), cols: Math.round(o.width / map.tilewidth), rows: Math.round(o.height / map.tilewidth) },
+  }));
+
+/** Puntos con nombre de la capa `zonas` (`landmark`), en tiles: p. ej. dónde está estacionado Curiosity. */
+export const landmarksFromTiled = (map: TiledMap): Record<string, Point> =>
+  Object.fromEntries(objectsOf(map, 'zonas', 'landmark').map((o) => [o.name, { x: o.x / map.tilewidth, y: o.y / map.tilewidth }]));
 
 /** Objetos con colisión de la capa `objetos`. */
 export const propsFromTiled = (map: TiledMap): MapProp[] =>

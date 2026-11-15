@@ -16,9 +16,29 @@ export interface MapAssets {
   doorPanels: { left: number; right: number };
   /** Índices del tileset que son frentes de pared con una franja de luz. */
   lightTiles: readonly number[];
+  /** Índices del tileset de los techos de pared que llevan borde (contorno y luz); sin la lista, todos. */
+  rimTiles?: readonly number[];
+  /** Colores del borde de los techos de pared; por defecto, los de la paleta de la nave. */
+  rimColors?: { outline: number; light: number };
+  /**
+   * Borde grueso y biselado alrededor de los cuartos, con chaflán en las esquinas (como en las referencias): índices
+   * de los techos y de los frentes de pared que lo llevan, y sus colores. Los techos de la lista no usan `rimTiles`.
+   */
+  bevel?: { caps: readonly number[]; faces: readonly number[]; colors: BevelColors };
   /** Tileset y atlas tienen normal map (`<nombre>_n.png`, de `scripts/art/normals.py`): el mapa recibe luz dinámica. */
   normals: boolean;
 }
+
+/** Colores del borde biselado: contorno, brillo, metal y sombra. */
+export interface BevelColors {
+  outline: number;
+  light: number;
+  base: number;
+  shadow: number;
+}
+
+/** Borde biselado de la nave: lavanda con brillo arriba y a la izquierda. */
+export const SHIP_BEVEL: BevelColors = { outline: 0x1e162d, light: 0xd6cdef, base: 0x9d93c7, shadow: 0x625887 };
 
 /** URL del normal map de un recurso: `tiles.png` → `tiles_n.png`. */
 export const normalUrl = (url: string): string => url.replace(/\.png$/, '_n.png');
@@ -92,6 +112,40 @@ const DOOR_REACH = { x: 72, y: 84 } as const;
 const DOOR_OPEN_S = 0.22;
 /** Colores del borde de los techos de pared: contorno oscuro y luz (de la paleta del tileset). */
 const RIM = { outline: 0x1e162d, light: 0x63537f } as const;
+/** Ancho del borde biselado (px; 6 píxeles de arte) y lado del chaflán de las esquinas de los cuartos (px). */
+const BEVEL = 12;
+const CHAMFER = 20;
+
+/**
+ * Dibuja el borde biselado: bandas de 6 píxeles de arte (contorno, brillo, metal, sombra, contorno) a lo largo de los
+ * bordes de los cuartos y chaflanes a 45° en sus esquinas, que se meten en el piso.
+ */
+function bevelPainter(g: Phaser.GameObjects.Graphics, c: BevelColors) {
+  const stripes = [c.outline, c.light, c.base, c.base, c.shadow, c.outline];
+  return {
+    horizontal(x: number, y: number, w: number) {
+      stripes.forEach((color, i) => g.fillStyle(color).fillRect(x, y + i * 2, w, 2));
+    },
+    vertical(x: number, y: number, h: number) {
+      stripes.forEach((color, i) => g.fillStyle(color).fillRect(x + i * 2, y, 2, h));
+    },
+    /** Chaflán en la esquina (`x`, `y`) de un piso; `dx` y `dy` apuntan hacia adentro del cuarto. */
+    corner(x: number, y: number, dx: 1 | -1, dy: 1 | -1) {
+      const n = CHAMFER / 2;
+      for (let k = 0; k < n; k++) {
+        const length = (n - k) * 2;
+        const ry = dy > 0 ? y + k * 2 : y - (k + 1) * 2;
+        const rx = dx > 0 ? x : x - length;
+        g.fillStyle(c.base).fillRect(rx, ry, length, 2);
+        // El borde diagonal: contorno hacia el piso y, del lado de adentro, brillo o sombra según de dónde viene la luz.
+        const edge = dx > 0 ? rx + length - 2 : rx;
+        const inner = dx > 0 ? edge - 2 : edge + 2;
+        g.fillStyle(c.outline).fillRect(edge, ry, 2, 2);
+        if (length > 4) g.fillStyle(dy > 0 ? c.shadow : c.light).fillRect(inner, ry, 2, 2);
+      }
+    },
+  };
+}
 
 export function preloadMap(scene: Phaser.Scene, assets: MapAssets): void {
   if (!assets.normals) {
@@ -114,9 +168,10 @@ interface Door {
 }
 
 /**
- * Pinta el mapa: el piso, que llena todo el mapa, va en GPU (`TilemapGPULayer`: una sola pasada, sin costo por
- * tile); las paredes, en una capa común, porque en Phaser 4.2 la capa GPU tiñe los tiles vacíos y además es la
- * que choca. Los objetos son imágenes de un atlas ordenadas por su pie. Todo redondea sus vértices a píxeles de
+ * Pinta el mapa: piso y paredes en capas comunes (sólo se dibujan los tiles que entran en la cámara). El piso no va
+ * en `TilemapGPULayer`: en Phaser 4.2.1 esa capa lee el normal map del tileset cabeza abajo (cada tile toma el
+ * relieve de otro, espejado), y con una luz rasante se marcaba la grilla de tiles; además tiñe los tiles vacíos.
+ * Los objetos son imágenes de un atlas ordenadas por su pie. Todo redondea sus vértices a píxeles de
  * pantalla: con el zoom de 1,5 cada píxel de arte mide siempre 3 px.
  */
 export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
@@ -131,7 +186,7 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
   const tileset = map.addTilesetImage(assets.tilesetName, tilesKey);
   if (!tileset) throw new Error(`El mapa ${assets.key} no tiene el tileset ${assets.tilesetName}`);
   const T = map.tileWidth;
-  map.createLayer('piso', tileset, 0, 0, true)!.setDepth(MapDepth.floor).setVertexRoundMode('full');
+  map.createLayer('piso', tileset, 0, 0, false)!.setDepth(MapDepth.floor).setVertexRoundMode('full');
   const walls = map.createLayer('paredes', tileset, 0, 0, false)!.setDepth(MapDepth.walls).setVertexRoundMode('full');
   walls.setCollisionByExclusion([-1]);
 
@@ -159,22 +214,59 @@ export function createMap(scene: Phaser.Scene, assets: MapAssets): MapView {
   const lights: MapLight[] = [];
   const wallData = assets.map.layers.find((l) => l.name === 'paredes')?.data ?? [];
   const rims = scene.add.graphics().setDepth(MapDepth.rims);
+  const rim = assets.rimColors ?? RIM;
+  const tileAt = (col: number, row: number) => (wallData[row * map.width + col] ?? 0) - 1;
+  const isFace = (col: number, row: number) => isWall(col, row) && !isWall(col, row + 1);
+  const bevel = assets.bevel;
+  const paint = bevel ? bevelPainter(rims, bevel.colors) : null;
   for (let row = 0; row < map.height; row++) {
     for (let col = 0; col < map.width; col++) {
+      const x = col * T;
+      const y = row * T;
       if (!isWall(col, row)) {
         floorTiles.push({ x: col, y: row });
+        // Chaflán en las esquinas de los cuartos y del pasillo (sólo las que forman dos paredes de la base).
+        if (paint) {
+          const based = (c: number, r: number) => bevel!.caps.includes(tileAt(c, r)) || bevel!.faces.includes(tileAt(c, r));
+          const left = isWall(col - 1, row) && based(col - 1, row);
+          const right = isWall(col + 1, row) && based(col + 1, row);
+          const up = isWall(col, row - 1) && based(col, row - 1);
+          const down = isWall(col, row + 1) && based(col, row + 1);
+          if (left && up) paint.corner(x, y, 1, 1);
+          if (right && up) paint.corner(x + T, y, -1, 1);
+          if (left && down) paint.corner(x, y + T, 1, -1);
+          if (right && down) paint.corner(x + T, y + T, -1, -1);
+        }
         continue;
       }
       if (!isWall(col, row + 1)) {
         faceTiles.push({ x: col, y: row });
-        if (assets.lightTiles.includes((wallData[row * map.width + col] ?? 0) - 1)) lights.push({ x: col * T + T / 2, y: row * T + LIGHT_STRIP_Y, kind: 'strip' });
+        if (assets.lightTiles.includes(tileAt(col, row))) lights.push({ x: x + T / 2, y: y + LIGHT_STRIP_Y, kind: 'strip' });
+        // Pared de un tile entre dos pisos (cuarto y pasillo): el borde va arriba del frente.
+        if (paint && bevel!.faces.includes(tileAt(col, row)) && !isWall(col, row - 1)) paint.horizontal(x, y, T);
+        continue;
+      }
+      if (paint && bevel!.caps.includes(tileAt(col, row))) {
+        // Costados: junto a un piso o a un frente (en ese caso arranca un borde más arriba, donde dobla el de arriba).
+        for (const side of [-1, 1] as const) {
+          const n = col + side;
+          if (isWall(n, row) && !isFace(n, row)) continue;
+          const top = isFace(n, row) ? y - BEVEL : y;
+          paint.vertical(side < 0 ? x : x + T - BEVEL, top, y + T - top);
+        }
+        // Arriba de un frente (la pared de atrás del cuarto) o abajo de un piso (el casco).
+        if (isFace(col, row + 1)) paint.horizontal(x, y + T - BEVEL, T);
+        if (!isWall(col, row - 1)) {
+          const sideCap = (c: number) => isWall(c, row) && isWall(c, row - 1);
+          const from = x - (sideCap(col - 1) ? BEVEL : 0);
+          paint.horizontal(from, y, x + T - from + (sideCap(col + 1) ? BEVEL : 0));
+        }
         continue;
       }
       // Techo de pared junto al piso: contorno oscuro y una línea de luz, de un píxel de arte (2 px) cada uno.
-      const x = col * T;
-      const y = row * T;
-      if (!isWall(col - 1, row)) rims.fillStyle(RIM.outline).fillRect(x, y, 2, T).fillStyle(RIM.light).fillRect(x + 2, y, 2, T);
-      if (!isWall(col + 1, row)) rims.fillStyle(RIM.outline).fillRect(x + T - 2, y, 2, T).fillStyle(RIM.light).fillRect(x + T - 4, y, 2, T);
+      if (assets.rimTiles && !assets.rimTiles.includes(tileAt(col, row))) continue;
+      if (!isWall(col - 1, row)) rims.fillStyle(rim.outline).fillRect(x, y, 2, T).fillStyle(rim.light).fillRect(x + 2, y, 2, T);
+      if (!isWall(col + 1, row)) rims.fillStyle(rim.outline).fillRect(x + T - 2, y, 2, T).fillStyle(rim.light).fillRect(x + T - 4, y, 2, T);
     }
   }
   for (const p of props) if (p.key === 'lamp') lights.push({ x: p.x, y: p.bottom - p.image.height + 14, kind: 'lamp' });
