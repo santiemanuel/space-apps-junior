@@ -1,6 +1,6 @@
 {
   "radiationStorm.title": "Tormenta solar",
-  "radiationStorm.alert": "Pronóstico: puede venir una tormenta de radiación. Preparen el refugio.",
+  "radiationStorm.alert": "¡Se acerca una tormenta solar! Preparen el refugio de agua.",
   "radiationStorm.impact": "¡Tormenta de radiación! Todos al refugio de agua.",
   "cascade.energy.entered": "¡Sin energía! Modo de emergencia: sólo el aire, sin ciencia y con menos calefacción. La tripulación sufre el frío.",
   "cascade.lifeSupport.entered": "¡Se acaba el aire o el agua! Modo de emergencia: todos respiran y beben menos y se cansan más rápido.",
@@ -34,9 +34,9 @@
   "radiationStorm.explanation.deepSpace": "En el espacio no hay aire ni campo magnético que frenen las partículas del Sol. BioSentinel, una nave con levaduras vivas, midió esta tormenta.",
   "radiationStorm.explanation.mars": "El aire de Marte es muy finito y frena poco las partículas del Sol. El robot Curiosity midió esta tormenta desde el cráter Gale.",
   "radiationStorm.response.goToShelter.title": "Todos al refugio de agua",
-  "radiationStorm.response.goToShelter.cost": "Se frenan las tareas y nadie sale afuera hasta que pase.",
+  "radiationStorm.response.goToShelter.cost": "▲ Dosis baja  ▼ Las tareas quedan en pausa y nadie sale.",
   "radiationStorm.response.keepWorking.title": "Seguir trabajando",
-  "radiationStorm.response.keepWorking.cost": "La tripulación recibe mucha más radiación.",
+  "radiationStorm.response.keepWorking.cost": "▲ Las tareas siguen  ▼ Mucha más radiación: se pierde la estrella de dosis baja.",
   "dustStorm.title": "Tormenta de polvo",
   "dustStorm.alert": "El cielo se está poniendo marrón: puede venir una tormenta de polvo.",
   "dustStorm.impact": "¡Tormenta de polvo! Los paneles casi no reciben luz. Repartan la energía.",
@@ -137,5 +137,7 @@
   "fuseBlown.response.replaceFuse.title": "Cambiarlo por uno nuevo",
   "fuseBlown.response.replaceFuse.cost": "1 repuesto y 1 hora en la sala de energía.",
   "fuseBlown.response.rewireFuse.title": "Arreglar el viejo",
-  "fuseBlown.response.rewireFuse.cost": "Cansa un poco y lleva 3 horas."
+  "fuseBlown.response.rewireFuse.cost": "Cansa un poco y lleva 3 horas.",
+  "radiationStorm.response.goToShelter.short": "Al refugio",
+  "radiationStorm.response.keepWorking.short": "Seguir trabajando"
 }

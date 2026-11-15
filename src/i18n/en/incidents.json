@@ -1,6 +1,6 @@
 {
   "radiationStorm.title": "Solar storm",
-  "radiationStorm.alert": "Forecast: a radiation storm may be coming. Get the shelter ready.",
+  "radiationStorm.alert": "A solar storm is coming! Get the water shelter ready.",
   "radiationStorm.impact": "Radiation storm! Everyone to the water shelter.",
   "cascade.energy.entered": "Out of power! Emergency mode: only air, no science and less heating. The crew feels the cold.",
   "cascade.lifeSupport.entered": "Air or water is running out! Emergency mode: everyone breathes and drinks less and gets tired faster.",
@@ -34,9 +34,9 @@
   "radiationStorm.explanation.deepSpace": "In space there is no air or magnetic field to stop particles from the Sun. BioSentinel, a spacecraft carrying living yeast, measured this storm.",
   "radiationStorm.explanation.mars": "The air on Mars is very thin and barely stops particles from the Sun. The Curiosity rover measured this storm from Gale crater.",
   "radiationStorm.response.goToShelter.title": "Everyone to the water shelter",
-  "radiationStorm.response.goToShelter.cost": "Tasks stop and nobody goes outside until it passes.",
+  "radiationStorm.response.goToShelter.cost": "▲ Low dose  ▼ Tasks are paused and nobody goes outside.",
   "radiationStorm.response.keepWorking.title": "Keep working",
-  "radiationStorm.response.keepWorking.cost": "The crew gets much more radiation.",
+  "radiationStorm.response.keepWorking.cost": "▲ Tasks keep going  ▼ Much more radiation: you lose the low-dose star.",
   "dustStorm.title": "Dust storm",
   "dustStorm.alert": "The sky is turning brown: a dust storm may be coming.",
   "dustStorm.impact": "Dust storm! The panels barely get any light. Share out the power.",
@@ -137,5 +137,7 @@
   "fuseBlown.response.replaceFuse.title": "Replace it with a new one",
   "fuseBlown.response.replaceFuse.cost": "1 spare and 1 hour in the power room.",
   "fuseBlown.response.rewireFuse.title": "Fix the old one",
-  "fuseBlown.response.rewireFuse.cost": "A bit tiring and takes 3 hours."
+  "fuseBlown.response.rewireFuse.cost": "A bit tiring and takes 3 hours.",
+  "radiationStorm.response.goToShelter.short": "To the shelter",
+  "radiationStorm.response.keepWorking.short": "Keep working"
 }

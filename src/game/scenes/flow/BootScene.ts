@@ -26,6 +26,9 @@ export class BootScene extends Phaser.Scene {
     this.store = createBrowserSaveStore();
     const { locale, sound, music } = loadSettings(this.store);
     if (isLocale(locale)) setLocale(locale);
+    // Sólo en `npm run dev`: `&lang=en` fuerza el idioma (para las capturas en los dos idiomas).
+    const lang = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('lang') : null;
+    if (lang && isLocale(lang)) setLocale(lang);
     audio.setVolumes(sound ?? 0.8, music ?? 0.6);
   }
 

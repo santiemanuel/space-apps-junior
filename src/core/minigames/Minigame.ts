@@ -18,7 +18,9 @@ export type MinigameId =
   | 'seals'
   | 'patch'
   | 'fuses'
-  | 'wires';
+  | 'wires'
+  | 'dust'
+  | 'night';
 
 export interface MinigameKeys {
   left: boolean;

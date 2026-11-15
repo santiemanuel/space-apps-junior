@@ -19,10 +19,17 @@ BACKDROPS = {
     'vuelo-tierra-cerca': 'earth-near',
     'vuelo-marte-lejos': 'mars-far',
     'vuelo-marte-cerca': 'mars-near',
+    # Aterrizaje en Marte (llano de Gale, sin base) y amerizaje (mar abierto).
+    'vuelo-gale-llano': 'gale-plain',
+    'vuelo-mar-lejos': 'sea-far',
 }
 SHEETS = {
     'vuelo-naves': ['core', 'side-booster', 'launch-tower', 'ascent-vehicle'],
     'vuelo-objetos': ['service-mast', 'fuel-tanks', 'mothership', 'van'],
+    # Aterrizaje y reentrada: cápsula de entrada, módulo de descenso, escudo y paracaídas; cápsula con flotadores,
+    # barco y helicóptero de rescate y los tres paracaídas del amerizaje.
+    'vuelo-capsulas': ['entry-capsule', 'descent-lander', 'heat-shield', 'chute'],
+    'vuelo-rescate': ['sea-capsule', 'rescue-ship', 'helicopter', 'chutes'],
 }
 
 
@@ -81,3 +88,29 @@ for source, names in SHEETS.items():
     for name, piece in zip(names, objects(binary(Image.open(SNAPPED / f'{source}.png')), len(names)), strict=True):
         piece.save(OUT / f'{name}.png')
         print(name, piece.size)
+
+
+def without_floats(im: Image.Image, rows: int = 19) -> Image.Image:
+    """La cápsula de la vuelta sin los flotadores naranjas (se inflan recién al amerizar): los borra junto con su contorno."""
+    im = im.copy()
+    px = im.load()
+    w, _ = im.size
+    # Los globos naranjas y sus sogas marrones: todo lo que no es gris en las filas de arriba.
+    orange = lambda p: p[3] and p[0] > 80 and p[0] - p[2] > 35
+    dark = lambda p: p[3] and sum(p[:3]) < 170
+    for y in range(rows):
+        for x in range(w):
+            if orange(px[x, y]):
+                px[x, y] = (0, 0, 0, 0)
+    # El contorno que quedó suelto: píxeles oscuros que no tocan el casco gris.
+    hull = lambda x, y: 0 <= x < w and 0 <= y < im.size[1] and px[x, y][3] and not dark(px[x, y])
+    for _ in range(3):
+        loose = [(x, y) for y in range(rows) for x in range(w) if dark(px[x, y]) and not any(hull(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
+        for x, y in loose:
+            px[x, y] = (0, 0, 0, 0)
+    return im.crop(im.getbbox())
+
+
+dry = without_floats(Image.open(OUT / 'sea-capsule.png').convert('RGBA'))
+dry.save(OUT / 'return-capsule.png')
+print('return-capsule', dry.size)

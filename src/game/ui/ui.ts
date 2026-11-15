@@ -195,3 +195,6 @@ export function onKeys(scene: Phaser.Scene, handler: (code: string, event: Keybo
   const keyboard = scene.input.keyboard;
   if (keyboard) listenUntilShutdown(scene, keyboard, 'keydown', (event: KeyboardEvent) => handler(event.code, event));
 }
+
+/** El sistema pide menos movimiento: sin temblores, deslizamientos ni destellos (se cambia a fundidos cortos). */
+export const reducedMotion = (): boolean => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

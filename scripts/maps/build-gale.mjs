@@ -439,7 +439,7 @@ const SPOTS = {
   storage: [33, 42.3], battery: [45, 40.4], ship: [6.5, 41.4],
 };
 /** Puntos con nombre: la receta de la cocina (pantalla de la pared de reservas) y las cajas de empalme de los cables. */
-const LANDMARKS = [['recipe', 41.5, 23], ['j1', 52.5, 20], ['j2', 14.5, 46.5]];
+const LANDMARKS = [['recipe', 41.5, 23], ['j1', 52.5, 20], ['j2', 14.5, 46.5], ['bed', 7.5, 23.3], ['console', 30.2, 8.7], ['panels', 43.3, 4.9]];
 /** Cables (verdes en el plano), con los nodos que unen: paneles, base, batería, nave y las dos cajas de empalme. */
 const CABLES = [
   { id: 'cable-solar-base', from: 'solar', to: 'base', points: [[38, 5.4], [38, 0.6], [20.4, 0.6], [19.4, 2.6]] },

@@ -41,6 +41,8 @@ export const TUTORIALS: Record<MinigameId, readonly TutorialStep[]> = {
   patch: [{ keys: ARROWS }, { glyph: '♪' }, { icons: ['patch'], keys: ['E'] }],
   fuses: [{ glyph: '▮', keys: ARROWS }, { glyph: '10 A' }, { keys: ['1', '2', '3'] }],
   wires: [{ glyph: '●' }, { keys: ['↑', '↓'] }, { glyph: '⟷', keys: ['E'] }],
+  dust: [{ icons: ['dust'], keys: ARROWS }, { icons: ['brush'], keys: ['E'], mark: 'yes' }, { glyph: '▦', mark: 'no' }],
+  night: [{ keys: ['↑', '↓'] }, { glyph: '☾', keys: ['E'], mark: 'yes' }, { glyph: '♥', mark: 'no' }],
 };
 
 const GAP = 14;

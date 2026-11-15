@@ -69,7 +69,7 @@ describe('claves de texto de la simulación', () => {
     ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),
     'hud.log.allInShelter',
     ...['cruise', 'mars'].map((place) => `hud.info.title.${place}`),
-    ...['move', 'use', 'switch', 'decide', 'sound', 'status', 'plan', 'missionControl', 'charts', 'crater'].map((k) => `hud.info.key.${k}`),
+    ...['move', 'use', 'sleep', 'switch', 'decide', 'sound', 'status', 'missionControl', 'charts', 'crater'].map((k) => `hud.info.key.${k}`),
     ...['condition', 'fatigue', 'food', 'radiation'].map((k) => `hud.health.${k}`),
   ];
 

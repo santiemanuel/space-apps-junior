@@ -121,12 +121,14 @@ export class PanelColumn {
       const { text } = slot;
       text.setText(row.cells ? '' : row.text).setColor(row.inverse ? '#0b1020' : (row.color ?? '#e2e8f0')).setFontSize(size).setVisible(!row.cells);
       text.setBackgroundColor(row.inverse ? (row.color ?? '#e2e8f0') : 'rgba(0,0,0,0)').setPadding(row.inverse ? { x: 4, y: 1 } : { x: 0, y: 0 });
+      text.setWordWrapWidth(width - indent);
       const textHeight = row.cells ? size + 4 : text.height;
       const height = below
         ? Math.max(textHeight + 22, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0)
         : Math.max(textHeight, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0, lead || row.icons?.some((c) => c.frame) || row.cells ? 22 : 0);
       const textY = below ? y : y + Math.round((height - textHeight) / 2);
-      text.setPosition(x + indent, textY).setWordWrapWidth(half ? width - indent : this.width);
+      // El salto de línea descuenta el ícono o el retrato: si no, las filas largas se salían de la caja.
+      text.setPosition(x + indent, textY).setWordWrapWidth(width - indent);
       this.handlers.set(text, row.onClick);
       if (row.onClick) text.setInteractive({ useHandCursor: true });
       else text.disableInteractive();

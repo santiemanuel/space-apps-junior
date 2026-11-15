@@ -148,6 +148,9 @@ export class ReportScene extends Phaser.Scene {
       const earned = report.stars[star];
       const shape = this.add.star(x, 188, 5, 14, 32, earned ? GOLD : 0x2d3748).setStrokeStyle(2, earned ? GOLD : 0x718096);
       view.add([shape, addText(this, x, 234, 15, earned ? COLOR.focus : COLOR.dim).setOrigin(0.5).setText(t(`report.star.${star}`))]);
+      // La estrella de dosis baja que se perdió por quedarse fuera del refugio en una tormenta: se dice por qué.
+      if (star === 'lowDose' && !earned && this.data_.state.history.some((e) => e.key === 'hud.log.stormDose'))
+        view.add(addText(this, x, 248, 12, COLOR.warn, { align: 'center', wordWrap: { width: 230 } }).setOrigin(0.5, 0).setText(t('report.star.lowDose.lostStorm')));
       if (earned) {
         shape.setScale(0);
         this.tweens.add({ targets: shape, scale: 1, angle: 360, duration: 500, delay: 400 + i * 450, ease: 'Back.Out', onStart: () => audio.sfx('reportStar', 1 + i * 0.12) });

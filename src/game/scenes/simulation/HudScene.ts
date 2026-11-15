@@ -20,8 +20,12 @@ import { Minimap, MINIMAP_FRAME, type MinimapFrame } from './Minimap';
 import { PanelColumn, type PanelRow, PRESENCE_COLOR } from './PanelColumn';
 import { MinigameView } from './minigames/MinigameView';
 import { formatDate, healthLights, LIGHT, lightFor, NAMES, StatusView, supplies } from './StatusView';
-import { gridWarningKey, locationKey, toggleOverlay, type SimulationSceneData } from './simulationData';
+import { gridWarningKey, locationKey, MAP_HINT, taskReason, toggleOverlay, type SimulationSceneData } from './simulationData';
+import { Toasts } from './Toasts';
 import { audio } from '../../audio/audio';
+import { ConsoleView } from './ConsoleView';
+import { SleepOverlay } from './SleepOverlay';
+import { StormBanner } from './StormBanner';
 
 /** La vista del mapa ocupa 21 tiles; el resto de la pantalla es el tablero (como en las referencias, angosto). */
 export const VIEW_WIDTH = 21 * TILE;
@@ -29,7 +33,10 @@ export const VIEW_WIDTH = 21 * TILE;
 export const TOAST_Y = 14;
 const DAY_MS = 86_400_000;
 /** Superpuestas que tapan la vista del mapa: con una abierta no se abre el estado ni el mapa del cráter. */
-const OVERLAYS = [SceneKeys.Planning, SceneKeys.DataPanel, SceneKeys.MissionControl] as const;
+const OVERLAYS = [SceneKeys.DataPanel, SceneKeys.MissionControl] as const;
+/** Cuadros del indicador de avance rápido (⏩ que corre): no se parece en nada a dormir. */
+const FAST_FRAMES = ['▶▷▷', '▶▶▷', '▶▶▶', '▷▶▶', '▷▷▶', '▷▷▷'] as const;
+const HOUR_MS = 3_600_000;
 const LEVEL_COLOR: Record<AlertLevel, string> = { calm: '#68d391', alert: '#f6e05e', impact: '#fc8181' };
 const LEVEL_BOX: Record<AlertLevel, BoxStyle> = { calm: 'normal', alert: 'goal', impact: 'alert' };
 /** Tinte de la interfaz según el nivel del reloj (§3.1): amarillo en Alerta. */
@@ -166,15 +173,29 @@ export class HudScene extends Phaser.Scene {
   /** Estado completo (tecla I). */
   private status!: StatusView;
   private minigame!: MinigameView;
+  /** Consola de recursos (E junto a ella). */
+  private console_!: ConsoleView;
+  private banner!: StormBanner;
+  private sleep!: SleepOverlay;
+  /** Tarjeta de la tormenta: las dos opciones lado a lado, con lo que se gana y lo que se arriesga. */
+  private stormCard!: { root: Phaser.GameObjects.Container; signature: string };
+  /** Estaba dormido en el cuadro anterior (para el despertar). */
+  private wasAsleep = false;
+  /** Avisos del mapa, en cola. */
+  private toasts!: Toasts;
+  /** Línea de ayuda de lo que hace E donde está el jugador: fija sobre la barra de controles, no pegada a él. */
+  private hint!: Phaser.GameObjects.Text;
 
   /** Abre una de las vistas a pantalla entera del tablero (o las cierra con `null`); el reloj queda en pausa mientras se mira. */
-  private show(view: 'status' | 'crater' | null): void {
-    if (view === 'status' && !this.snapshot) return;
+  private show(view: 'status' | 'crater' | 'console' | null): void {
+    if (view && view !== 'crater' && !this.snapshot) return;
     if (this.minigame?.visible) return;
     if (view && OVERLAYS.some((key) => this.scene.isActive(key))) return;
-    const was = !!this.crater?.visible || this.status.visible;
+    const was = !!this.crater?.visible || this.status.visible || this.console_.visible;
     if (was !== !!view) audio.sfx(view ? 'open' : 'back');
     this.crater?.setVisible(view === 'crater');
+    if (view === 'console') this.console_.show(this.snapshot!);
+    else this.console_.hide();
     if (view === 'status') this.status.show(this.snapshot!);
     else this.status.hide();
     if (was !== !!view) this.data_.sim.emit('sim:pause', { paused: !!view });
@@ -215,11 +236,36 @@ export class HudScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
     this.status = new StatusView(this, this.data_.namespace);
     this.minigame = new MinigameView(this, sim);
+    this.console_ = new ConsoleView(this, sim, () => this.show(null));
+    this.banner = new StormBanner(this);
+    this.sleep = new SleepOverlay(this, t('hud.sleep.wakeHint'));
+    this.stormCard = { root: this.add.container(0, 0).setDepth(51), signature: '' };
+    this.wasAsleep = false;
+    this.toasts = new Toasts(this);
+    this.hint = this.add
+      .text((CARD.x + VIEW_WIDTH - 10) / 2, CONTROLS.bottom - CONTROLS.height - 8, '', { fontFamily: 'monospace', fontSize: '14px', color: '#fbd38d', backgroundColor: '#0d1322ee', padding: { x: 10, y: 5 }, align: 'center', wordWrap: { width: CARD.width - 30 } })
+      .setOrigin(0.5, 1)
+      .setDepth(50)
+      .setVisible(false);
+    const offToast = sim.on('sim:toast', (toast) => this.toasts.push(toast));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offToast);
     const offMinigame = sim.on('sim:minigame', (request) => {
       this.show(null);
       this.minigame.open(request);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offMinigame);
+    const offConsole = sim.on('sim:console', () => this.show('console'));
+    // Tormenta solar en camino (o que llega sin aviso): el cartel grande, como la entrada de un jefe.
+    const stormBanner = (key: 'hud.storm.incoming' | 'hud.storm.arrived') => {
+      if (this.minigame.visible) return;
+      audio.sfx('siren', 0.9, 0.9);
+      this.banner.show(t(key), () => this.stormCountdown());
+    };
+    const { bus } = this.data_;
+    const offStorm = [
+      bus.on('incident:warned', (i) => i.definitionId === 'radiationStorm' && stormBanner('hud.storm.incoming')),
+      bus.on('incident:started', (i) => i.definitionId === 'radiationStorm' && !this.banner.visible && stormBanner('hud.storm.arrived')),
+    ];
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => [offMinigame, offConsole, ...offStorm].forEach((off) => off()));
     keyboard.addKey('I').on('down', () => this.toggleStatus());
     keyboard.addKey('ENTER').on('down', () => this.show(null));
     if (mars) {
@@ -298,7 +344,6 @@ export class HudScene extends Phaser.Scene {
   /** Botones de las pantallas, arriba a la derecha del mapa: ícono y la tecla que hace lo mismo. */
   private createButtons(mars: boolean): void {
     const buttons: Button[] = [
-      { frame: 'plan', key: 'P', action: () => this.toggleOverlay(SceneKeys.Planning) },
       { frame: 'missionControl', key: 'C', action: () => this.toggleOverlay(SceneKeys.MissionControl) },
       { frame: 'charts', key: 'G', action: () => this.toggleOverlay(SceneKeys.DataPanel) },
       { frame: 'status', key: 'I', action: () => this.toggleStatus() },
@@ -309,7 +354,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(56)
       .setVisible(false);
-    const tips: Record<string, string> = { P: 'plan', C: 'missionControl', G: 'charts', I: 'status', V: 'crater' };
+    const tips: Record<string, string> = { C: 'missionControl', G: 'charts', I: 'status', V: 'crater' };
     buttons.forEach((b, i) => {
       const x = VIEW_WIDTH - 10 - BUTTON.size - (buttons.length - 1 - i) * (BUTTON.size + BUTTON.gap);
       const g = this.add.graphics().setDepth(50);
@@ -362,15 +407,28 @@ export class HudScene extends Phaser.Scene {
     if (!s) return;
     this.crater?.update(s.activePosition, time);
     // Otra superpuesta se abrió encima (p. ej. la planificación con un aviso): se cierra la vista del tablero.
-    if ((this.crater?.visible || this.status.visible) && OVERLAYS.some((key) => this.scene.isActive(key))) {
+    if ((this.crater?.visible || this.status.visible || this.console_.visible) && OVERLAYS.some((key) => this.scene.isActive(key))) {
       this.crater?.setVisible(false);
       this.status.hide();
-      if (!this.scene.isActive(SceneKeys.Planning) && !this.scene.isActive(SceneKeys.DataPanel)) this.data_.sim.emit('sim:pause', { paused: false });
+      this.console_.hide();
+      if (!this.scene.isActive(SceneKeys.DataPanel)) this.data_.sim.emit('sim:pause', { paused: false });
     }
+    this.console_.update(s);
+    this.banner.update(time);
+    // Dormir de verdad: pantalla a oscuras con la hora que avanza. Si lo despierta un aviso, fundido rápido.
+    const alarm = s.level !== 'calm' || s.decisions.length > 0 || s.emergencies.length > 0;
+    if (this.wasAsleep && !s.asleep && !alarm) audio.sfx('habitatMorning', 1, 0.6);
+    this.wasAsleep = s.asleep;
+    this.sleep.update(s.asleep, this.sleepClock(s), alarm, time);
     const [color, alpha] = LEVEL_TINT[s.level];
     this.tint.setFillStyle(color, alpha);
     this.renderPanel(s);
-    this.cover(!!this.crater?.visible || this.status.visible || this.minigame.visible || OVERLAYS.some((key) => this.scene.isActive(key)));
+    this.cover(!!this.crater?.visible || this.status.visible || this.console_.visible || this.minigame.visible || OVERLAYS.some((key) => this.scene.isActive(key)));
+    this.toasts.update(time, this.covered || this.banner.visible);
+    // La ayuda de E va fija abajo; con una decisión en pantalla, ese lugar es de su tarjeta.
+    const hint = this.covered || s.asleep || s.decisions.length > 0 ? '' : ((this.registry.get(MAP_HINT) as string | undefined) ?? '');
+    if (hint !== this.hint.text) this.hint.setText(hint);
+    this.hint.setVisible(hint !== '');
     if (!this.covered) {
       this.renderStrip(s);
       this.renderBadge(s);
@@ -429,6 +487,23 @@ export class HudScene extends Phaser.Scene {
       part.box.clear();
       part.signature = '';
     }
+    this.stormCard.root.removeAll(true);
+    this.stormCard.signature = '';
+  }
+
+  /** Lo que falta para que llegue la tormenta, para el cartel grande. */
+  private stormCountdown(): string {
+    const s = this.snapshot;
+    const storm = s?.storm;
+    if (!s || !storm) return '';
+    const hours = Math.ceil((Date.parse(storm.impactAt) - Date.parse(s.simDate)) / HOUR_MS);
+    return storm.active || hours <= 0 ? t('hud.storm.now') : t('hud.storm.countdown', { hours });
+  }
+
+  /** Fecha y hora simuladas mientras se duerme. */
+  private sleepClock(s: SimSnapshot): string {
+    const date = new Date(s.simDate);
+    return `${formatDate(s.simDate)} · ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
   }
 
   /** Barra de controles abajo a la derecha: teclas de pixel art con su acción, sin tapar el centro del mapa. */
@@ -520,9 +595,13 @@ export class HudScene extends Phaser.Scene {
       { text: '', bar: { fraction: s.progress, color: mars ? '#f6ad55' : '#63b3ed', from: 0, segments: 31 }, size: 4 },
       { gap: 2, text: `● ${tr(s.reasonKey)}`, color: LEVEL_COLOR[s.level], size: 12 },
     ];
-    // El ritmo sólo aparece cuando no es el de siempre (manejando a alguien).
-    if (s.paused || !s.manual) rows.push({ text: s.paused ? t('hud.panel.paused') : t('hud.panel.paceFast'), color: SOFT, size: 11 });
-    else if (s.idle) rows.push({ text: t('hud.panel.paceIdle'), color: SOFT, size: 11 });
+    // El ritmo sólo aparece cuando no es el de siempre. El avance rápido tiene su indicador propio (flechas que
+    // corren): no es dormir, el jugador sigue manejando a su tripulante.
+    const fast = FAST_FRAMES[Math.floor(this.time.now / 140) % FAST_FRAMES.length]!;
+    if (s.paused) rows.push({ text: t('hud.panel.paused'), color: SOFT, size: 11 });
+    else if (s.asleep) rows.push({ text: t('hud.sleep.sleeping'), color: '#90cdf4', size: 11 });
+    else if (!s.manual) rows.push({ text: `${fast} ${t('hud.panel.paceFast')}`, color: '#63b3ed', size: 12 });
+    else if (s.idle) rows.push({ text: `${fast} ${t('hud.panel.paceIdle')}`, color: '#63b3ed', size: 12 });
     // Qué falta hacer para que la jornada avance rápido (así nadie se pierde buscando qué rehacer).
     if (s.mars?.canLeave) rows.push({ gap: 2, text: t('mars.leave.prompt'), color: '#68d391', size: 11 });
     if (s.mars?.plants) rows.push({ text: t('mars.panel.plants', { count: s.mars.plants }), color: SOFT, size: 11 });
@@ -531,7 +610,7 @@ export class HudScene extends Phaser.Scene {
       for (const item of s.todo.slice(0, 4)) {
         const text =
           item.kind === 'task'
-            ? t('hud.todo.task', { place: tr(`${this.data_.namespace}.zone.${item.zone}`) })
+            ? this.taskReason(item)
             : item.kind === 'repair'
               ? item.helper
                 ? t('hud.todo.repairHelper', { title: tr(`${item.textKey}.title`), name: NAMES[item.helper] })
@@ -540,6 +619,12 @@ export class HudScene extends Phaser.Scene {
         rows.push({ text: `· ${text}`, color: SOFT, size: 11 });
       }
       if (s.todo.length > 4) rows.push({ text: t('hud.todo.more', { n: s.todo.length - 4 }), color: SOFT, size: 10 });
+    }
+    // Tareas optativas de Marte: qué se gana (▲) y qué se arriesga (▼), antes de decidir.
+    if (s.mars && !s.departure && !s.paused && s.manual) {
+      if (s.mars.panels.canClean) rows.push({ gap: 2, icon: this.icon('energy'), text: t('mars.tradeoff.cleanPanels', { loss: Math.round(s.mars.panels.loss * 100) }), color: '#f6e05e', size: 11 });
+      if (s.mars.nightPrepOpen) rows.push({ gap: 2, icon: this.icon('energy'), text: t('mars.tradeoff.nightPrep'), color: '#f6e05e', size: 11 });
+      else if (s.mars.nightReady) rows.push({ icon: this.icon('check'), text: t('mars.tradeoff.nightReady'), color: LIGHT.green, size: 11 });
     }
     if (s.mars) {
       const { daylight, evaOpen } = s.mars;
@@ -560,6 +645,17 @@ export class HudScene extends Phaser.Scene {
       }
     }
     return rows;
+  }
+
+  /**
+   * Una tarea pendiente con su motivo ("el filtro de CO₂ se está saturando", "Brote se siente solo: llamá a casa") y,
+   * si apareció al azar, cuánto falta para que la tome un automático.
+   */
+  private taskReason(item: Extract<SimSnapshot['todo'][number], { kind: 'task' }>): string {
+    const reason = taskReason(this.data_.namespace, item, NAMES);
+    if (!item.chore) return reason;
+    if (item.chore.helper) return `${reason} ${t('hud.todo.choreHelper', { name: NAMES[item.chore.helper] })}`;
+    return `${reason} ${t('hud.todo.choreSoon', { hours: Math.max(1, Math.ceil(item.chore.hoursLeft)) })}`;
   }
 
   /** Los tres medidores: barra con el semáforo y, a la derecha, cuántos días alcanza (la energía, si carga o gasta). */
@@ -617,7 +713,16 @@ export class HudScene extends Phaser.Scene {
     const minutes = mc.delaySeconds / 60;
     const rows: PanelRow[] = [
       { text: t('hud.panel.realData'), color: HEAD, size: 11 },
-      { icon: this.icon('radiation'), text: t('hud.panel.doseShort', { value: Math.round(s.dose.uGyH) }), color: '#e2e8f0', size: 11 },
+      { icon: this.icon('radiation'), text: t('hud.panel.doseShort', { value: Math.round(s.dose.uGyH) }), color: s.storm?.exposed.length ? LIGHT.red : '#e2e8f0', size: 11 },
+      // Con la tormenta encima: quiénes están fuera del refugio y cuánta dosis de más llevan.
+      ...(s.storm?.active
+        ? [
+            s.storm.exposed.length
+              ? { icon: this.icon('warning'), text: t('hud.panel.exposed', { count: s.storm.exposed.length, factor: decimal(s.storm.doseFactor, s.storm.doseFactor % 1 ? 1 : 0) }), color: LIGHT.red, size: 11 }
+              : { icon: this.icon('shelter'), text: t('hud.panel.sheltered'), color: LIGHT.green, size: 11 },
+          ]
+        : []),
+      ...(s.storm && s.storm.extraXrays >= 1 ? [{ icon: this.icon('radiation'), text: t('hud.panel.extraXrays', { count: Math.floor(s.storm.extraXrays) }), color: LIGHT.red, size: 11 }] : []),
       {
         icon: this.icon('earthSignal'),
         text: mc.offline ? t('hud.panel.signalOff') : minutes >= 1 ? t('hud.panel.signal', { minutes: Math.round(minutes) }) : t('hud.panel.signalSeconds', { seconds: Math.max(1, Math.round(mc.delaySeconds)) }),
@@ -627,12 +732,9 @@ export class HudScene extends Phaser.Scene {
     ];
     if (s.mars) {
       const w = s.mars.weather;
-      rows.push({
-        icon: this.icon('dustStorm'),
-        text: t('hud.panel.curiosityShort', { sol: w.sol, min: Math.round(w.minTempC), max: w.maxTempC === null ? '?' : Math.round(w.maxTempC) }),
-        color: '#fbd38d',
-        size: 11,
-      });
+      // En dos filas cortas: entra completo en los dos idiomas y con temperaturas de tres cifras (−100 °C).
+      rows.push({ icon: this.icon('dustStorm'), text: t('hud.panel.curiositySol', { sol: w.sol }), color: '#fbd38d', size: 11 });
+      rows.push({ text: t('hud.panel.curiosityTemp', { min: Math.round(w.minTempC), max: w.maxTempC === null ? '?' : Math.round(w.maxTempC) }), color: '#fbd38d', size: 11 });
     } else {
       const au = cruiseDistanceAu(s.progress, s.phase === 'cruiseBack' ? 'back' : 'out');
       rows.push({ icon: this.icon('energy'), text: t('hud.panel.sunDistance', { au: decimal(au, 2) }), color: '#e2e8f0', size: 11 });
@@ -734,6 +836,16 @@ export class HudScene extends Phaser.Scene {
   private renderCard(s: SimSnapshot): void {
     const d = s.decisions[0];
     const { column, box } = this.card;
+    const storm = d && s.storm && d.incident.id === s.storm.incidentId ? s.storm : null;
+    if (!storm && this.stormCard.signature) {
+      this.stormCard.root.removeAll(true);
+      this.stormCard.signature = '';
+    }
+    if (d && storm) {
+      column.render([]);
+      this.renderStormCard(s, d, storm);
+      return;
+    }
     if (!d) {
       if (this.card.signature) {
         column.render([]);
@@ -768,6 +880,80 @@ export class HudScene extends Phaser.Scene {
     this.card.signature = signature;
     box.clear();
     drawBox(box, CARD.x, top, CARD.width, height, 'alert');
+  }
+
+  /**
+   * Decisión de la tormenta de radiación: las dos opciones lado a lado, cada una con lo que se gana (▲ verde) y lo que
+   * se arriesga (▼ rojo), con íconos y números simples. Tecla 1 o 2, o clic en la tarjeta.
+   */
+  private renderStormCard(s: SimSnapshot, d: SimSnapshot['decisions'][number], storm: NonNullable<SimSnapshot['storm']>): void {
+    const { sim } = this.data_;
+    const hint = s.hints.find((h) => h.incidentId === d.incident.id)?.responseId;
+    const hours = Math.max(0, Math.ceil((Date.parse(storm.impactAt) - Date.parse(s.simDate)) / HOUR_MS));
+    const factor = decimal(storm.doseFactor, storm.doseFactor % 1 ? 1 : 0);
+    const signature = `${d.incident.id}|${storm.active ? 'now' : hours}|${factor}|${hint}|${getLocale()}|${d.options.map((o) => o.available).join()}`;
+    if (signature === this.stormCard.signature) return;
+    this.stormCard.signature = signature;
+    const { root } = this.stormCard;
+    root.removeAll(true);
+    const height = 204;
+    const top = CARD.bottom - height;
+    this.card.signature = `storm|${top}`;
+    this.card.box.clear();
+    drawBox(this.card.box, CARD.x, top, CARD.width, height, 'alert');
+    const text = (x: number, y: number, value: string, size: number, color: string, width = 0) => {
+      const o = this.add.text(x, y, value, { fontFamily: 'monospace', fontSize: `${size}px`, color, ...(width ? { wordWrap: { width } } : {}) });
+      root.add(o);
+      return o;
+    };
+    text(CARD.x + 16, top + 12, `⚠ ${tr(`${d.textKey}.title`)}`, 18, LIGHT.red);
+    text(CARD.x + CARD.width - 16, top + 16, storm.active ? t('hud.storm.now') : t('hud.storm.countdown', { hours }), 12, '#fbd38d').setOrigin(1, 0);
+    text(CARD.x + 16, top + 38, t('hud.storm.choose'), 12, SOFT);
+    const gap = 10;
+    const width = (CARD.width - 32 - gap) / 2;
+    const g = this.add.graphics();
+    root.add(g);
+    const lines: Record<string, { icon: string; lines: { up: boolean; good: boolean; text: string }[] }> = {
+      goToShelter: {
+        icon: 'shelter',
+        lines: [
+          { up: false, good: true, text: t('hud.storm.shelter.dose') },
+          { up: false, good: false, text: t('hud.storm.shelter.tasks') },
+          { up: false, good: false, text: t('hud.storm.shelter.outside') },
+        ],
+      },
+      keepWorking: {
+        icon: 'spares',
+        lines: [
+          { up: true, good: true, text: t('hud.storm.work.tasks') },
+          { up: true, good: false, text: t('hud.storm.work.dose', { factor }) },
+          { up: false, good: false, text: t('hud.storm.work.star') },
+        ],
+      },
+    };
+    d.options.forEach(({ response, available }, i) => {
+      const x = CARD.x + 16 + i * (width + gap);
+      const y = top + 60;
+      const h = height - 72;
+      const safe = response.risk === 'green';
+      g.fillStyle(0x05070d).fillRect(x - 2, y - 2, width + 4, h + 4);
+      g.fillStyle(!available ? 0x2d3748 : safe ? 0x2f855a : 0xc53030).fillRect(x, y, width, h);
+      g.fillStyle(safe ? 0x10241a : 0x2a1015).fillRect(x + 3, y + 3, width - 6, h - 6);
+      const spec = lines[response.id];
+      if (spec && this.hasIcon(spec.icon)) root.add(this.add.image(x + 20, y + 22, HUD_ICONS, spec.icon));
+      text(x + 38, y + 8, `[${i + 1}] ${tr(`${d.textKey}.response.${response.id}.short`)}`, 14, available ? LIGHT[response.risk] : '#4a5568', width - 46);
+      let ly = y + 46;
+      for (const line of spec?.lines ?? []) {
+        const color = line.good ? LIGHT.green : LIGHT.red;
+        text(x + 10, ly, line.up ? '▲' : '▼', 12, color);
+        ly += text(x + 28, ly, line.text, 12, color, width - 38).height + 4;
+      }
+      if (hint === response.id) text(x + 10, y + h - 20, t('hud.panel.hint'), 10, '#fbd38d', width - 20);
+      if (!available) return;
+      const hit = this.add.zone(x, y, width, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => sim.emit('sim:respond', { incidentId: d.incident.id, responseId: response.id }));
+      root.add(hit);
+    });
   }
 
   /** Clics tipo contador Geiger con tiempos al azar (con semilla) según la dosis del día; el punto titila junto a la dosis. */

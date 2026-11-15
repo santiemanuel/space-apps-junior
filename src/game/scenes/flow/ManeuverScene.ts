@@ -31,7 +31,7 @@ const HINT_KEYS: Record<StageKind, readonly string[]> = {
 import type { SfxId } from '../../audio/themes';
 
 /** Panel translúcido a la derecha, encima de la ilustración: el minijuego de cada etapa y el resultado. */
-const OVERLAY = { x: 830, y: 360, width: 430, height: 186 } as const;
+const OVERLAY = { x: 830, y: 360, width: 430, height: 204 } as const;
 const PANEL_TOP = OVERLAY.y;
 /** Centro del panel: el cohete queda libre en el medio de la pantalla. */
 const PX = OVERLAY.x + OVERLAY.width / 2;
@@ -135,6 +135,8 @@ export class ManeuverScene extends Phaser.Scene {
 
   create(): void {
     this.art = new FlightArt(this, this.data_.maneuverId);
+    // Vuelta a la Tierra: quién sale caminando y quién en camilla del barco de rescate.
+    this.art.setArrival(this.run.crewArrival);
     this.header = {
       title: addText(this, 24, 22, 22, COLOR.title).setOrigin(0, 0.5),
       narrator: addText(this, 24, 40, 13, COLOR.text, { wordWrap: { width: 980 } }),
@@ -160,7 +162,32 @@ export class ManeuverScene extends Phaser.Scene {
       this.intro = false;
       this.rebuild();
     });
+    this.devJump();
     this.rebuild();
+  }
+
+  /**
+   * Sólo en `npm run dev`: `&stage=N` salta la entrada y el checklist y deja la maniobra en la etapa N (desde 0; con
+   * un número grande, en el resultado), y `&score=0` hace que las etapas salteadas salgan mal. Para capturar cada
+   * prueba en su peor caso sin jugarla.
+   */
+  private devJump(): void {
+    const params = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
+    const target = Number(params?.get('stage') ?? NaN);
+    if (!params || !Number.isFinite(target)) return;
+    const score = Number(params.get('score') ?? 0.9);
+    const { run } = this;
+    if (this.intro) this.art.skipIntro();
+    this.intro = false;
+    for (const item of run.items) run.decide(item.systemId, item.status === 'green' ? 'go' : 'risk');
+    run.start();
+    while (run.step === 'stage' && run.stageIndex < target) {
+      this.art.setStage(run.stage!.id);
+      if ((run.stage!.kind ?? 'timing') === 'timing') run.press();
+      else run.complete(score);
+      this.art.outcome(run.stage!.id);
+      run.next();
+    }
   }
 
   update(time: number, deltaMs: number): void {
@@ -236,7 +263,7 @@ export class ManeuverScene extends Phaser.Scene {
     this.checklist.rows = [];
     this.checklist.start = null;
     const glass = this.add.graphics().fillStyle(0x0b1220, 0.78);
-    if (this.run.step === 'checklist') glass.fillRoundedRect(CHECK.x, CHECK.y, CHECK.width, 110 + this.run.items.length * 48 + 60, 14);
+    if (this.run.step === 'checklist') glass.fillRoundedRect(CHECK.x, CHECK.y, CHECK.width, 110 + this.run.items.length * 48 + 74, 14);
     else glass.fillRoundedRect(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 14);
     this.view.add(glass);
     if (this.run.step === 'checklist') this.showChecklist();
@@ -269,7 +296,8 @@ export class ManeuverScene extends Phaser.Scene {
       const y = top + index * 48;
       view.add(this.add.circle(left + 8, y - 8, 7, LIGHT_COLOR[item.status]));
       view.add(addText(this, left + 22, y - 8, 14).setOrigin(0, 0.5).setText(t(`common.system.${item.systemId}`)));
-      const status = addText(this, right, y - 8, 12, COLOR.muted).setOrigin(1, 0.5);
+      // El resultado de cada decisión va en el renglón de abajo (donde estaban los botones): al lado del nombre se encimaba.
+      const status = addText(this, right, y + 12, 12, COLOR.muted).setOrigin(1, 0.5);
       view.add(status);
       const buttons = this.options(item).map((decision, option, all) => {
         const x = right - (all.length - 1 - option) * 170 - 76;
@@ -288,7 +316,7 @@ export class ManeuverScene extends Phaser.Scene {
       .setLabel(t(run.checklistReady ? 'maneuvers.checklist.start' : 'maneuvers.checklist.pending'))
       .setEnabled(run.checklistReady);
     this.checklist.start = start;
-    view.add([start.text, addText(this, CHECK.x + CHECK.width / 2, startY + 30, 11, COLOR.dim).setOrigin(0.5).setText(t('maneuvers.checklist.controls'))]);
+    view.add([start.text, addText(this, CHECK.x + CHECK.width / 2, startY + 22, 11, COLOR.dim, { align: 'center', wordWrap: { width: CHECK.width - 30 } }).setOrigin(0.5, 0).setText(t('maneuvers.checklist.controls'))]);
     const firstPending = run.items.findIndex((item) => !item.decision);
     this.focusChecklist(firstPending === -1 ? run.items.length : firstPending, 0);
   }
@@ -365,13 +393,17 @@ export class ManeuverScene extends Phaser.Scene {
       const color = done ? LIGHT_COLOR[PRECISION_LIGHT[precisionLevel(done.precision)]] : i === run.stageIndex ? 0xffffff : 0x4a5568;
       view.add(this.add.circle(OVERLAY.x + 20 + i * 18, PANEL_TOP + 18, 6, color));
     });
-    const feedback = addText(this, PX, PANEL_TOP + 168, 14, COLOR.ok, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5);
+    // El resultado va abajo de todo, con lugar para dos renglones (en inglés algunas frases son más largas).
+    const feedback = addText(this, PX, PANEL_TOP + 160, 13, COLOR.ok, { align: 'center', wordWrap: { width: OVERLAY.width - 36 } }).setOrigin(0.5, 0);
     view.add(feedback);
     this.widgets = { feedback, ...this.buildGameWidgets(kind) };
   }
 
   /** Ayuda corta: las teclas dibujadas como en las salas de la nave y una frase mínima al lado. */
   private addControlHint(kind: StageKind): void {
+    this.hint = null;
+    // En la prueba de memoria, las teclas animadas distraen de la secuencia de luces.
+    if (kind === 'radio') return;
     const labels = HINT_KEYS[kind].map((k) => (k === 'space' ? t('maneuvers.game.key.space') : k));
     const caps = labels.map((label) => {
       const text = addText(this, 0, 0, 14, '#1a202c').setOrigin(0.5).setText(label);
@@ -421,14 +453,26 @@ export class ManeuverScene extends Phaser.Scene {
       return { marker };
     }
     const game = this.flightGame!;
+    /**
+     * Barra con su rótulo a la izquierda (tanque, presión): el rótulo queda dentro del panel y la barra ocupa lo que
+     * sobra, así no se corta en ningún idioma.
+     */
+    const labeled = (key: 'maneuvers.game.fuel.tank' | 'maneuvers.game.pressure.gauge') => {
+      const label = addText(this, OVERLAY.x + 16, BAR.y, 13, COLOR.muted).setOrigin(0, 0.5).setText(t(key));
+      const x = Math.ceil(OVERLAY.x + 16 + label.width + 10);
+      const width = OVERLAY.x + OVERLAY.width - 18 - x;
+      const back = this.add.rectangle(x, BAR.y, width, BAR.height, 0x1a202c).setOrigin(0, 0.5).setStrokeStyle(2, 0x4a5568);
+      return { label, back, x, width };
+    };
     if (game instanceof FuelGame) {
       const { center, width } = game.target;
-      const fuelFill = this.add.rectangle(BAR.x, BAR.y, BAR.width, BAR.height - 8, 0xf6ad55).setOrigin(0, 0.5).setScale(0, 1);
+      const bar = labeled('maneuvers.game.fuel.tank');
+      const fuelFill = this.add.rectangle(bar.x, BAR.y, bar.width, BAR.height - 8, 0xf6ad55).setOrigin(0, 0.5).setScale(0, 1);
       view.add([
-        track(BAR.width),
-        this.add.rectangle(BAR.x + center * BAR.width, BAR.y, width * BAR.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
+        bar.back,
+        this.add.rectangle(bar.x + center * bar.width, BAR.y, width * bar.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
         fuelFill,
-        addText(this, BAR.x - 12, BAR.y, 13, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.game.fuel.tank')),
+        bar.label,
       ]);
       return { fuelFill };
     }
@@ -450,30 +494,40 @@ export class ManeuverScene extends Phaser.Scene {
     }
     if (game instanceof PressureGame) {
       const { center, width } = game.target;
-      const pressureFill = this.add.rectangle(BAR.x, BAR.y, BAR.width, BAR.height - 8, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
-      const pressureTime = this.add.rectangle(BAR.x, BAR.y + 24, BAR.width, 4, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
+      const bar = labeled('maneuvers.game.pressure.gauge');
+      const pressureFill = this.add.rectangle(bar.x, BAR.y, bar.width, BAR.height - 8, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
+      const pressureTime = this.add.rectangle(bar.x, BAR.y + 24, bar.width, 4, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
       view.add([
-        track(BAR.width),
-        this.add.rectangle(BAR.x + center * BAR.width, BAR.y, width * BAR.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
+        bar.back,
+        this.add.rectangle(bar.x + center * bar.width, BAR.y, width * bar.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
         pressureFill,
         pressureTime,
-        addText(this, BAR.x - 12, BAR.y, 13, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.game.pressure.gauge')),
+        bar.label,
       ]);
       return { pressureFill, pressureTime };
     }
     if (game instanceof RadioGame) {
       const size = 40;
-      const order: Arrow[] = ['left', 'up', 'down', 'right'];
-      const left = PX - 60 - (order.length * (size + 10) - 10) / 2;
-      const lights = order.map((arrow, i) => {
-        const x = left + i * (size + 10);
-        const lamp = this.add.rectangle(x, BAR.y, size, size, RADIO_LIGHTS[arrow], 0.25).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569);
-        const glyph = addText(this, x + size / 2, BAR.y, 22).setOrigin(0.5).setText(ARROW_GLYPH[arrow]);
+      // La misma T invertida del teclado al escuchar y al repetir la secuencia.
+      const positions: { arrow: Arrow; column: number; row: number }[] = [
+        { arrow: 'left', column: 0, row: 1 },
+        { arrow: 'down', column: 1, row: 1 },
+        { arrow: 'right', column: 2, row: 1 },
+        { arrow: 'up', column: 1, row: 0 },
+      ];
+      const left = PX - 150;
+      const lights = positions.map(({ arrow, column, row }) => {
+        const x = left + column * (size + 10);
+        const y = BAR.y - 36 + row * (size + 10);
+        const lamp = this.add.rectangle(x, y, size, size, RADIO_LIGHTS[arrow], 0.25).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569);
+        const glyph = addText(this, x + size / 2, y, 22).setOrigin(0.5).setText(ARROW_GLYPH[arrow]);
         view.add([lamp, glyph]);
         return { arrow, lamp, glyph };
       });
-      const radioDots = game.sequence.map((_a, i) => this.add.circle(left + order.length * (size + 10) + 16 + i * 16, BAR.y, 5, 0x4a5568));
-      const radioState = addText(this, PX, BAR.y + 28, 12, COLOR.muted).setOrigin(0.5);
+      const statusX = PX + 102;
+      const radioDots = game.sequence.map((_a, i) => this.add.circle(statusX + (i - (game.sequence.length - 1) / 2) * 16, BAR.y - 24, 5, 0x4a5568));
+      // Consigna al costado de las flechas: con su ancho máximo, entra en dos renglones en los dos idiomas.
+      const radioState = addText(this, statusX, BAR.y + 8, 12, COLOR.muted, { align: 'center', wordWrap: { width: 2 * (OVERLAY.x + OVERLAY.width - 14 - statusX) } }).setOrigin(0.5);
       view.add([...radioDots, radioState]);
       return { lights, radioDots, radioState };
     }
@@ -637,9 +691,9 @@ export class ManeuverScene extends Phaser.Scene {
       this.add.circle(OVERLAY.x + 26, PANEL_TOP + 52, 9, LIGHT_COLOR[PRECISION_LIGHT[level]]),
       addText(this, OVERLAY.x + 44, PANEL_TOP + 52, 15, LIGHT_CSS[PRECISION_LIGHT[level]]).setOrigin(0, 0.5).setText(t(`maneuvers.result.precision.${level}`)),
       addText(this, OVERLAY.x + 18, PANEL_TOP + 76, 12, COLOR.muted).setOrigin(0, 0.5).setText(t('maneuvers.result.fuel')),
-      this.add.rectangle(OVERLAY.x + 170, PANEL_TOP + 76, 240, 10, 0x2d3748).setOrigin(0, 0.5),
-      this.add.rectangle(OVERLAY.x + 170, PANEL_TOP + 76, 240 * run.finalFuel, 10, 0xf6ad55).setOrigin(0, 0.5),
-      addText(this, PX, PANEL_TOP + 92, 11, COLOR.text, { align: 'center', wordWrap: { width: OVERLAY.width - 30 }, lineSpacing: 2 }).setOrigin(0.5, 0).setText(lines.join('\n')),
+      this.add.rectangle(OVERLAY.x + 186, PANEL_TOP + 76, 226, 10, 0x2d3748).setOrigin(0, 0.5),
+      this.add.rectangle(OVERLAY.x + 186, PANEL_TOP + 76, 226 * run.finalFuel, 10, 0xf6ad55).setOrigin(0, 0.5),
+      addText(this, PX, PANEL_TOP + 92, 11, COLOR.text, { align: 'center', wordWrap: { width: OVERLAY.width - 36 }, lineSpacing: 1 }).setOrigin(0.5, 0).setText(lines.join('\n')),
     ]);
     this.result = addButton(this, PX, PANEL_TOP + OVERLAY.height + 14, () => this.finish(), { size: 16 }).setLabel(t('maneuvers.result.continue')).setFocused(true);
     view.add(this.result.text);

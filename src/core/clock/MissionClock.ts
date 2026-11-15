@@ -41,8 +41,11 @@ export const CLOCK_RULES = {
   playHoursPerSecond: 0.4,
   /** Jornada sin nada que hacer (tareas al día, sin incidentes): el resto del día pasa en unos segundos. */
   idleHoursPerSecond: 2.5,
-  /** Durmiendo en la enfermería: se pasa a la próxima jornada en un momento (las alertas despiertan). */
-  sleepHoursPerSecond: 120,
+  /**
+   * Durmiendo en la enfermería: la noche pasa en unos segundos (las alertas despiertan), lo justo para que se vea la
+   * pantalla a oscuras con la hora que avanza y el jugador pueda despertarse a mano.
+   */
+  sleepHoursPerSecond: 3,
   /**
    * El Impacto va a tiempo normal sólo sus primeras horas simuladas (lo que tarda en llegar al refugio): las
    * tormentas reales duran días y, si no, el viaje se hacía eterno. Después sigue a la velocidad de una jornada sin
@@ -54,9 +57,9 @@ export const CLOCK_RULES = {
   /**
    * Segundos reales mínimos entre el fin de un aviso y el comienzo del siguiente: las tormentas reales a veces llegan
    * con pocos días de diferencia y, con el avance rápido, se encadenaban. El reloj se frena lo justo para respetarlo
-   * (las fechas reales no cambian).
+   * (las fechas reales no cambian). Las tareas que aparecen al azar llenan esa espera, por eso es corta.
    */
-  alertGapSeconds: 120,
+  alertGapSeconds: 75,
   calmReasonKey: 'hud.alert.calm',
 } as const;
 
@@ -66,6 +69,10 @@ export interface MissionClockOptions {
   alerts?: readonly ClockAlert[];
   playWindows?: readonly PlayWindow[];
   playHoursPerSecond?: number;
+  /** Velocidad de una jornada sin nada que hacer (por defecto `CLOCK_RULES.idleHoursPerSecond`). */
+  idleHoursPerSecond?: number;
+  /** Velocidad mientras se duerme (por defecto `CLOCK_RULES.sleepHoursPerSecond`). */
+  sleepHoursPerSecond?: number;
 }
 
 interface TimedAlert extends ClockAlert {
@@ -94,6 +101,8 @@ export class MissionClock {
   private alerts: TimedAlert[];
   private readonly windows: { startMs: number; endMs: number }[];
   private readonly playHoursPerSecond: number;
+  private readonly idleHoursPerSecond: number;
+  private readonly sleepHoursPerSecond: number;
   private readonly resolved = new Set<string>();
   private paused = false;
   private idle = false;
@@ -112,6 +121,8 @@ export class MissionClock {
     this.alerts = (options.alerts ?? []).map(timed);
     this.windows = (options.playWindows ?? []).map((w) => ({ startMs: Date.parse(w.start), endMs: Date.parse(w.end) }));
     this.playHoursPerSecond = options.playHoursPerSecond ?? CLOCK_RULES.playHoursPerSecond;
+    this.idleHoursPerSecond = options.idleHoursPerSecond ?? CLOCK_RULES.idleHoursPerSecond;
+    this.sleepHoursPerSecond = options.sleepHoursPerSecond ?? CLOCK_RULES.sleepHoursPerSecond;
     this.lastDay = isoDay(this.nowMs);
     this.lastLevel = this.currentAlert();
     this.lastPace = this.pace;
@@ -147,7 +158,7 @@ export class MissionClock {
   get hoursPerSecond(): number {
     const base = this.baseHoursPerSecond;
     const calm = this.currentAlert().level === 'calm';
-    const rate = this.sleep && calm ? Math.max(base, CLOCK_RULES.sleepHoursPerSecond) : this.idleBoost ? Math.max(base, CLOCK_RULES.idleHoursPerSecond) : base;
+    const rate = this.sleep && calm ? Math.max(base, this.sleepHoursPerSecond) : this.idleBoost ? Math.max(base, this.idleHoursPerSecond) : base;
     // Recién terminó un aviso: el próximo no llega antes de `alertGapSeconds` reales.
     const next = calm && this.quietSeconds > 0 ? this.nextWarnMs() : null;
     return next === null ? rate : Math.min(rate, (next - this.nowMs) / HOUR_MS / this.quietSeconds);
@@ -162,7 +173,7 @@ export class MissionClock {
 
   /** La jornada corre rápido porque el jugador no tiene nada que hacer (sólo en calma y dentro de una jornada). */
   get idleBoost(): boolean {
-    return this.idle && this.pace === 'play' && this.currentAlert().level === 'calm';
+    return this.idle && this.pace === 'play' && this.currentAlert().level === 'calm' && this.idleHoursPerSecond > this.playHoursPerSecond;
   }
 
   /** Velocidad sin el avance de las jornadas sin nada que hacer: calma, jornada, alerta o impacto. */
@@ -171,7 +182,7 @@ export class MissionClock {
     if (level === 'impact') {
       const alert = this.alerts.find((a) => a.id === alertId)!;
       const late = (this.nowMs - alert.impactMs) / HOUR_MS >= CLOCK_RULES.impactSlowHours;
-      return late ? Math.max(this.playHoursPerSecond, CLOCK_RULES.idleHoursPerSecond) : this.playHoursPerSecond;
+      return late ? Math.max(this.playHoursPerSecond, this.idleHoursPerSecond) : this.playHoursPerSecond;
     }
     const base = this.pace === 'play' ? this.playHoursPerSecond : CLOCK_RULES.calmHoursPerSecond;
     if (level === 'calm') return base;

@@ -139,5 +139,8 @@
   "cinematic.marsAscent": "Mañana en el cráter Gale: la tripulación sale de la base hacia la nave de ascenso.",
   "cinematic.skip": "ESPACIO para seguir",
   "cinematic.liftoff": "¡Despegue! Allá van Vega, Miga, Brote y Senda…",
-  "game.key.space": "ESPACIO"
+  "game.key.space": "ESPACIO",
+  "blackout": "Radio cortada por el plasma…",
+  "radioBack": "¡Volvió la radio!",
+  "rescue": "¡Llegó el rescate!"
 }

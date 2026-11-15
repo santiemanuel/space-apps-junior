@@ -4,6 +4,7 @@ import type { MinigameId } from '../../../core/minigames/Minigame';
 import type { EventBus } from '../../../core/events/EventBus';
 import type { SceneKey } from '../../sceneKeys';
 import type { PhaseSceneData } from '../sceneData';
+import { getLocale, hasKey, t, type TranslationKey } from '../../../i18n';
 
 /**
  * Lo que reciben las escenas superpuestas de la simulación (`Hud`, `Planning`, `MissionControl`, `DataPanel`):
@@ -19,6 +20,21 @@ export interface SimulationSceneData extends PhaseSceneData {
 export function toggleOverlay(plugin: Phaser.Scenes.ScenePlugin, key: SceneKey, data: SimulationSceneData, canOpen = true): void {
   if (plugin.isActive(key)) plugin.stop(key);
   else if (canOpen) plugin.launch(key, data);
+}
+
+/** Clave del registro con la línea de ayuda del mapa (lo que hace E acá), que el tablero dibuja fija abajo. */
+export const MAP_HINT = 'map-hint';
+
+type TaskTodo = Extract<SimSnapshot['todo'][number], { kind: 'task' }>;
+
+/**
+ * Motivo de una tarea pendiente ("el filtro de CO₂ se está saturando", "Brote se siente solo: llamá a casa"), de
+ * `<lugar>.chore.<tarea>`; si la tarea no tiene motivo escrito, dice en qué cuarto es.
+ */
+export function taskReason(namespace: 'voyage' | 'mars', item: TaskTodo, names: Readonly<Record<string, string>>): string {
+  const place = t(`${namespace}.zone.${item.zone}` as TranslationKey);
+  const key = `${namespace}.chore.${item.taskId}`;
+  return hasKey(key, getLocale()) ? t(key as TranslationKey, { name: item.crewId ? (names[item.crewId] ?? '') : '', place }) : t('hud.todo.task', { place });
 }
 
 /** Opciones de vista del mapa para probar (docs/plan-visual.md): `&zoom=2&at=gediz`. */

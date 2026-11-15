@@ -110,7 +110,34 @@ ascenso viejos (`rocket.png`, `booster.png`, `tower.png`, `lander.png`) quedan s
 | Nave nodriza | `mothership.png` | 125 × 53 | La nave que espera en la órbita de Marte, con la compuerta abierta |
 | Combi | `van.png` | 38 × 25 | Combi que trae a la tripulación en la escena de entrada |
 
-**No son archivos** (se dibujan con código en `flightArt.ts`): el cielo con degradé, las montañas (en Marte, el monte
+### Escenografía del aterrizaje y la reentrada (generada)
+
+El aterrizaje en Marte (`landing`) y la vuelta a la Tierra (`reentry`) usan la misma técnica que los despegues.
+
+- **Cómo se rehace:** prompts `art/prompts/vuelo-capsulas.txt`, `vuelo-rescate.txt`, `vuelo-gale-llano.txt` y
+  `vuelo-mar-lejos.txt` → `scripts/art/gen.sh vuelo-<nombre> <lámina 05> <prototipo>` → `python scripts/art/pre.py` →
+  `snap_pixels` (fondos con `pixel_size: 5.225`; hojas, automático; 48 colores) → copiar a `art/snapped/vuelo-*.png` →
+  `python scripts/art/flight-scenery.py`.
+- **Escala:** ×4. Si se rehacen, revisar en `flightArt.ts` el suelo de `LOOKS.landing|reentry.plain`, `CAPSULE_BASE` y
+  `RESCUE` (fila de la cubierta del barco).
+- **Origen:** generadas con codex-cli (imagegen) para este juego. Sin normal maps (las escenas de vuelo no usan luz dinámica).
+
+| Nombre | Archivo | Tamaño (px de arte) | Qué es |
+|---|---|---|---|
+| Llano de Gale | `gale-plain.png` | 320 × 180 | Suelo del aterrizaje (horizonte en y ≈ 137); de fondo va `mars-far.png` (monte Sharp) |
+| Mar abierto | `sea-far.png` | 320 × 180 | Mar del amerizaje con islote y nubes en el horizonte |
+| Cápsula de entrada | `entry-capsule.png` | 37 × 30 | Cápsula de Marte con el escudo térmico abajo |
+| Módulo de descenso | `descent-lander.png` | 41 × 35 | La misma sin escudo, con patas y motores de frenado |
+| Escudo térmico | `heat-shield.png` | 29 × 10 | El escudo cuando se suelta y cae |
+| Paracaídas | `chute.png` | 63 × 58 | Paracaídas de Marte |
+| Cápsula de vuelta | `return-capsule.png` | 33 × 31 | Cápsula de la reentrada (sale de `sea-capsule.png` sin los flotadores, la arma el script) |
+| Cápsula en el mar | `sea-capsule.png` | 33 × 41 | La misma con los flotadores naranjas inflados |
+| Barco de rescate | `rescue-ship.png` | 103 × 54 | Barco que llega al amerizaje; la tripulación sale a su cubierta (fila 41) |
+| Helicóptero | `helicopter.png` | 65 × 26 | Helicóptero de rescate |
+| Tres paracaídas | `chutes.png` | 79 × 59 | Paracaídas del amerizaje |
+
+**No son archivos** (se dibujan con código en `flightArt.ts`): el plasma de la entrada en bandas, las chispas, la
+salpicadura, la camilla, el cielo con degradé, las montañas (en Marte, el monte
 Sharp), las nubes, el público detrás de la valla, los reflectores y la bandera, las cúpulas de la base, el ascensor
 y la pasarela, el suelo, el mar, las estrellas, las líneas de velocidad y el plasma de la entrada.
 
@@ -143,6 +170,14 @@ ocupa más o menos lugar según su tamaño.
 lleva en la mano se dibujan con código.
 
 ---
+
+## Mar lejano para el despegue (original generado)
+
+- **Nombre y ubicación:** `art/raw/vuelo-mar-lejos.png`, fondo lejano del océano Pacífico por la mañana, vista lateral.
+- **Tamaño y cuadros:** 1672 × 941 px, un cuadro; estética solicitada de lienzo de 320 × 180 ampliado. Original sin redimensionar ni recodificar; escala de juego aún sin asignar.
+- **Transparencia:** cielo con canal alfa; mar hasta los bordes inferiores, isla lejana a la izquierda y nubes pequeñas sobre el horizonte.
+- **Cómo se rehace:** generar una sola imagen con la herramienta integrada `image_gen`, fondo transparente y el prompt de `art/prompts/vuelo-mar-lejos.txt`; copiar el PNG sin modificar.
+- **Origen:** generado con `image_gen` el 15/11/2026. Original: `C:/Users/Santiago/.codex/generated_images/01a1e112-bdeb-7350-95c1-02e4016a189d/exec-58fc72cc-8613-4c1d-9c03-7279150f6c15.png`.
 
 ## Otros recursos sin archivo (dibujados con código)
 

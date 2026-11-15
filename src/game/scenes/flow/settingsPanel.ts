@@ -3,7 +3,7 @@ import { loadSettings, saveSettings, type Settings } from '../../../core/save/sa
 import type { SaveStore } from '../../../core/save/SaveStore';
 import { getLocale, LOCALES, setLocale, t } from '../../../i18n';
 import { audio } from '../../audio/audio';
-import { addButton, addText, COLOR, onKeys, popIn, type Button } from '../../ui/ui';
+import { addButton, addText, COLOR, onKeys, popIn } from '../../ui/ui';
 
 type Row = 'sound' | 'music' | 'language' | 'back';
 const ROWS: readonly Row[] = ['sound', 'music', 'language', 'back'];
@@ -30,30 +30,35 @@ export function openSettings(scene: Phaser.Scene, store: SaveStore, onClose: (ch
   const box = scene.add.container(width / 2, height / 2);
   const panel = scene.add.rectangle(0, 0, 500, 320, 0x111827, 0.96).setStrokeStyle(2, 0x4a5568);
   const title = addText(scene, 0, -124, 24, COLOR.title).setOrigin(0.5);
-  const focusBar = scene.add.rectangle(0, ROW_Y(0), 460, 44, 0xfbd38d, 0.12);
+  const bar = scene.add.rectangle(0, 0, 460, 44, 0xfbd38d, 0.12);
+  const accent = scene.add.rectangle(-230, 0, 3, 30, 0xfbd38d).setOrigin(0, 0.5);
+  const focusBar = scene.add.container(0, ROW_Y(0), [bar, accent]);
+  focusBar.once(Phaser.GameObjects.Events.DESTROY, () => scene.tweens.killTweensOf(focusBar));
   let cursor = 0;
   let closed = false;
 
   const rows = ROWS.map((row, index) => {
     const y = ROW_Y(index);
+    // Toda la fila toma el foco, incluido el espacio a los lados de «Volver».
+    const hit = scene.add.rectangle(0, y, 460, 44, 0xffffff, 0.001).setInteractive();
+    hit.on('pointerover', () => focus(index));
     if (row === 'back') {
-      const back = addButton(scene, 0, y, () => close(), { size: 16, onHover: () => focus(index) });
-      return { row, label: null, value: null, back, arrows: [] as Button[] };
+      hit.input!.cursor = 'pointer';
+      hit.on('pointerdown', () => close());
+      const label = addText(scene, 0, y, 16).setOrigin(0.5);
+      return { row, label, value: null, arrows: [], hit };
     }
     const label = addText(scene, -210, y, 17).setOrigin(0, 0.5);
     const value = addText(scene, 120, y, 17).setOrigin(0.5);
     const arrows = ([-1, 1] as const).map((delta) =>
-      addButton(scene, 120 + delta * 90, y, () => change(row, delta), { size: 18, onHover: () => focus(index) }).setLabel(delta < 0 ? '‹' : '›'),
+      addButton(scene, 120 + delta * 90, y, () => change(row, delta), { size: 18, onHover: () => focus(index, false) }).setLabel(delta < 0 ? '‹' : '›'),
     );
-    // La fila entera responde al mouse: pasar por encima la elige.
-    const hit = scene.add.rectangle(0, y, 460, 44, 0xffffff, 0.001).setInteractive();
-    hit.on('pointerover', () => focus(index));
-    return { row, label, value, back: null, arrows, hit };
+    return { row, label, value, arrows, hit };
   });
   box.add([panel, focusBar, title]);
   for (const r of rows) {
-    if ('hit' in r && r.hit) box.add(r.hit);
-    box.add([r.label, r.value, r.back?.text, ...r.arrows.map((a) => a.text)].filter((o): o is Phaser.GameObjects.Text => !!o));
+    box.add(r.hit);
+    box.add([r.label, r.value, ...r.arrows.map((a) => a.text)].filter((o): o is Phaser.GameObjects.Text => !!o));
   }
   layer.add([shade, box]);
   popIn(scene, box);
@@ -68,19 +73,22 @@ export function openSettings(scene: Phaser.Scene, store: SaveStore, onClose: (ch
     };
     rows.forEach((r, i) => {
       const focused = i === cursor;
-      if (r.back) r.back.setLabel(t('menu.settings.back')).setFocused(focused);
+      if (r.row === 'back') r.label.setText(t('menu.settings.back')).setColor(focused ? COLOR.focus : COLOR.text);
       else {
         const [label, value] = labels[r.row as Exclude<Row, 'back'>];
         r.label!.setText(label).setColor(focused ? COLOR.focus : COLOR.text);
         r.value!.setText(value).setColor(focused ? COLOR.focus : COLOR.text);
       }
     });
-    focusBar.setY(ROW_Y(cursor));
   };
-  const focus = (index: number) => {
-    if (index === cursor) return;
-    audio.sfx('hover');
+  const focus = (index: number, sound = true) => {
+    if (closed || index === cursor) return;
+    // Las flechas ya reproducen su propio hover: no duplicarlo al cambiar de fila.
+    if (sound) audio.sfx('hover');
     cursor = index;
+    scene.tweens.killTweensOf(focusBar);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) focusBar.setY(ROW_Y(index));
+    else scene.tweens.add({ targets: focusBar, y: ROW_Y(index), duration: 140, ease: 'Cubic.Out' });
     render();
   };
   const save = () => {

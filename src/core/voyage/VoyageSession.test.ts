@@ -12,6 +12,7 @@ import type { GameState } from '../state/types';
 import { isWalkable, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot } from '../habitat/layout';
 import type { VoyageContent } from './types';
 import type { HabitatInput as VoyageInput } from '../habitat/HabitatSession';
+import { CHORE_RULES, SLEEP_RULES } from '../habitat/HabitatSession';
 import { VoyageSession } from './VoyageSession';
 
 const H = 3_600_000;
@@ -474,9 +475,10 @@ describe('enfermería y lista de pendientes', () => {
     expect(session.canSleep('command')).toBe(false);
     expect(session.sleep('infirmary')).toBe(true);
     expect(session.asleep).toBe(true);
-    const day = session.simDate.slice(0, 10);
     runUntil(session, () => !session.asleep, { activeZone: 'infirmary', interacting: false }, 1 / 30);
-    expect(session.simDate.slice(0, 10)).not.toBe(day);
+    // Se levanta a la mañana (SLEEP_RULES.wakeHour), con el descanso completo.
+    expect(hoursSince(session)).toBeGreaterThanOrEqual(SLEEP_RULES.wakeHour);
+    expect(hoursSince(session)).toBeLessThan(SLEEP_RULES.wakeHour + 2);
     expect(session.state.crew.find((m) => m.id === session.state.activeCrewId)!.fatigue).toBeLessThan(0.8);
   });
 });
@@ -509,15 +511,14 @@ describe('dificultad de las tareas', () => {
 });
 
 describe('más tareas después de cada tormenta y misión suspendida', () => {
-  const tasks = (s: VoyageSession) => s.snapshot().todo.filter((i) => i.kind === 'task').length;
-
-  it('cada tormenta vivida suma una tarea del día', () => {
+  it('cada tormenta vivida deja aparecer una tarea más a la vez', () => {
     const { session } = voyage({ length: 'long' }, { timeline: storm });
+    const cap = () => (session as unknown as { choreCap(): number }).choreCap();
     session.update(0.05, STILL);
-    const before = tasks(session);
+    expect(cap()).toBe(CHORE_RULES.baseActive);
     runUntil(session, () => session.level === 'impact', STILL, 0.05);
     session.update(0.05, STILL);
-    expect(tasks(session)).toBe(before + 1);
+    expect(cap()).toBe(CHORE_RULES.baseActive + CHORE_RULES.perStorm);
   });
 
   it('si un tripulante queda sin salud, la misión se suspende (se puede perder)', () => {
@@ -539,5 +540,198 @@ describe('lo que hace cada tripulante automático', () => {
     expect(working.length).toBeGreaterThan(0);
     for (const m of working) expect(session.activityOf(m.id)).toBe(m.location);
     expect(session.activityOf(session.state.activeCrewId)).toBeNull();
+  });
+});
+
+describe('dormir es siempre una acción del jugador', () => {
+  const IN_BED: VoyageInput = { activeZone: 'infirmary', interacting: false };
+
+  it('con avance rápido y sin tareas también se puede dormir; al despertar vuelve el ritmo de antes', () => {
+    const { session } = voyage({}, { content: { ...CONTENT, tasks: [] } });
+    session.update(0.01, IN_BED);
+    expect(session.manual).toBe(false);
+    expect(session.sleep('infirmary')).toBe(true);
+    expect(session.asleep).toBe(true);
+    runUntil(session, () => !session.asleep, IN_BED, 1 / 60);
+    expect(session.asleep).toBe(false);
+    expect(session.manual).toBe(false);
+    expect(hoursSince(session)).toBeGreaterThanOrEqual(SLEEP_RULES.wakeHour);
+  });
+
+  it('no se duerme solo: sin tareas el reloj corre rápido, pero nadie queda dormido', () => {
+    const { session } = voyage({ length: 'long' }, { content: { ...CONTENT, tasks: [] } });
+    runUntil(session, () => hoursSince(session) >= 12, IN_BED);
+    expect(session.idle).toBe(true);
+    expect(session.asleep).toBe(false);
+    expect(session.snapshot()).toMatchObject({ asleep: false, manual: true });
+  });
+
+  it('el jugador se despierta cuando quiere, sin el descanso completo', () => {
+    const tired = makeGameState().crew.map((m) => ({ ...m, fatigue: 0.8 }));
+    const { session } = voyage({ length: 'long', crew: tired });
+    session.sleep('infirmary');
+    session.update(1 / 60, IN_BED);
+    expect(session.wakeUp()).toBe(true);
+    expect(session.asleep).toBe(false);
+    expect(hoursSince(session)).toBeLessThan(SLEEP_RULES.restHours);
+    expect(member(session, 'vega').fatigue).toBeGreaterThan(0.5);
+    expect(session.wakeUp()).toBe(false);
+  });
+
+  it('una alerta lo despierta sola', () => {
+    const { session } = voyage({ length: 'long', simDate: at(7) }, { timeline: storm });
+    expect(session.sleep('infirmary')).toBe(true);
+    runUntil(session, () => !session.asleep, IN_BED, 1 / 60);
+    expect(session.level).toBe('alert');
+    expect(hoursSince(session)).toBeLessThan(11);
+    expect(session.sleepBlockedKey()).not.toBeNull();
+  });
+
+  it('al dormir, las tareas pendientes del día se cancelan sin efecto', () => {
+    const play = (withChore: boolean) => {
+      const { session } = voyage({ length: 'long' });
+      session.update(0.01, IN_BED);
+      if (withChore) (session as unknown as { chores: unknown[] }).chores.push({ taskId: 'navigate', sinceMs: Date.parse(session.simDate), workedHours: 0 });
+      const before = session.snapshot().todo.filter((i) => i.kind === 'task');
+      session.sleep('infirmary');
+      runUntil(session, () => !session.asleep, IN_BED, 1 / 60);
+      return { session, before };
+    };
+    const { session, before } = play(true);
+    expect(before).toContainEqual(expect.objectContaining({ taskId: 'navigate' }));
+    expect(session.snapshot().todo.filter((i) => i.kind === 'task')).toEqual([]);
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'hud.log.tasksCancelled', data: { count: 1 } }));
+    expect(session.state.history.some((e) => e.key === 'hud.log.taskMissed')).toBe(false);
+    // Ni premio ni castigo: la tripulación queda igual que si la tarea nunca hubiera aparecido.
+    expect(session.state.crew).toEqual(play(false).session.state.crew);
+    expect(session.state.meters).toEqual(play(false).session.state.meters);
+  });
+});
+
+describe('después de la tormenta', () => {
+  it('pasada una hora sin otra alerta, ningún automático sigue en el refugio', () => {
+    const { session } = voyage({ length: 'long' }, { timeline: storm });
+    runUntil(session, () => session.level === 'alert');
+    session.respond(session.pendingDecisions()[0]!.incident.id, 'goToShelter');
+    const input: VoyageInput = { activeZone: 'shelter', interacting: false };
+    runUntil(session, () => session.state.crew.every((m) => m.location === 'shelter'), input, 0.1);
+    expect(session.state.crew.every((m) => m.location === 'shelter')).toBe(true);
+    // La tormenta termina a las 40 h (ya en avance rápido).
+    runUntil(session, () => hoursSince(session) >= 41, input, 0.05);
+    expect(session.level).toBe('calm');
+    const autos = session.state.crew.filter((m) => m.id !== session.state.activeCrewId);
+    expect(autos.filter((m) => m.location === 'shelter')).toEqual([]);
+    for (const m of autos) expect(zoneAt(SHIP_LAYOUT, session.positionOf(m.id))).not.toBe('shelter');
+  });
+});
+
+describe('tareas que aparecen al azar (con motivo)', () => {
+  const chores = (s: VoyageSession) => s.snapshot().todo.flatMap((i) => (i.kind === 'task' && i.chore ? [i] : []));
+
+  it('aparecen durante la jornada, pocas a la vez y separadas entre sí', () => {
+    const { session } = voyage({ length: 'long' });
+    const seen = new Map<string, number>();
+    let most = 0;
+    runUntil(session, () => {
+      const now = chores(session);
+      most = Math.max(most, now.length);
+      for (const c of now) if (!seen.has(c.taskId)) seen.set(c.taskId, hoursSince(session));
+      return hoursSince(session) >= 24;
+    }, STILL, 0.05);
+    expect(seen.size).toBeGreaterThanOrEqual(2);
+    expect(most).toBeLessThanOrEqual(CHORE_RULES.baseActive);
+    const times = [...seen.values()].sort((a, b) => a - b);
+    for (let i = 1; i < times.length; i++) expect(times[i]! - times[i - 1]!).toBeGreaterThanOrEqual(CHORE_RULES.minGapHours - 0.05);
+  });
+
+  it('con la misma semilla aparecen las mismas, a la misma hora', () => {
+    const log = () => {
+      const { session } = voyage({ length: 'long' });
+      const out: string[] = [];
+      runUntil(session, () => {
+        for (const c of chores(session)) if (!out.some((x) => x.startsWith(c.taskId))) out.push(`${c.taskId}@${session.simDate}`);
+        return hoursSince(session) >= 24;
+      }, STILL, 0.05);
+      return out;
+    };
+    expect(log()).toEqual(log());
+  });
+
+  it('los automáticos las hacen solos, pero recién después de la demora', () => {
+    const { session } = voyage({ length: 'long' });
+    runUntil(session, () => chores(session).length > 0, STILL, 0.05);
+    const first = chores(session)[0]!;
+    const since = hoursSince(session);
+    expect(first.chore).toMatchObject({ hoursLeft: expect.closeTo(CHORE_RULES.autoDelayHours, 1) });
+    let helperAt: number | null = null;
+    runUntil(session, () => {
+      const c = chores(session).find((x) => x.taskId === first.taskId);
+      if (c?.chore?.helper && helperAt === null) helperAt = hoursSince(session);
+      return !c;
+    }, STILL, 0.05);
+    expect(helperAt).not.toBeNull();
+    expect(helperAt! - since).toBeGreaterThanOrEqual(CHORE_RULES.autoDelayHours - 0.05);
+    // La hizo un automático: queda hecha por hoy y nadie pierde ánimo.
+    expect(session.taskAt(first.zone)).toMatchObject({ upToDate: true });
+    expect(session.state.history.some((e) => e.key === 'hud.log.taskMissed')).toBe(false);
+  });
+
+  it('el jugador puede hacerla antes y se la saca de encima', () => {
+    const { session } = voyage({ length: 'long' });
+    runUntil(session, () => chores(session).length > 0, STILL, 0.05);
+    const first = chores(session)[0]!;
+    expect(session.finishTask(first.zone)).toBe(true);
+    expect(chores(session).some((c) => c.taskId === first.taskId)).toBe(false);
+  });
+
+  it('si nadie puede hacerla a tiempo, baja un poco el ánimo y queda anotada', () => {
+    const { session } = voyage({ length: 'long' });
+    session.update(0.01, STILL);
+    const inner = session as unknown as { chores: unknown[]; sheltering: Set<string> };
+    // Nadie libre para tomarla.
+    for (const m of session.state.crew) inner.sheltering.add(m.id);
+    inner.chores.push({ taskId: 'navigate', sinceMs: Date.parse(session.simDate) - (CHORE_RULES.expireHours + 1) * H, workedHours: 0 });
+    const morale = member(session, 'senda').morale;
+    session.update(0.05, STILL);
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'hud.log.taskMissed', data: { taskId: 'navigate' } }));
+    expect(member(session, 'senda').morale).toBeLessThan(morale);
+  });
+});
+
+describe('tormenta de radiación: qué se gana y qué se arriesga', () => {
+  it('antes de decidir se sabe cuántas veces más dosis se recibe fuera del refugio', () => {
+    const { session } = voyage({}, { timeline: storm });
+    expect(session.stormInfo()).toBeNull();
+    runUntil(session, () => session.level === 'alert');
+    // Refugio con el escudo de agua lleno (0,2) contra el resto de la nave (0,6).
+    expect(session.stormInfo()).toMatchObject({ incidentId: 'storm-test', active: false, doseFactor: 3, responseId: null, exposed: [], extraXrays: 0 });
+    expect(session.snapshot().storm?.doseFactor).toBe(3);
+  });
+
+  it('con menos agua en el escudo, el refugio protege menos', () => {
+    const { session } = voyage({ waterShield: 0 }, { timeline: storm });
+    runUntil(session, () => session.level === 'alert');
+    expect(session.stormInfo()!.doseFactor).toBe(1);
+  });
+
+  it('seguir trabajando deja a todos expuestos y la dosis de más queda anotada', () => {
+    const { session } = voyage({}, { timeline: storm });
+    runUntil(session, () => session.level === 'alert');
+    session.respond(session.pendingDecisions()[0]!.incident.id, 'keepWorking');
+    runUntil(session, () => !!session.stormInfo()?.active, { activeZone: 'command', interacting: false });
+    expect(session.stormInfo()!.exposed).toHaveLength(4);
+    runUntil(session, () => hoursSince(session) >= 38, { activeZone: 'command', interacting: false }, 0.01);
+    expect(session.stormInfo()!.extraXrays).toBeGreaterThan(1);
+    expect(session.state.history.filter((e) => e.key === 'hud.log.stormDose')).toHaveLength(1);
+  });
+
+  it('en el refugio nadie queda expuesto ni recibe dosis de más', () => {
+    const { session } = voyage({}, { timeline: storm });
+    runUntil(session, () => session.level === 'alert');
+    session.respond(session.pendingDecisions()[0]!.incident.id, 'goToShelter');
+    runUntil(session, () => hoursSince(session) >= 38, { activeZone: 'shelter', interacting: false }, 0.01);
+    expect(session.stormInfo()).toMatchObject({ active: true, exposed: [], responseId: 'goToShelter' });
+    expect(session.stormInfo()!.extraXrays).toBeLessThan(1);
+    expect(session.state.history.some((e) => e.key === 'hud.log.stormDose')).toBe(false);
   });
 });

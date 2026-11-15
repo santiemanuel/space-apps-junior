@@ -50,8 +50,10 @@ function playManeuver(id: ManeuverId, state: GameState, bus: EventBus<GameEvents
  * con orden de refugio, lleva a su tripulante al refugio. En el embarque de Marte va al depósito, carga y la lleva a
  * la nave. Devuelve cuando la fase emite `phase:completed`.
  */
-function playHabitat(session: HabitatSession, shelterZone: string): void {
+function playHabitat(session: HabitatSession, shelterZone: string): number {
+  let seconds = 0;
   for (let i = 0; i < MAX_STEPS && !session.outcome; i++) {
+    if (!session.departing) seconds += DT;
     for (const d of session.pendingDecisions()) {
       const option = d.options.find((o) => o.available && o.response.risk === 'green') ?? d.options.find((o) => o.available);
       if (option) session.respond(d.incident.id, option.response.id);
@@ -64,6 +66,8 @@ function playHabitat(session: HabitatSession, shelterZone: string): void {
     if (departing) session.doAction(zone);
   }
   if (!session.outcome) throw new Error(`la fase ${session.phase} no terminó`);
+  // Segundos reales de la fase, sin contar el embarque final.
+  return seconds;
 }
 
 function voyage(state: GameState, bus: EventBus<GameEvents>, leg: 'out' | 'back'): VoyageSession {
@@ -103,6 +107,7 @@ function playMission(seed: number) {
   bus.on('phase:progress', (s) => flow.progress(s));
   bus.on('realEvent:shown', (e) => flow.recordRealEvent(e));
 
+  let marsSeconds = 0;
   while (flow.step.kind !== 'report' && steps.length < 20) {
     const step = flow.step;
     const state = flow.state;
@@ -114,14 +119,19 @@ function playMission(seed: number) {
     }
     else if (step.kind === 'maneuver') results.push(playManeuver(step.maneuverId, state, bus));
     else if (step.kind === 'voyage') playHabitat(voyage(state, bus, step.leg), VOYAGE_CONTENT.shelterZone);
-    else playHabitat(mars(state, bus), MARS_CONTENT.shelterZone);
+    else marsSeconds = playHabitat(mars(state, bus), MARS_CONTENT.shelterZone);
     steps.push(flow.complete(results.at(-1)!)!);
   }
-  return { flow, steps, final: flow.state };
+  return { flow, steps, final: flow.state, marsSeconds };
 }
 
 describe('partida completa (campaña 2024, modo corto, semilla fija)', () => {
-  const { flow, steps, final } = playMission(2024);
+  const { flow, steps, final, marsSeconds } = playMission(2024);
+
+  it('la estancia en Gale (20 soles) dura entre 10 y 12 minutos reales', () => {
+    expect(marsSeconds / 60).toBeGreaterThanOrEqual(10);
+    expect(marsSeconds / 60).toBeLessThanOrEqual(12);
+  });
 
   it('recorre las 7 fases en orden hasta el informe, con la tripulación de vuelta', () => {
     expect(steps).toEqual([

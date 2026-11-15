@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CARGO_GRID, RETURN_RULES } from '../../../content/loadouts';
+import { METER_RULES } from '../../../content/meters';
 import {
   autoPack, cargoItems, cargoTotals, footprint, gridReturnResult, itemAt, placeError, removeItem, totalsAsCargo,
   type CargoItem, type CargoKind, type PlaceError, type Placement,
@@ -21,6 +22,11 @@ const ROCK = { w: 74, h: 108, y: BASE.y + 160 } as const;
 const ART = { hold: 3, base: 2 } as const;
 const STACK_KINDS: readonly Exclude<CargoKind, 'rock'>[] = ['food', 'water', 'shield', 'spare', 'plant'];
 const SUPPLIES: readonly Exclude<CargoField, 'samples'>[] = ['foodKg', 'waterL', 'shield', 'spares'];
+/** Pieza de la bodega de cada suministro (su dibujo es el ícono del contador). */
+const SUPPLY_KIND: Record<Exclude<CargoField, 'samples'>, Exclude<CargoKind, 'rock' | 'plant'>> = { foodKg: 'food', waterL: 'water', shield: 'shield', spares: 'spare' };
+/** Contadores debajo de la bodega: una fila por recurso, con sus piezas como cuadraditos. */
+const COUNTER = { row: 25, pip: 12, gap: 3, pipsX: 30 } as const;
+const LIGHT_CSS = { green: '#68d391', yellow: '#f6e05e', red: '#fc8181' } as const;
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 /** Una entrada de la base: una pila de piezas iguales (cajas, tanques…) o una roca suelta. */
@@ -318,25 +324,92 @@ export class CargoGridView {
       pulse(scene, text, { scale: 1.04, duration: 140 });
     }
 
-    // Semáforos de lo que conviene llevar, muestras y lugar.
+    // Contadores: de cada recurso, cuántas piezas hay guardadas de las disponibles ("3 de 4"), con su ícono; la raya
+    // marca lo que conviene llevar. Sin leer párrafos se ve cuánto falta de cada cosa.
     const totals = cargoTotals(this.items, this.placements);
     const cargo = totalsAsCargo(totals);
-    const listY = GRID.y + CARGO_GRID.rows * GRID.cell + 14;
+    const right = GRID.x + CARGO_GRID.cols * GRID.cell;
+    add(addText(scene, right, GRID.y - 22, 13, COLOR.muted).setOrigin(1, 0).setText(t('menu.loadout.grid.space', { used: totals.cells, total: CARGO_GRID.cols * CARGO_GRID.rows })));
+    const listY = GRID.y + CARGO_GRID.rows * GRID.cell + 10;
+    const counter = (row: number, texture: string, loaded: number, total: number, recommended: number | null, color: number, css: string, detail: string) => {
+      const y = listY + row * COUNTER.row;
+      const icon = add(scene.add.image(GRID.x + 11, y + 10, texture));
+      icon.setScale(Math.min(20 / icon.width, 20 / icon.height));
+      for (let n = 0; n < total; n++) {
+        const x = GRID.x + COUNTER.pipsX + n * (COUNTER.pip + COUNTER.gap);
+        g.fillStyle(0x05070d).fillRect(x - 1, y + 3, COUNTER.pip + 2, COUNTER.pip + 2);
+        g.fillStyle(n < loaded ? color : 0x2d3748).fillRect(x, y + 4, COUNTER.pip, COUNTER.pip);
+        if (n < loaded) g.fillStyle(0xffffff, 0.35).fillRect(x, y + 4, COUNTER.pip, 3);
+      }
+      // Raya de "conviene llevar hasta acá".
+      if (recommended !== null && recommended > 0 && recommended <= total) {
+        const x = GRID.x + COUNTER.pipsX + recommended * (COUNTER.pip + COUNTER.gap) - 2;
+        g.fillStyle(0xfbd38d).fillRect(x, y + 1, 2, COUNTER.pip + 6);
+      }
+      const after = GRID.x + COUNTER.pipsX + Math.max(total, 1) * (COUNTER.pip + COUNTER.gap) + 6;
+      label(after, y + 2, 13, css, t('menu.loadout.grid.count', { loaded, total }));
+      add(addText(scene, right, y + 3, 12, css).setOrigin(1, 0).setText(detail));
+    };
+    const crewCount = this.data.state.crew.length || 1;
+    const waterPerDay = METER_RULES.lifeSupport.waterLPerCrewDay * crewCount * (1 - METER_RULES.lifeSupport.recyclingByStatus.green);
+    const foodPerDay = METER_RULES.food.foodKgPerCrewDay * crewCount;
+    // Con el reciclador sano el agua rinde muchísimo: pasado el viaje de vuelta, alcanza con decir "más de 150".
+    const days = (value: number) => (value > 150 ? '+150' : String(Math.floor(value)));
+    // Para qué sirve cada cosa: la comida y el agua de beber, en días; el escudo, en protección contra la radiación.
+    const purpose: Record<Exclude<CargoField, 'samples'>, string> = {
+      foodKg: t('menu.loadout.grid.foodDays', { days: days(cargo.foodKg / foodPerDay) }),
+      waterL: t('menu.loadout.grid.drinkDays', { days: days(cargo.waterL / waterPerDay) }),
+      shield: t('menu.loadout.grid.protection', { percent: formatNumber(cargo.shield * 100, undefined, 0) }),
+      spares: t('menu.loadout.grid.repairs', { count: cargo.spares }),
+    };
     SUPPLIES.forEach((field, i) => {
-      const y = listY + i * 22;
-      add(scene.add.circle(GRID.x + 8, y + 9, 7, LIGHT_COLOR[supplyLight(cargo, field, RETURN_RULES)]));
-      label(GRID.x + 24, y, 14, COLOR.text, `${t(`menu.loadout.return.${field}`)}: ${this.amount(field, cargo[field])}`);
-      add(addText(scene, GRID.x + CARGO_GRID.cols * GRID.cell, y + 2, 12, COLOR.dim).setOrigin(1, 0).setText(t('menu.loadout.return.recommended', { amount: this.amount(field, RETURN_RULES.recommended[field]) })));
+      const kind = SUPPLY_KIND[field];
+      const pieces = this.items.filter((item) => item.kind === kind);
+      const loaded = pieces.filter((item) => this.placed(item)).length;
+      const light = supplyLight(cargo, field, RETURN_RULES);
+      const recommended = kind === 'spare' ? RETURN_RULES.recommended.spares : CARGO_GRID.pieces[kind];
+      counter(i, CargoTextures[kind], loaded, pieces.length, recommended, LIGHT_COLOR[light], LIGHT_CSS[light], purpose[field]);
     });
-    const samples = this.items.filter((i) => i.sample).length;
-    label(GRID.x, listY + 92, 14, COLOR.focus, samples ? `${t('menu.loadout.return.samples')}: ${t('menu.loadout.return.samplesDetail', { count: totals.samples.length, total: samples, value: formatNumber(totals.value) })}` : t('menu.loadout.return.noSamples'));
-    label(GRID.x, listY + 114, 13, COLOR.muted, t('menu.loadout.grid.space', { used: totals.cells, total: CARGO_GRID.cols * CARGO_GRID.rows }));
+    const rocks = this.items.filter((item) => item.sample);
+    if (rocks.length) counter(4, CargoTextures.rock(1, 1), totals.samples.length, rocks.length, null, 0xf6ad55, COLOR.focus, t('menu.loadout.grid.value', { value: formatNumber(totals.value) }));
+    else label(GRID.x, listY + 4 * COUNTER.row + 2, 13, COLOR.dim, t('menu.loadout.return.noSamples'));
+
+    // El agua de la base es una sola: la barra muestra cuánta va a beber (gota), cuánta al escudo y cuánta queda.
+    const poolY = listY + 5 * COUNTER.row + 4;
+    const shieldL = cargo.shield * RETURN_RULES.shieldFullL;
+    const pool = Math.max(this.waterPoolL, cargo.waterL + shieldL, 1);
+    const barX = GRID.x + 122;
+    const barW = right - barX;
+    label(GRID.x, poolY, 12, COLOR.muted, t('menu.loadout.grid.pool'));
+    g.fillStyle(0x05070d).fillRect(barX - 2, poolY - 1, barW + 4, 16);
+    g.fillStyle(0x2d3748).fillRect(barX, poolY + 1, barW, 12);
+    const drinkW = Math.round((barW * cargo.waterL) / pool);
+    const shieldW = Math.round((barW * shieldL) / pool);
+    g.fillStyle(0x4299e1).fillRect(barX, poolY + 1, drinkW, 12);
+    g.fillStyle(0xecc94b).fillRect(barX + drinkW, poolY + 1, shieldW, 12);
+    const legend = (x: number, color: string, text: string) => add(addText(scene, x, poolY + 16, 11, color).setText(text));
+    legend(barX, '#63b3ed', `■ ${t('menu.loadout.grid.poolDrink')}`);
+    legend(barX + 84, '#f6e05e', `■ ${t('menu.loadout.grid.poolShield')}`);
+    legend(barX + 168, COLOR.dim, `■ ${t('menu.loadout.grid.poolLeft', { amount: this.amount('waterL', Math.max(0, pool - cargo.waterL - shieldL)) })}`);
 
     const button = (x: number, key: 'auto' | 'clear', action: () => void) =>
       add(addButton(scene, x, 640, () => { action(); this.render(); }, { size: 15 }).setLabel(t(`menu.loadout.grid.${key}`)).text);
     button(BASE.x + 130, 'auto', () => this.auto());
     button(BASE.x + 380, 'clear', () => this.clear());
-    add(addButton(scene, GRID.x + (CARGO_GRID.cols * GRID.cell) / 2, 640, () => { this.launch(); if (!this.done) this.render(); }, { size: 20 }).setLabel(t('menu.loadout.return.confirm')).setEnabled(!this.hand).setFocused(!this.hand).text);
+    // El botón avisa el riesgo: si falta algo, pasa a "Aceptar riesgos" (amarillo si falta poco, rojo si falta mucho)
+    // con la lista corta de lo que falta; con todo en verde, vuelve al texto y al color de siempre.
+    const short = SUPPLIES.filter((field) => supplyLight(cargo, field, RETURN_RULES) !== 'green');
+    const grave = short.some((field) => supplyLight(cargo, field, RETURN_RULES) === 'red');
+    const confirm = addButton(scene, GRID.x + (CARGO_GRID.cols * GRID.cell) / 2, 654, () => { this.launch(); if (!this.done) this.render(); }, { size: 19 })
+      .setLabel(t(short.length ? 'menu.loadout.return.acceptRisks' : 'menu.loadout.return.confirm'))
+      .setEnabled(!this.hand)
+      .setFocused(!this.hand);
+    if (short.length && !this.hand) confirm.text.setBackgroundColor(grave ? '#e53e3e' : '#ecc94b').setColor(grave ? '#fff5f5' : '#1a202c');
+    add(confirm.text);
+    if (short.length)
+      add(addText(scene, GRID.x + (CARGO_GRID.cols * GRID.cell) / 2, 616, 12, grave ? LIGHT_CSS.red : LIGHT_CSS.yellow, { align: 'center', wordWrap: { width: CARGO_GRID.cols * GRID.cell } })
+        .setOrigin(0.5, 0)
+        .setText(t('menu.loadout.return.missing', { list: short.map((field) => t(`menu.loadout.return.${field}`)).join(', ') })));
   }
 
   private amount(field: Exclude<CargoField, 'samples'>, value: number): string {

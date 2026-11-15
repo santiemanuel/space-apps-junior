@@ -125,7 +125,8 @@ export const simulationDevData: DevDataBuilders = {
     continueFlow(base.bus, played);
     return { ...base, ...viewOf(params), state: played };
   },
-  // Superpuestas: necesitan el bus de la simulación de una escena de mapa (P, C y G desde Voyage o Mars).
+  // Superpuestas: necesitan el bus de la simulación de una escena de mapa (C y G desde Voyage o Mars). `Planning` ya
+  // no existe (la reemplazó la consola de recursos); su clave sigue en `sceneKeys.ts`, que está congelado.
   Hud: null,
   Planning: null,
   MissionControl: null,

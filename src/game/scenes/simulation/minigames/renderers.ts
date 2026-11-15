@@ -1,6 +1,7 @@
 import type { BikeGame, MoxieGame, PulseGame, RadioGame, ScrubberGame } from '../../../../core/minigames/arcade';
 import type { Minigame, MinigameId } from '../../../../core/minigames/Minigame';
 import type { PatchGame, StarsGame, WaterGame } from '../../../../core/minigames/puzzles';
+import { DUST_LAYERS, type DustGame, type NightGame } from '../../../../core/minigames/outpost';
 import { FUSE_TYPES, type FusesGame, type WireColor, type WiresGame } from '../../../../core/minigames/power';
 import { SIDE } from '../../../../core/minigames/puzzles';
 import { PLANT_TOOLS, type MealGame, type PlantsGame, type SealsGame, type ShieldGame, HarvestGame } from '../../../../core/minigames/rooms';
@@ -623,6 +624,88 @@ const wires: Renderer<WiresGame> = (p, game, a, now) => {
   }
 };
 
+const dust: Renderer<DustGame> = (p, game, a, now) => {
+  // Los paneles solares vistos de frente, sobre el suelo de Gale: cuanto más polvo, más apagados.
+  const cw = Math.min(150, (a.w - 220) / game.cols);
+  const ch = Math.min(130, (a.h - 60) / game.rows);
+  const gx = a.x + 30;
+  const gy = a.y + (a.h - ch * game.rows) / 2;
+  p.g.fillStyle(0x8a4a2a).fillRect(a.x, gy + ch * game.rows + 4, a.w - 190, 10);
+  game.panels.forEach((layers, i) => {
+    const x = gx + (i % game.cols) * cw + 8;
+    const y = gy + Math.floor(i / game.cols) * ch + 8;
+    const [w, h] = [cw - 16, ch - 16];
+    p.g.fillStyle(EDGE).fillRect(x - 3, y - 3, w + 6, h + 6);
+    p.g.fillStyle(METAL_LIGHT).fillRect(x - 1, y - 1, w + 2, h + 2);
+    p.g.fillStyle(0x1e3a8a).fillRect(x, y, w, h);
+    p.g.fillStyle(0x3b82f6);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 3; r++) p.g.fillRect(x + 4 + (c * (w - 4)) / 4, y + 4 + (r * (h - 4)) / 3, (w - 4) / 4 - 4, (h - 4) / 3 - 4);
+    p.g.fillStyle(0xffffff, 0.25).fillRect(x + 4, y + 4, w - 8, 4);
+    if (layers > 0) {
+      // Polvo: una capa de color arena por cada pasada que falta, con motas.
+      p.g.fillStyle(0xc98a55, 0.28 * layers).fillRect(x, y, w, h);
+      for (let k = 0; k < layers * 9; k++) p.g.fillStyle(0xe2b07a, 0.8).fillRect(x + 4 + noise(i, k) * (w - 12), y + 4 + noise(k, i + 3) * (h - 12), 4, 4);
+      for (let k = 0; k < DUST_LAYERS; k++) p.g.fillStyle(k < layers ? 0xf6ad55 : 0x2d3748).fillRect(x + w / 2 - 20 + k * 14, y + h + 4, 10, 4);
+    }
+    // Brillo de un panel recién cepillado.
+    if (game.wiped?.index === i && game.elapsed - game.wiped.at < 0.35) {
+      const k = (game.elapsed - game.wiped.at) / 0.35;
+      p.top.fillStyle(0xffffff, 0.5 * (1 - k)).fillRect(x + w * k - 10, y, 20, h);
+    }
+  });
+  const cx = gx + game.cursor.col * cw + 4;
+  const cy = gy + game.cursor.row * ch + 4;
+  cursor(p, cx, cy, cw - 8, ch - 8, now);
+  p.image('brush', cx + cw - 30, cy + ch - 34 + Math.sin(now / 160) * 3, { scale: 1.5 });
+  // A la derecha, lo que dan los paneles: sube al limpiar.
+  const rx = a.x + a.w - 170;
+  screen(p, rx, a.y + 20, 140, a.h - 40, 0x0b1020);
+  p.text(tr('hud.minigame.dust.power'), rx + 70, a.y + 30, { size: 13, color: '#90cdf4', originX: 0.5 });
+  const bh = a.h - 130;
+  const fill = 0.55 + 0.45 * game.progress;
+  p.g.fillStyle(0x2d3748).fillRect(rx + 50, a.y + 60, 40, bh);
+  p.g.fillStyle(game.progress >= 1 ? GREEN : AMBER).fillRect(rx + 50, a.y + 60 + bh * (1 - fill), 40, bh * fill);
+  p.text(`${Math.round(fill * 100)} %`, rx + 70, a.y + a.h - 58, { size: 16, color: '#f7fafc', originX: 0.5 });
+};
+
+const night: Renderer<NightGame> = (p, game, a, now) => {
+  // Tablero de llaves: cada sistema con su palanca; los de soporte vital llevan un corazón (no se apagan).
+  const rows = game.switches.length;
+  const rh = Math.min(54, (a.h - 30) / rows);
+  const top = a.y + (a.h - rh * rows) / 2;
+  const lx = a.x + 40;
+  const w = a.w - 280;
+  screen(p, lx - 12, top - 10, w + 24, rh * rows + 20, 0x1a2036);
+  game.switches.forEach((sw, i) => {
+    const y = top + i * rh;
+    const cy = y + rh / 2;
+    p.g.fillStyle(i % 2 ? 0x1f2740 : 0x232c48).fillRect(lx, y + 2, w, rh - 4);
+    p.text(sw.essential ? '♥' : '·', lx + 12, cy, { size: 20, color: sw.essential ? '#fc8181' : '#718096', originY: 0.5 });
+    p.text(tr(`hud.minigame.night.load.${sw.id}`), lx + 40, cy, { size: 15, color: sw.on ? '#f7fafc' : '#718096', originY: 0.5 });
+    if (sw.essential) p.text(tr('hud.minigame.night.keep'), lx + w - 150, cy, { size: 11, color: '#fc8181', originX: 1, originY: 0.5 });
+    // Palanca: arriba y con luz verde si está encendido; abajo y apagada si no.
+    const sx = lx + w - 90;
+    p.g.fillStyle(EDGE).fillRect(sx - 2, cy - 16, 64, 32);
+    p.g.fillStyle(0x0b1020).fillRect(sx, cy - 14, 60, 28);
+    p.g.fillStyle(sw.on ? GREEN : 0x4a5568).fillRect(sw.on ? sx + 32 : sx + 2, cy - 12, 26, 24);
+    p.g.fillStyle(0xffffff, 0.3).fillRect(sw.on ? sx + 32 : sx + 2, cy - 12, 26, 4);
+    p.g.fillStyle(sw.on ? 0xf6e05e : 0x2d3748).fillCircle(sx + 82, cy, 7);
+  });
+  cursor(p, lx - 4, top + game.cursor.row * rh, w + 8, rh, now);
+  // A la derecha: la batería de la noche; cuanto más se apaga, más dura.
+  const rx = a.x + a.w - 190;
+  screen(p, rx, a.y + 20, 160, a.h - 40, 0x0b1020);
+  p.text('☾', rx + 80, a.y + 30, { size: 30, color: '#cbd5e0', originX: 0.5 });
+  p.text(tr('hud.minigame.night.battery'), rx + 80, a.y + 72, { size: 13, color: '#90cdf4', originX: 0.5, wrap: 150, align: 'center' });
+  const bx = rx + 50;
+  const by = a.y + 118;
+  const bh = a.h - 190;
+  p.g.fillStyle(METAL_LIGHT).fillRect(bx + 18, by - 8, 24, 8).fillRect(bx - 3, by - 3, 66, bh + 6);
+  p.g.fillStyle(0x0b1020).fillRect(bx, by, 60, bh);
+  const fill = 0.4 + 0.6 * game.progress;
+  p.g.fillStyle(game.progress >= 1 ? GREEN : AMBER).fillRect(bx + 4, by + 4 + (bh - 8) * (1 - fill), 52, (bh - 8) * fill);
+};
+
 const RENDERERS: Record<MinigameId, Renderer<never>> = {
   bike,
   scrubber,
@@ -639,6 +722,8 @@ const RENDERERS: Record<MinigameId, Renderer<never>> = {
   patch,
   fuses,
   wires,
+  dust,
+  night,
 } as Record<MinigameId, Renderer<never>>;
 
 /** Dibuja el minijuego en su zona. */
@@ -663,4 +748,6 @@ export const MINIGAME_ICON: Record<MinigameId, string> = {
   patch: 'patch',
   fuses: 'heater',
   wires: 'filter',
+  dust: 'brush',
+  night: 'heater',
 };

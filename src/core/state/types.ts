@@ -40,8 +40,10 @@ export interface MissionLogEntry {
 export interface HabitatSave {
   planner: IncidentPlannerState;
   cascade: CascadeState;
-  /** Marte: muestras guardadas en el depósito y quién lleva cada una de las que todavía no se guardaron. */
-  mars?: { stored: string[]; carried: Record<string, string> };
+  /** Prioridad elegida en la consola de recursos (si no es la equilibrada). */
+  resourceMode?: string;
+  /** Marte: muestras guardadas en el depósito, quién lleva cada una de las que todavía no se guardaron y el polvo de los paneles. */
+  mars?: { stored: string[]; carried: Record<string, string>; panelDust?: number; nightReadyUntil?: string };
 }
 
 /**

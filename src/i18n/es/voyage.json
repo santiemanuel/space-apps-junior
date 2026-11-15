@@ -26,5 +26,13 @@
   "task.cook": "E: preparar la comida",
   "station.cook": "Comida",
   "task.shield": "E: revisar el refugio",
-  "station.shield": "Escudo"
+  "station.shield": "Escudo",
+  "chore.exercise": "{place}: hay que moverse para no perder fuerza",
+  "chore.scrubber": "El filtro de CO₂ se está saturando",
+  "chore.recycler": "El reciclador de agua pide una revisión",
+  "chore.callHome": "{name} extraña su casa: llamá desde la radio",
+  "chore.navigate": "Hay que revisar el rumbo con las estrellas",
+  "chore.checkup": "Toca el chequeo médico de la tripulación",
+  "chore.cook": "La tripulación tiene hambre: a cocinar",
+  "chore.shield": "El escudo de agua del refugio tiene huecos"
 }

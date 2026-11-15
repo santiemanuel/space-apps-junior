@@ -17,8 +17,11 @@ import { bindCrewSwitch } from '../../input/crewSwitch';
 import { createKeyboardControls, type PlayerControls } from '../../input/PlayerControls';
 import { SceneKeys, type SceneKey } from '../../sceneKeys';
 import type { PhaseSceneData } from '../sceneData';
-import { TOAST_Y, VIEW_WIDTH } from './HudScene';
-import { toggleOverlay, type MapViewData, type MapViewOptions, type SimulationSceneData } from './simulationData';
+import { VIEW_WIDTH } from './HudScene';
+import { MAP_HINT, taskReason, toggleOverlay, type MapViewData, type MapViewOptions, type SimulationSceneData } from './simulationData';
+import { KeyMarker, type MarkerPicture, type MarkerState } from './KeyMarker';
+import { MINIGAME_ITEMS } from './minigames/Painter';
+import { reducedMotion } from '../../ui/ui';
 import { HabitatFx, type HabitatFxOptions, type Walker } from './HabitatFx';
 import { MapLife } from './MapLife';
 import { MINIMAP_FRAME, type MinimapFrame } from './Minimap';
@@ -33,7 +36,6 @@ import { REPAIR_ACTIVITY } from '../../../core/habitat/HabitatSession';
 
 /** Escenas superpuestas que se abren con una tecla desde el mapa. */
 const OVERLAY_KEYS: readonly [string, SceneKey][] = [
-  ['P', SceneKeys.Planning],
   ['C', SceneKeys.MissionControl],
   ['G', SceneKeys.DataPanel],
 ];
@@ -76,8 +78,16 @@ export const toPx = (p: Point) => ({ x: p.x * TILE, y: p.y * TILE });
  */
 /** Tiempo real mínimo entre dos «buenos días» del hábitat (ms). */
 const MORNING_GAP_MS = 20_000;
-/** Segundos entre pasos del jugador al caminar. */
+/** Segundos entre pasos del jugador al caminar (afuera, con el traje, más espaciados). */
 const STEP_S = 0.36;
+const MARS_STEP_S = 0.47;
+/**
+ * Pasos sobre el suelo de Marte: más graves y a la mitad del volumen de antes (arena y polvo apagados, por debajo de
+ * la música y los avisos). Cada paso usa la variante siguiente de este ciclo fijo de [tono, volumen], sin azar.
+ */
+const MARS_STEPS: readonly (readonly [number, number])[] = [[0.72, 0.27], [0.8, 0.22], [0.68, 0.29], [0.77, 0.2], [0.84, 0.25], [0.7, 0.23], [0.79, 0.28]];
+/** A menos de esto (tiles) de la máquina, la cama o la consola, la línea de ayuda dice qué hace la tecla. */
+const NEAR_TILES = 1.9;
 /** Salas con máquinas: su propio ambiente (zumbido de equipos). */
 const EQUIPMENT_ZONES = new Set(['scrubber', 'recycler', 'moxie', 'energy']);
 /** Canales de loop del mapa (se apagan al salir): fuga de aire, tormenta, taladro de muestras y minijuegos. */
@@ -107,17 +117,22 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private labels = new Map<CrewId, Phaser.GameObjects.Text>();
   /** Puntos de estado (en línea, ausente, no molestar, desconectado) junto a los nombres. */
   private presenceDots!: Phaser.GameObjects.Graphics;
-  private stationBars = new Map<string, Phaser.GameObjects.Rectangle>();
-  private stationFrames = new Map<string, Phaser.GameObjects.Rectangle>();
-  /** Cartel y barra de cada estación: se ocultan mientras el jugador está en ese cuarto (ahí ve la ayuda). */
-  private stationParts = new Map<string, Phaser.GameObjects.GameObject[]>();
+  /** Marcador de la tecla E de cada cuarto (pictograma de la tarea y su estado), en vez del texto que seguía al jugador. */
+  private roomMarkers = new Map<string, KeyMarker>();
+  /** Marcadores que no son de un cuarto: el recetario de la cocina, la consola de recursos y la cama (tecla Z). */
+  private recipeMarker: { zone: string; marker: KeyMarker } | null = null;
+  private consoleMarker: KeyMarker | null = null;
+  private bedMarker: KeyMarker | null = null;
+  /** Ícono de radiación sobre cada tripulante expuesto a la tormenta. */
+  private exposedIcons = new Map<CrewId, Phaser.GameObjects.Image>();
+  /** Tareas al azar ya avisadas (null al empezar: no se avisa lo que ya estaba). */
+  private knownChores: Set<string> | null = null;
+  /** Ya se avisó que alguien pasó de una radiografía de más en esta tormenta. */
+  private xrayWarned = false;
   /** Nombre de cada cuarto: se ve sólo mientras el jugador está adentro (el ícono queda siempre). */
   private zoneNames = new Map<string, Phaser.GameObjects.Text>();
   protected markers!: Phaser.GameObjects.Graphics;
   private sim!: EventBus<SimulationEvents>;
-  private prompt!: Phaser.GameObjects.Text;
-  private toast!: Phaser.GameObjects.Text;
-  private toastUntil = 0;
   private ended = false;
   /** Mapa de tiles del lugar y sus efectos. */
   protected mapView: MapView | null = null;
@@ -153,9 +168,13 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.sprites = new Map();
     this.colliders = new Map();
     this.labels = new Map();
-    this.stationBars = new Map();
-    this.stationFrames = new Map();
-    this.stationParts = new Map();
+    this.roomMarkers = new Map();
+    this.recipeMarker = null;
+    this.consoleMarker = null;
+    this.bedMarker = null;
+    this.exposedIcons = new Map();
+    this.knownChores = null;
+    this.xrayWarned = false;
     this.zoneNames = new Map();
     this.ended = false;
     this.mapView = null;
@@ -173,7 +192,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     return (this.sceneData as D & MapViewData).view ?? {};
   }
 
-  /** Deja un objeto fijo en la pantalla, a su tamaño, aunque la cámara tenga zoom. */
+  /** Deja un texto fijo en la pantalla, a su tamaño, aunque la cámara tenga zoom. */
   private pin<T extends Phaser.GameObjects.Text>(object: T, x: number, y: number): T {
     const zoom = this.cameras.main.zoom;
     const cx = VIEW_WIDTH / 2;
@@ -262,22 +281,11 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       this.sprites.set(m.id, sprite);
       this.colliders.set(m.id, this.physics.add.collider(sprite.sprite, [...walls, ...(doorBlock ? [doorBlock] : []), passageBlocks] as Solid));
       this.labels.set(m.id, this.add.text(p.x, p.y + 6, NAMES[m.id], { fontFamily: 'monospace', fontSize: '11px', color: '#e2e8f0' }).setOrigin(0.5, 0).setDepth(41).setResolution(2).setVertexRoundMode('full'));
+      if (this.textures.exists(HUD_ICONS) && this.textures.get(HUD_ICONS).has('radiation'))
+        this.exposedIcons.set(m.id, this.add.image(p.x, p.y, HUD_ICONS, 'radiation').setScale(1.5).setDepth(46).setVisible(false).setVertexRoundMode('full'));
     }
     this.selectActive();
-    this.prompt = this.add
-      .text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fbd38d', backgroundColor: '#1a202ccc', padding: { x: 4, y: 2 } })
-      .setOrigin(0.5, 0)
-      .setDepth(45)
-      .setResolution(2)
-      .setVertexRoundMode('full');
-    this.toast = this.pin(
-      this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '13px', color: '#fbd38d', backgroundColor: '#121829ee', padding: { x: 8, y: 4 }, align: 'center', wordWrap: { width: 452 } })
-        .setOrigin(0.5, 0)
-        .setDepth(60)
-        .setVisible(false),
-      VIEW_WIDTH / 2,
-      TOAST_Y,
-    );
+    this.registry.set(MAP_HINT, '');
 
     this.listen();
     // Bus propio de la simulación: el tablero y las pantallas superpuestas leen el estado y piden cosas por acá.
@@ -304,10 +312,9 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         this.sim.emit('sim:minigame', { zone, id: forced, setup: { seed: this.session.state.seed, delaySeconds: this.session.delaySeconds }, reward: t('hud.minigame.reward.morale'), badge: null });
       });
     }
-    // Con cada aviso nuevo se abre la planificación en pausa, para preparar la respuesta (§3.1, §4.4).
+    // Cada aviso suena; el juego no se frena con ninguna pantalla (la respuesta se elige sobre el mapa).
     const offAlert = this.sceneData.bus.on('alert:level', ({ level }) => {
       if (level !== 'calm') audio.sfx(level === 'impact' ? 'siren' : 'alarm');
-      if (level === 'alert' && !this.ended && !this.scene.isActive(SceneKeys.Planning)) this.scene.launch(SceneKeys.Planning, overlay);
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, offAlert);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -325,7 +332,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const active = this.sprites.get(activeId)!;
     const member = this.member(activeId);
     const co2 = s.state.meters.lifeSupport.co2MmHg;
-    const { x, y } = this.ended || s.paused ? { x: 0, y: 0 } : this.controls.movement();
+    const { x, y } = this.ended || s.paused || s.asleep ? { x: 0, y: 0 } : this.controls.movement();
     const speed = PLAYER_SPEED * moveSpeedFactor(member, co2);
     active.sprite.setVelocity(x * speed, y * speed);
     const activePosition = { x: active.sprite.x / TILE, y: active.sprite.y / TILE };
@@ -337,16 +344,28 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     for (const [id, bodies] of this.passageBlocks) for (const body of bodies) body.enable = closed.has(id) && activeZone !== id;
     // En las salas, E abre su minijuego (o carga y guarda la carga en el embarque); mantenerla apretada sólo sirve
     // afuera (juntar muestras en Marte).
-    const action = this.playing ? null : s.actionAt(activeZone);
-    const minigame = this.playing || action ? null : s.minigameAt(activeZone, activePosition);
-    if ((action || minigame) && this.controls.interactJustPressed() && this.canPlay()) {
-      if (action) {
-        s.doAction(activeZone);
-        audio.sfx(this.stepCount++ % 2 ? 'cargoStow01' : 'cargoStow02');
+    const usePressed = this.controls.interactJustPressed();
+    const sleepPressed = !!this.sleepKey && Phaser.Input.Keyboard.JustDown(this.sleepKey);
+    if (s.asleep) {
+      // Dormido: Z o E lo despiertan cuando el jugador quiera (sin el descanso completo si durmió poco).
+      if ((usePressed || sleepPressed) && s.wakeUp()) audio.sfx('back');
+    } else if (!this.playing) {
+      // Dormir es siempre una acción del jugador: Z en la enfermería, también en avance rápido.
+      if (sleepPressed && activeZone === this.content.infirmaryZone) audio.sfx(s.sleep(activeZone) ? 'sleep' : 'bad', 1, 0.7);
+      const overlayOpen = OVERLAY_KEYS.some(([, scene]) => this.scene.isActive(scene));
+      // La consola de recursos (pegado a ella) le gana a la tarea del cuarto.
+      if (usePressed && !this.ended && !s.paused && !overlayOpen && s.consoleAt(activeZone, activePosition)) this.sim.emit('sim:console', {});
+      else {
+        const action = s.actionAt(activeZone);
+        const minigame = action ? null : s.minigameAt(activeZone, activePosition);
+        if ((action || minigame) && usePressed && this.canPlay()) {
+          if (action) {
+            s.doAction(activeZone);
+            audio.sfx(this.stepCount++ % 2 ? 'cargoStow01' : 'cargoStow02');
+          } else this.openMinigame(minigame!);
+        }
       }
-      else this.openMinigame(minigame!);
     }
-    if (!this.playing && this.sleepKey && Phaser.Input.Keyboard.JustDown(this.sleepKey) && s.sleep(activeZone)) audio.sfx('sleep');
     this.playSounds(dt, activeZone, (x !== 0 || y !== 0) && !this.playing);
     const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone, activePosition) === null;
     s.update(dt, { activeZone, activePosition, interacting });
@@ -360,7 +379,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     }
 
     this.moveAutoCrew(dt);
-    if (this.toast.visible && this.time.now > this.toastUntil) this.toast.setVisible(false);
     if (s.outcome && !this.ended) this.showOutcome(s.outcome);
   }
 
@@ -373,10 +391,12 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       return;
     }
     this.stepClock += dt;
-    if (this.stepClock < STEP_S) return;
+    if (this.stepClock < (outside ? MARS_STEP_S : STEP_S)) return;
     this.stepClock = 0;
     this.stepCount++;
-    audio.sfx(outside ? 'footstepMars' : 'footstepCabin', this.stepCount % 2 ? 0.94 : 1.06, 0.55);
+    if (!outside) return audio.sfx('footstepCabin', this.stepCount % 2 ? 0.94 : 1.06, 0.55);
+    const [rate, volume] = MARS_STEPS[this.stepCount % MARS_STEPS.length]!;
+    audio.sfx('footstepMars', rate, volume);
   }
 
   /** Nuevo día, puerta exterior que se traba, contador Geiger de la tormenta solar y el refugio que se sella. */
@@ -435,9 +455,12 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     return this.session.state.crew.find((m) => m.id === id)!;
   }
 
-  protected showToast(text: string): void {
-    this.toast.setText(text).setVisible(true);
-    this.toastUntil = this.time.now + 4500;
+  /**
+   * Aviso sobre el mapa: lo dibuja el tablero, en cola y con letra grande. `picture`: un ícono del tablero o una
+   * imagen chica de un atlas ya cargado (la roca que se juntó), para los datos que enseñan algo.
+   */
+  protected showToast(text: string, picture: { icon?: string; image?: { key: string; frame: string } } = {}): void {
+    this.sim?.emit('sim:toast', { text, ...picture });
   }
 
   private listen(): void {
@@ -450,9 +473,14 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         this.session.switchCrew(crewId, { x: current.x / TILE, y: current.y / TILE });
         this.selectActive(true);
       }),
-      bus.on('incident:warned', (i) => this.showToast(tr(`${textKey(i.definitionId)}.alert`))),
+      bus.on('incident:warned', (i) => {
+        this.showToast(tr(`${textKey(i.definitionId)}.alert`), { icon: 'warning' });
+        // La tormenta solar se anuncia con el cartel grande y un temblor.
+        if (i.definitionId === 'radiationStorm' && !reducedMotion()) this.cameras.main.shake(700, 0.005);
+      }),
       bus.on('incident:started', (i) => {
-        this.showToast(tr(`${textKey(i.definitionId)}.impact`));
+        this.showToast(tr(`${textKey(i.definitionId)}.impact`), { icon: 'warning' });
+        if (i.definitionId === 'radiationStorm') this.xrayWarned = false;
         // El golpe del micrometeorito sacude la nave.
         if (i.definitionId === 'micrometeoroid') this.cameras.main.shake(380, 0.006);
         const sound = INCIDENT_SOUND[i.definitionId];
@@ -462,15 +490,15 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       }),
       bus.on('incident:resolved', (i) => {
         audio.sfx('success');
-        this.showToast(t('hud.toast.resolved', { title: tr(`${textKey(i.definitionId)}.title`) }));
+        this.showToast(t('hud.toast.resolved', { title: tr(`${textKey(i.definitionId)}.title`) }), { icon: 'check' });
       }),
       bus.on('cascade:entered', (e) => {
         audio.sfx('warning');
-        this.showToast(tr(`incidents.cascade.${e.meter}.entered`, { name: e.crewId ? NAMES[e.crewId as CrewId] : '' }));
+        this.showToast(tr(`incidents.cascade.${e.meter}.entered`, { name: e.crewId ? NAMES[e.crewId as CrewId] : '' }), { icon: 'warning' });
       }),
       bus.on('realEvent:shown', (e) => {
         audio.sfx('telemetryReceived');
-        this.showToast(t('hud.toast.realEvent', { mission: e.mission, instrument: e.instrument }));
+        this.showToast(t('hud.toast.realEvent', { mission: e.mission, instrument: e.instrument }), { icon: 'earthSignal' });
       }),
     ];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offs.forEach((off) => off()));
@@ -645,22 +673,17 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
           .setResolution(2)
           .setVisible(!icons || !icon),
       );
-      const task = this.content.tasks.find((t) => t.zone === zone.id);
-      if (!task) continue;
-      // Placa de la estación, a los pies de quien trabaja ahí (arriba van la ayuda y los globos): el ícono del cuarto,
-      // el borde con el color del semáforo y la barra de avance.
+      // Marcador de la tecla E, a los pies de quien trabaja ahí (arriba van los globos): el pictograma de la tarea, la
+      // tecla y el estado (pendiente, al día, bloqueada o con una avería). Queda quieto en su lugar: no sigue al jugador.
       const spot = toPx(zoneSpot(zone));
-      const at = { x: spot.x, y: spot.y + 58 };
-      const frame = this.add.rectangle(at.x, at.y, 40, 40, 0x1a202c, 0.85).setStrokeStyle(2, 0x68d391).setDepth(40);
-      const label = icons && icon
-        ? this.add.image(at.x, at.y, HUD_ICONS, icon).setScale(2).setDepth(41).setVertexRoundMode('full')
-        : this.add.text(at.x, at.y, tr(`${this.namespace}.station.${task.id}`), { fontFamily: 'monospace', fontSize: '10px', color: '#e2e8f0' }).setOrigin(0.5).setDepth(41).setResolution(2);
-      const track = this.add.rectangle(at.x - 20, at.y + 26, 40, 4, 0x2d3748).setOrigin(0, 0.5).setDepth(40);
-      const bar = this.add.rectangle(at.x - 20, at.y + 26, 0, 4, 0x63b3ed).setOrigin(0, 0.5).setDepth(41);
-      this.stationFrames.set(zone.id, frame);
-      this.stationBars.set(zone.id, bar);
-      this.stationParts.set(zone.id, [frame, label, track, bar]);
+      this.roomMarkers.set(zone.id, new KeyMarker(this, spot.x, spot.y + 58, 'E').setVisible(false));
+      const recipe = this.content.tasks.find((t) => t.zone === zone.id)?.recipeAt;
+      if (recipe) this.recipeMarker = { zone: zone.id, marker: new KeyMarker(this, recipe.x * TILE, recipe.y * TILE + 34, 'E').setVisible(false) };
     }
+    const console_ = this.content.resourceConsole?.at;
+    if (console_) this.consoleMarker = new KeyMarker(this, console_.x * TILE, console_.y * TILE - 6, 'E').set('available', { atlas: HUD_ICONS, frame: 'energy' });
+    const bed = this.content.bedAt;
+    if (bed) this.bedMarker = new KeyMarker(this, bed.x * TILE, bed.y * TILE, 'Z', 44).setVisible(false);
     return solid;
   }
 
@@ -698,12 +721,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private renderMap(activePosition: Point, activeZone: string | null, dt: number): void {
     const s = this.session;
 
-    for (const [zone, frame] of this.stationFrames) {
-      const task = this.content.tasks.find((t) => t.zone === zone)!;
-      frame.setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(task.system ? LIGHT[s.state.systems[task.system]] : LIGHT.green).color);
-      this.stationBars.get(zone)!.width = 40 * (s.taskAt(zone)?.progress ?? 0);
-      for (const part of this.stationParts.get(zone)!) (part as Phaser.GameObjects.Rectangle).setVisible(zone !== activeZone);
-    }
+    this.renderMarkers(activeZone);
+    this.renderExposure();
 
     const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 200);
     this.markers.clear();
@@ -754,9 +773,86 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     if (door && this.outerDoorClosed()) this.markers.fillStyle(0xe53e3e, 0.8).fillRect(door.x + 4, door.y + 4, door.w - 8, door.h - 8);
     this.renderPlace();
 
-    const active = this.sprites.get(s.state.activeCrewId)!.sprite;
-    this.prompt.setPosition(active.x, active.y + 22).setText(this.promptText(activePosition, activeZone));
-    this.prompt.setVisible(this.prompt.text !== '');
+    // Lo que hace la tecla acá: una línea corta que el tablero dibuja fija abajo (no sigue al jugador).
+    this.registry.set(MAP_HINT, this.ended ? '' : this.hintText(activePosition, activeZone));
+  }
+
+  /** Pictograma de un cuarto: su ícono del tablero. */
+  private zonePicture(zone: string): { atlas: string; frame: string } {
+    const has = this.textures.exists(HUD_ICONS) && this.textures.get(HUD_ICONS).has(zone);
+    return { atlas: HUD_ICONS, frame: has ? zone : (ZONE_ICON[zone] ?? 'spares') };
+  }
+
+  /**
+   * Marcadores de las teclas: en cada cuarto, la E con el pictograma de su tarea y el estado (pendiente rebota, al día
+   * con tilde, bloqueada con candado, avería en rojo); la cocina, uno por etapa (menú, recetario, cocinar); la consola
+   * de recursos; y la Z sobre la cama mientras el jugador está en la enfermería.
+   */
+  private renderMarkers(activeZone: string | null): void {
+    const s = this.session;
+    const now = this.time.now;
+    const work = s.pendingWork();
+    const needed = new Set(work.flatMap((item) => (item.kind === 'task' ? [item.taskId] : [])));
+    // Tareas al azar recién aparecidas: un aviso con su motivo.
+    const chores = new Set(work.flatMap((item) => (item.kind === 'task' && item.chore ? [item.taskId] : [])));
+    if (this.knownChores) {
+      for (const item of work) {
+        if (item.kind !== 'task' || !item.chore || this.knownChores.has(item.taskId)) continue;
+        this.showToast(taskReason(this.namespace, item, NAMES), { icon: this.zonePicture(item.zone).frame });
+        audio.sfx('card', 1.1, 0.5);
+      }
+    }
+    this.knownChores = chores;
+    for (const [zone, marker] of this.roomMarkers) {
+      const task = s.taskAt(zone);
+      if (!task || s.asleep) {
+        marker.setVisible(false);
+        continue;
+      }
+      let state: MarkerState;
+      let picture: MarkerPicture = this.zonePicture(zone);
+      if (task.kind === 'incident') state = 'incident';
+      else if (task.blockedKey) state = 'blocked';
+      else if (task.upToDate) state = 'done';
+      else {
+        state = needed.has(task.task.id) || task.task.tradeoff ? 'pending' : 'available';
+        // Cocina: en la mesada, primero el menú y al final cocinar (con el plato del día); en el medio, el recetario.
+        const kitchen = s.kitchenAt(zone);
+        if (kitchen?.next === 'cook') picture = { atlas: MINIGAME_ITEMS, frame: `dish-${kitchen.dish}` };
+        if (kitchen?.next === 'recipe') state = 'available';
+        // En avance rápido no se abre ningún minijuego: se ve con candado hasta que vuelva el tiempo normal.
+        if (!s.manual) state = 'blocked';
+      }
+      marker.setVisible(true).set(state, picture, task.progress < 1 ? task.progress : 0).update(now);
+    }
+    if (this.recipeMarker) {
+      const kitchen = s.asleep ? null : s.kitchenAt(this.recipeMarker.zone);
+      this.recipeMarker.marker.setVisible(!!kitchen);
+      if (kitchen) this.recipeMarker.marker.set(!s.manual ? 'blocked' : kitchen.next === 'recipe' ? 'pending' : kitchen.next === 'cook' ? 'done' : 'available', { glyph: 'book' }).update(now);
+    }
+    this.consoleMarker?.setVisible(!s.departing && !s.asleep).update(now);
+    if (this.bedMarker) {
+      const visible = activeZone === this.content.infirmaryZone && !s.asleep;
+      this.bedMarker.setVisible(visible);
+      if (visible) this.bedMarker.set(s.sleepBlockedKey() === null ? 'pending' : 'blocked', { glyph: 'moon' }).update(now);
+    }
+  }
+
+  /** Tormenta de radiación: un ícono que titila sobre cada tripulante que está fuera del refugio, y el aviso al pasar el umbral. */
+  private renderExposure(): void {
+    const storm = this.session.stormInfo();
+    const exposed = new Set(storm?.exposed ?? []);
+    const blink = Math.floor(this.time.now / 320) % 2 === 0;
+    for (const [id, icon] of this.exposedIcons) {
+      const sprite = this.sprites.get(id)?.sprite;
+      icon.setVisible(!!sprite && exposed.has(id));
+      if (sprite && exposed.has(id)) icon.setPosition(sprite.x + 20, sprite.y - 84).setAlpha(blink ? 1 : 0.45).setTint(0xfc8181);
+    }
+    if (storm && storm.extraXrays >= 1 && !this.xrayWarned) {
+      this.xrayWarned = true;
+      audio.sfx('warning');
+      this.showToast(t('hud.toast.stormDose'), { icon: 'radiation' });
+    }
   }
 
   /**
@@ -855,30 +951,35 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     });
   }
 
-  private promptText(position: Point, zone: string | null): string {
+  /**
+   * Línea corta de ayuda: sólo cuando el jugador está pegado a algo que se usa (la cama, la consola, la máquina del
+   * cuarto, una avería) o cuando el lugar tiene algo que decir (`placePrompt`). Los cuartos se entienden con su marcador.
+   */
+  private hintText(position: Point, zone: string | null): string {
     const s = this.session;
     const member = this.member(s.state.activeCrewId);
     if (member.resting) return t('hud.crew.resting', { name: NAMES[member.id] });
-    if (s.asleep) return t('hud.sleep.sleeping');
-    if (s.canSleep(zone)) {
-      const here = this.roomPrompt(position, zone);
-      return here ? `${here}  ·  ${t('hud.sleep.prompt')}` : t('hud.sleep.prompt');
+    if (s.asleep) return '';
+    const near = (p: Point | undefined) => !!p && Math.hypot(p.x - position.x, p.y - position.y) <= NEAR_TILES;
+    if (zone === this.content.infirmaryZone && near(this.content.bedAt)) {
+      const blocked = s.sleepBlockedKey();
+      return blocked ? tr(blocked) : t('hud.sleep.prompt');
     }
-    return this.roomPrompt(position, zone);
-  }
-
-  /** Texto de la sala para el jugador (lo que hace E acá). */
-  private roomPrompt(position: Point, zone: string | null): string {
-    const s = this.session;
+    if (s.consoleAt(zone, position)) return t('hud.console.prompt');
     const place = this.placePrompt(position, zone);
     if (place !== null) return place;
     const task = s.taskAt(zone, position);
     if (!task) return '';
+    const kitchen = s.kitchenAt(zone, position);
+    if (kitchen) return !s.manual ? t('hud.task.fastForward') : kitchen.action ? tr(`hud.minigame.meal.prompt.${kitchen.action}`, { dish: tr(`hud.minigame.meal.dish.${kitchen.dish}`) }) : '';
+    // Una avería que se repara parado junto a ella (tubo, cable) siempre avisa; la del cuarto, al acercarse a su máquina.
+    const atZone = s.taskAt(zone);
+    const here = task !== atZone || (task.kind === 'incident' && atZone?.kind !== 'incident');
+    const room = zone ? this.layout.zones.find((z) => z.id === zone) : undefined;
+    if (!here && !(room && near(zoneSpot(room)))) return '';
     if (task.kind === 'task' && task.upToDate) return t(task.task.kind === 'maintenance' ? 'hud.task.upToDate' : 'hud.task.doneToday');
     if (task.kind === 'task' && task.blockedKey) return tr(task.blockedKey);
     if (!s.manual) return t('hud.task.fastForward');
-    const kitchen = s.kitchenAt(zone, position);
-    if (kitchen) return tr(kitchen.action ? `hud.minigame.meal.prompt.${kitchen.action}` : `hud.minigame.meal.prompt.go.${kitchen.next}`, { dish: tr(`hud.minigame.meal.dish.${kitchen.dish}`) });
     return task.kind === 'incident' ? t('hud.task.incident', { title: tr(`${task.textKey}.title`) }) : tr(`${this.namespace}.task.${task.task.id}`);
   }
 

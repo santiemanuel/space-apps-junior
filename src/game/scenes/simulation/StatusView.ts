@@ -66,9 +66,9 @@ const VALUE_X = 130;
 const PORTRAIT = { x: 4, y: 8, w: 72, h: 52 } as const;
 const CARD_HEIGHT = 96;
 const KEYS_Y = 628;
-const KEYS = ['move', 'use', 'switch', 'decide', 'sound', 'status', 'plan', 'missionControl', 'charts'] as const;
+const KEYS = ['move', 'use', 'sleep', 'switch', 'decide', 'sound', 'status', 'missionControl', 'charts'] as const;
 const KEY_CAPS: Record<(typeof KEYS)[number] | 'crater', string> = {
-  move: 'WASD', use: 'E', switch: 'Tab', decide: '1 2 3', sound: 'M', status: 'I', plan: 'P', missionControl: 'C', charts: 'G', crater: 'V',
+  move: 'WASD', use: 'E', sleep: 'Z', switch: 'Tab', decide: '1 2 3', sound: 'M', status: 'I', missionControl: 'C', charts: 'G', crater: 'V',
 };
 
 /**

@@ -3,7 +3,9 @@ import { CREW_ROSTER } from '../../../content/crew';
 import type { ManeuverId } from '../../../core/flow/types';
 import { Rng } from '../../../core/rng/Rng';
 import { t } from '../../../i18n';
+import type { CrewId } from '../../../core/crew/types';
 import { CREW_SHEET, crewTextureKey, FlightTextures } from '../../assets';
+import { reducedMotion } from '../../ui/ui';
 
 /** La ilustración ocupa toda la pantalla, detrás de la interfaz (los minijuegos van en paneles encima). */
 export const ART_VIEW = { x: 0, y: 0, width: 1280, height: 720 } as const;
@@ -15,6 +17,10 @@ const ART = 4;
 const PLAIN_GROUND = 610;
 const PLAIN_VEHICLE_X = 640;
 const CREW_SCALE = 0.75;
+/** La cápsula del aterrizaje y la reentrada cuelga de su centro: su base queda esto más abajo (px). */
+const CAPSULE_BASE = 34;
+/** Rescate en el mar: el barco llega por la izquierda (la derecha es del panel) y el helicóptero queda sobre la cápsula. */
+const RESCUE = { shipX: 300, deckRow: 41, heliX: 820, heliY: 230 } as const;
 
 /** Cómo se ve cada maniobra: cielo en franjas (de arriba hacia abajo) y, sin sitio, los fondos dibujados con código. */
 interface Look {
@@ -25,6 +31,11 @@ interface Look {
   startsOnGround: boolean;
   mars: boolean;
   sun?: { x: number; y: number; r: number; color: number };
+  /**
+   * Aterrizaje y reentrada: escenografía generada del lugar donde se baja (suelo de Gale con el monte Sharp al fondo,
+   * o el mar abierto) y a qué altura de la pantalla toca la cápsula.
+   */
+  plain?: { near: string; far?: string; ground: number };
 }
 
 const LOOKS: Record<ManeuverId, Look> = {
@@ -44,8 +55,26 @@ const LOOKS: Record<ManeuverId, Look> = {
     mars: true,
     sun: { x: 300, y: 150, r: 14, color: 0xfff4d6 },
   },
-  landing: { sky: [0xb7794a, 0xc48a5a, 0xd29d6e, 0xdcb183, 0xe8c39a], mountains: [0xb0764f, 0x8f4a2c], ground: 0xa0522d, startsOnGround: false, mars: true },
-  reentry: { sky: [0x2b6cb0, 0x3f82c4, 0x5a9bd6, 0x7cb6e6, 0x9fd3f5], mountains: [0x5a7fa8, 0x4f7f9f], ground: 0x2b6cb0, ocean: true, startsOnGround: false, mars: false },
+  landing: {
+    // El cielo de Marte, de ocre arriba a rosado polvoriento en el horizonte.
+    sky: [0x8a5a4a, 0xa56a52, 0xbd7c5c, 0xcf9068, 0xdca57a, 0xe6b98e, 0xedc9a0],
+    mountains: [0xb0764f, 0x8f4a2c],
+    ground: 0xa0522d,
+    startsOnGround: false,
+    mars: true,
+    sun: { x: 250, y: 190, r: 14, color: 0xfff4d6 },
+    plain: { near: FlightTextures.galePlain, far: FlightTextures.marsFar, ground: 548 },
+  },
+  reentry: {
+    sky: [0x1f5fa8, 0x2f74bd, 0x4489cf, 0x5e9fdc, 0x7cb6e6, 0x9fd3f5, 0xc4e6fb],
+    mountains: [0x5a7fa8, 0x4f7f9f],
+    ground: 0x2b6cb0,
+    ocean: true,
+    startsOnGround: false,
+    mars: false,
+    sun: { x: 1040, y: 150, r: 26, color: 0xfff4d6 },
+    plain: { near: FlightTextures.seaFar, ground: 566 },
+  },
 };
 
 /**
@@ -106,6 +135,9 @@ const MAST = { left: 484 } as const;
 /** Antena del edificio de control (Tierra), de donde salen las ondas de la prueba de radio. */
 const RADIO_SOURCE = { x: 1222, y: 496 } as const;
 
+/** Altura (0..1) hasta la que el motor deja humo: más arriba ya no hay aire que lo sostenga a la vista. */
+const SMOKE_UNTIL = 0.55;
+
 /** Lo que la escena le cuenta a la ilustración en cada cuadro. */
 export interface ArtFrame {
   /** Abordaje: fracción de la secuencia hecha (la tripulación sube por el ascensor). */
@@ -129,7 +161,9 @@ const smooth = (x: number) => {
  * Ilustración animada de la maniobra a pantalla completa. En los despegues, escenografía pixel art generada (fondo
  * lejano, plataforma, torre, tanques, base) con una escena de entrada (la tripulación llega a la plataforma), los
  * preparativos de la cuenta regresiva (brazo, balizas, agua, chispas) y un despegue con humo, temblor y público.
- * El aterrizaje y la reentrada usan fondos dibujados con código. Sólo dibuja.
+ * El aterrizaje y la reentrada usan la misma técnica: el llano de Gale con el monte Sharp (o el mar abierto), la
+ * cápsula con su escudo, el plasma de la entrada, los paracaídas, el escudo que se suelta, los motores que levantan
+ * polvo y, en la Tierra, la salpicadura, el barco y el helicóptero de rescate y la tripulación que sale. Sólo dibuja.
  */
 export class FlightArt {
   readonly camera: Phaser.Cameras.Scene2D.Camera;
@@ -143,6 +177,11 @@ export class FlightArt {
   private readonly clouds: Phaser.GameObjects.Container;
   private readonly backGround: Phaser.GameObjects.Container;
   private readonly frontGround: Phaser.GameObjects.Container;
+  /**
+   * Humo, vapor, agua y polvo: viven en el aire del lugar (se mueven con el suelo, no con la pantalla). Así, cuando
+   * la nave sube, lo que quedó atrás baja con el paisaje y sale de cuadro en vez de quedar flotando.
+   */
+  private readonly smoke: Phaser.GameObjects.Container;
   private readonly vehicle: Phaser.GameObjects.Container;
   private readonly flame: Phaser.GameObjects.Sprite;
   private readonly plasma: Phaser.GameObjects.Arc;
@@ -164,6 +203,23 @@ export class FlightArt {
   private capsule: Phaser.GameObjects.Image | null = null;
   private parachute: Phaser.GameObjects.Image | null = null;
   private hose: Phaser.GameObjects.Rectangle | null = null;
+  /** Plasma de la entrada (onda de choque bajo el escudo y chispas) y tinte de calor de toda la pantalla. */
+  private readonly plasmaFx: Phaser.GameObjects.Graphics;
+  private readonly heat: Phaser.GameObjects.Rectangle;
+  /** Aviso de la radio cortada por el plasma (reentrada). */
+  private readonly blackout: Phaser.GameObjects.Text;
+  /** Brillos del mar que se mueven. */
+  private seaFx: Phaser.GameObjects.Graphics | null = null;
+  /** Llamas de los motores de descenso (aterrizaje en Marte). */
+  private descentFlames: Phaser.GameObjects.Sprite[] = [];
+  /** Rescate en el mar: barco, helicóptero y quienes salen de la cápsula. */
+  private ship: Phaser.GameObjects.Image | null = null;
+  private helicopter: Phaser.GameObjects.Image | null = null;
+  private rescued: { sprite: Phaser.GameObjects.Sprite; bed: Phaser.GameObjects.Graphics | null; from: number; to: number; start: number }[] = [];
+  private arrival: Partial<Record<CrewId, 'walk' | 'stretcher'>> = {};
+  /** Segundos desde que la cápsula tocó el agua (null antes). */
+  private floatingSince: number | null = null;
+  private sinceShake = 0;
   /** 0 en el suelo … 1 en el espacio. */
   private altitude: number;
   private climbing = false;
@@ -187,7 +243,7 @@ export class FlightArt {
   ) {
     this.look = LOOKS[id];
     this.site = SITES[id];
-    this.ground = this.site?.ground ?? PLAIN_GROUND;
+    this.ground = this.site?.ground ?? this.look.plain?.ground ?? PLAIN_GROUND;
     this.altitude = this.look.startsOnGround ? 0 : 1;
     this.camera = scene.cameras.add(ART_VIEW.x, ART_VIEW.y, ART_VIEW.width, ART_VIEW.height).setScroll(0, WORLD_Y);
     // La ilustración se dibuja primero: la interfaz queda encima.
@@ -215,10 +271,16 @@ export class FlightArt {
     this.backGround = this.add(scene.add.container(0, 0));
     this.vehicle = this.add(scene.add.container(this.site?.vehicleX ?? PLAIN_VEHICLE_X, this.look.startsOnGround ? this.ground : 200));
     this.frontGround = this.add(scene.add.container(0, 0));
+    this.smoke = this.add(scene.add.container(0, 0));
     this.waves = this.add(scene.add.graphics());
     this.plasma = scene.add.circle(0, 0, 60, 0xf6ad55, 0.5).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.plasmaFx = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this.flame = scene.add.sprite(0, 0, FlightTextures.flame).setScale(ART).setOrigin(0.5, 0).setVisible(false);
-    this.vehicle.add([this.plasma, this.flame]);
+    this.vehicle.add([this.plasma, this.plasmaFx, this.flame]);
+    this.heat = this.add(scene.add.rectangle(0, 0, ART_VIEW.width, ART_VIEW.height, 0xf6ad55, 0).setOrigin(0, 0).setBlendMode(Phaser.BlendModes.ADD));
+    this.blackout = this.add(
+      scene.add.text(ART_VIEW.width / 2, 196, '', { fontFamily: 'monospace', fontSize: '22px', color: '#fed7d7', stroke: '#1a202c', strokeThickness: 5, align: 'center' }).setOrigin(0.5).setVisible(false),
+    );
     this.countdownText = this.add(
       scene.add.text(ART_VIEW.width / 2, 150, '', { fontFamily: 'monospace', fontSize: '96px', color: '#fbd38d', stroke: '#1a202c', strokeThickness: 8 }).setOrigin(0.5),
     );
@@ -321,6 +383,12 @@ export class FlightArt {
   /** Montañas lejanas o el monte Sharp. */
   private buildBackdrop(): void {
     const s = this.scene;
+    const plain = this.look.plain;
+    if (plain && s.textures.exists(plain.near)) {
+      // El monte Sharp (Aeolis Mons) y las mesetas de Gale al fondo; en el mar, sólo el cielo y las nubes.
+      if (plain.far && s.textures.exists(plain.far)) this.far.add(s.add.image(0, -40, plain.far).setOrigin(0, 0).setScale(ART));
+      return;
+    }
     const [farColor, nearColor] = this.look.mountains;
     const range = (color: number, base: number, peaks: number, height: number, seed: number) => {
       const r = new Rng(seed);
@@ -339,6 +407,16 @@ export class FlightArt {
 
   private buildPlainGround(): void {
     const s = this.scene;
+    const plain = this.look.plain;
+    if (plain && s.textures.exists(plain.near)) {
+      // Detrás de la nave: la cápsula se posa sobre el suelo (o flota en el mar), no queda tapada por él.
+      this.backGround.add(s.add.image(0, 0, plain.near).setOrigin(0, 0).setScale(ART));
+      if (this.look.ocean) {
+        this.seaFx = s.add.graphics();
+        this.frontGround.add(this.seaFx);
+      }
+      return;
+    }
     const parts: Phaser.GameObjects.GameObject[] = [s.add.rectangle(0, PLAIN_GROUND, ART_VIEW.width, ART_VIEW.height, this.look.ground).setOrigin(0, 0)];
     if (this.look.ocean) {
       const waves = s.add.graphics();
@@ -373,6 +451,19 @@ export class FlightArt {
       this.statusLight = s.add.rectangle(0, this.site!.hatchY - this.site!.ground - 20, ART * 2, ART * 2, 0x48bb78).setVisible(false);
       this.vehicle.add([this.body, this.statusLight]);
       this.flame.setY(-14).setScale(ART * 1.4);
+    } else if (this.id === 'landing' && s.textures.exists(FlightTextures.entryCapsule)) {
+      // Cápsula de entrada con el escudo térmico abajo; al soltarlo queda el módulo de descenso con sus patas.
+      this.capsule = s.add.image(0, CAPSULE_BASE, FlightTextures.entryCapsule).setScale(ART).setOrigin(0.5, 1);
+      this.parachute = s.add.image(0, CAPSULE_BASE - this.capsule.height * ART + 16, FlightTextures.chute).setScale(ART).setOrigin(0.5, 1).setVisible(false);
+      this.descentFlames = [-28, 28].map((x) => s.add.sprite(x, CAPSULE_BASE - 16, FlightTextures.flame).setScale(ART * 0.7).setOrigin(0.5, 0).setVisible(false).play('flight-flame'));
+      this.vehicle.add([this.parachute, ...this.descentFlames, this.capsule]);
+      this.flame.setVisible(false);
+    } else if (this.id === 'reentry' && s.textures.exists(FlightTextures.seaCapsule)) {
+      // La cápsula vuelve sin los flotadores: se inflan recién al tocar el agua (ahí cambia a `seaCapsule`).
+      this.capsule = s.add.image(0, CAPSULE_BASE, FlightTextures.returnCapsule).setScale(ART).setOrigin(0.5, 1);
+      this.parachute = s.add.image(0, CAPSULE_BASE - this.capsule.height * ART + 20, FlightTextures.chutes).setScale(ART).setOrigin(0.5, 1).setVisible(false);
+      this.vehicle.add([this.parachute, this.capsule]);
+      this.flame.setVisible(false);
     } else {
       this.capsule = s.add.image(0, 0, FlightTextures.capsule).setScale(ART).setOrigin(0.5, 0.5);
       this.parachute = s.add.image(0, -32, FlightTextures.parachute).setScale(ART).setOrigin(0.5, 1).setVisible(false);
@@ -464,11 +555,20 @@ export class FlightArt {
       this.statusLight?.setFillStyle(0x48bb78);
     }
     if (stageId === 'orbitInsertion') this.showMothership();
-    if (stageId === 'entry' || stageId === 'orientShield') this.plasma.setVisible(true).setRadius(stageId === 'entry' ? 64 : 44);
-    if (stageId === 'reentry') this.plasma.setVisible(true).setRadius(76);
+    if (stageId === 'entry' || stageId === 'orientShield') {
+      this.plasma.setVisible(true).setRadius(stageId === 'entry' ? 64 : 44);
+      // La cápsula ya viene bajando: el cielo se aclara de a poco mientras frena.
+      this.descending = { to: stageId === 'entry' ? 0.62 : 0.8, speed: 0.045 };
+    }
+    if (stageId === 'reentry') {
+      this.plasma.setVisible(true).setRadius(76);
+      // Apagón de radio: el plasma que rodea la cápsula no deja pasar las ondas.
+      this.blackout.setText(t('maneuvers.blackout')).setVisible(true);
+    }
     if (stageId === 'descentEngines') {
       this.dropParachute();
-      this.flame.setVisible(true);
+      if (this.descentFlames.length) this.descentFlames.forEach((flame) => flame.setVisible(true));
+      else this.flame.setVisible(true);
       this.descending = { to: 0, speed: 0.07 };
     }
     if (stageId === 'splashdown') this.openParachute();
@@ -501,6 +601,8 @@ export class FlightArt {
     if (stageId === 'entry') this.plasma.setVisible(false);
     if (stageId === 'reentry') {
       this.plasma.setVisible(false);
+      this.blackout.setVisible(false);
+      this.flash(t('maneuvers.radioBack'), 26, 196);
       this.descending = { to: 0.45, speed: 0.12 };
     }
     if (stageId === 'descentEngines') this.land('touchdown', 0xc56b3a);
@@ -519,7 +621,10 @@ export class FlightArt {
     if (frame.boarding !== undefined) this.board(frame.boarding);
     const tilt = (frame.steer ?? 0) * 0.3;
     this.vehicle.setRotation(Phaser.Math.Linear(this.vehicle.rotation, this.altitude > 0.05 || !this.look.startsOnGround ? tilt : 0, Math.min(1, dt * 6)));
-    if (this.plasma.visible) this.plasma.setAlpha(0.35 + 0.25 * Math.sin(this.time * 30)).setScale(1 + 0.08 * Math.sin(this.time * 17));
+    if (this.plasma.visible) this.plasma.setAlpha(0.3 + 0.2 * Math.sin(this.time * 30)).setScale(1 + 0.08 * Math.sin(this.time * 17));
+    this.paintPlasma(dt);
+    this.paintSea();
+    this.updateRescue();
     // Despega despacio y va tomando velocidad.
     if (this.climbing) this.altitude = Math.min(1, this.altitude + dt * (0.025 + 0.1 * this.altitude));
     if (this.descending) this.altitude = Math.max(this.descending.to, this.altitude - dt * this.descending.speed * (this.parachute?.visible ? 0.6 : 1));
@@ -551,7 +656,12 @@ export class FlightArt {
     if (this.sincePuff >= puffEvery) {
       this.sincePuff = 0;
       if (this.climbing) {
-        this.puff(this.vehicle.x + this.rng.between(-30, 30), this.vehicle.y - WORLD_Y + 40, tint, 2, 140);
+        // El humo del motor sale de la tobera donde está ahora (no desde la plataforma) y sólo mientras se ve el
+        // paisaje: ya en el espacio no queda humo suelto.
+        if (this.altitude < SMOKE_UNTIL && this.flame.visible) {
+          const nozzleY = this.vehicle.y - WORLD_Y + 24 * this.vehicle.scaleY - this.worldShift();
+          this.puff(this.vehicle.x + this.rng.between(-24, 24) * this.vehicle.scaleX, nozzleY, tint, 2 * this.vehicle.scaleX, 60, 1100);
+        }
         if (onPad) this.puff(x0 + this.rng.between(-420, 420), this.ground - this.rng.between(0, 40), tint, 2.6, -30);
       } else if (water) this.puff(x0 + this.rng.between(-110, 110), this.ground + 20, 0xcfe8ff, 1.4, -60);
       else if (dust) this.puff(x0 + this.rng.between(-300, 300), this.ground - 4, 0xd99a6c, 1.6, -18);
@@ -559,6 +669,12 @@ export class FlightArt {
       else this.puff(x0 + this.rng.between(-70, 70), this.ground - 8, tint, 1.2, -24);
     }
     this.sinceSpark += dt;
+    // Motores de frenado cerca del suelo de Marte: el chorro levanta polvo hacia los costados.
+    if (this.stage === 'descentEngines' && this.descending && this.altitude > 0.001 && this.altitude < 0.22 && this.sinceSpark > 0.07) {
+      this.sinceSpark = 0;
+      const side = this.rng.chance(0.5) ? 1 : -1;
+      this.puff(PLAIN_VEHICLE_X + side * this.rng.between(40, 220), this.ground - this.rng.between(0, 18), 0xd99a6c, this.rng.between(1.2, 2.2), -30, 1100);
+    }
     if (this.milestones.has('engineStart') && !this.climbing && this.sinceSpark > 0.05) {
       this.sinceSpark = 0;
       const spark = this.add(this.scene.add.rectangle(x0 + this.rng.between(-40, 40), this.ground - 6, ART, ART, this.rng.chance(0.5) ? 0xfde68a : 0xf6ad55));
@@ -648,9 +764,11 @@ export class FlightArt {
 
   private openParachute(): void {
     if (!this.parachute) return;
-    this.parachute.setVisible(true).setScale(ART * 0.2);
+    this.parachute.setVisible(true).setAlpha(1).setScale(ART * 0.2);
     this.scene.tweens.add({ targets: this.parachute, scale: ART, duration: 500, ease: 'Back.Out' });
-    this.descending = this.descending ?? { to: 0, speed: 0.06 };
+    // El tirón del paracaídas: un sacudón corto y la bajada sigue, más lenta, hasta cerca del suelo.
+    if (!reducedMotion()) this.camera.shake(260, 0.004);
+    this.descending = { to: this.look.ocean ? 0.1 : 0.2, speed: 0.06 };
   }
 
   private dropParachute(): void {
@@ -660,9 +778,13 @@ export class FlightArt {
   }
 
   private dropShield(): void {
-    const piece = this.scene.add.image(0, 30, FlightTextures.shield).setScale(ART);
+    const s = this.scene;
+    const generated = this.id === 'landing' && s.textures.exists(FlightTextures.heatShield) && this.capsule?.texture.key === FlightTextures.entryCapsule;
+    const piece = s.add.image(0, generated ? CAPSULE_BASE - 16 : 30, generated ? FlightTextures.heatShield : FlightTextures.shield).setScale(ART);
     this.vehicle.add(piece);
-    this.scene.tweens.add({ targets: piece, y: 500, angle: 40, alpha: 0, duration: 1500, ease: 'Quad.In' });
+    // El escudo se suelta, gira y cae hasta perderse abajo; la cápsula queda con las patas a la vista.
+    s.tweens.add({ targets: piece, x: -90, y: 560, angle: -50, duration: 1700, ease: 'Quad.In', onComplete: () => piece.destroy() });
+    if (generated) this.capsule!.setTexture(FlightTextures.descentLander);
   }
 
   private land(bannerKey: 'touchdown' | 'splashdown', tint: number): void {
@@ -670,19 +792,158 @@ export class FlightArt {
     // El cartel, el polvo o la salpicadura salen cuando la cápsula llega abajo (ver `update`).
     this.onGround = () => {
       this.flame.setVisible(false);
-      this.parachute?.setVisible(bannerKey === 'splashdown');
-      for (let i = 0; i < 10; i++) this.puff(PLAIN_VEHICLE_X + this.rng.between(-90, 90), PLAIN_GROUND - 4, tint, 1.8, -24);
+      this.descentFlames.forEach((flame) => flame.setVisible(false));
+      for (let i = 0; i < 14; i++) this.puff(PLAIN_VEHICLE_X + this.rng.between(-150, 150), this.ground - this.rng.between(0, 24), tint, this.rng.between(1.6, 2.4), -34);
       this.flash(t(`maneuvers.${bannerKey}`));
+      if (!reducedMotion()) this.camera.shake(320, 0.006);
+      if (bannerKey === 'splashdown') this.splash();
+      else this.parachute?.setVisible(false);
     };
+  }
+
+  /** Quiénes bajan caminando y quiénes en camilla al volver a la Tierra (según su condición física). */
+  setArrival(arrival: Partial<Record<CrewId, 'walk' | 'stretcher'>>): void {
+    this.arrival = arrival;
+  }
+
+  /**
+   * Amerizaje: columnas de agua, los paracaídas que caen al mar, los flotadores que se inflan y, enseguida, el barco
+   * y el helicóptero de rescate; después la tripulación sale a la cubierta (caminando o en camilla).
+   */
+  private splash(): void {
+    const s = this.scene;
+    this.floatingSince = this.time;
+    // Columnas de agua en píxeles grandes, que suben y caen.
+    for (let i = 0; i < 9; i++) {
+      const x = PLAIN_VEHICLE_X + (i - 4) * 26 + this.rng.between(-6, 6);
+      const drop = s.add.rectangle(x, this.ground, ART * 2, ART * this.rng.between(6, 14), i % 2 ? 0xffffff : 0xbee3f8).setOrigin(0.5, 1);
+      this.smoke.add(drop);
+      s.tweens.add({ targets: drop, y: this.ground - this.rng.between(60, 150) * (1 - Math.abs(i - 4) / 6), duration: 320, ease: 'Quad.Out', yoyo: true, onComplete: () => drop.destroy() });
+    }
+    // Anillos que se abren en el agua.
+    for (const delay of [0, 260]) {
+      const ring = s.add.ellipse(PLAIN_VEHICLE_X, this.ground + 6, 120, 18).setStrokeStyle(ART, 0xffffff, 0.9);
+      this.smoke.add(ring);
+      s.tweens.add({ targets: ring, scaleX: 3.4, scaleY: 2, alpha: 0, delay, duration: 1300, onComplete: () => ring.destroy() });
+    }
+    const chute = this.parachute;
+    if (chute) s.tweens.add({ targets: chute, x: 150, y: chute.y + 150, angle: 60, alpha: 0, duration: 1500, onComplete: () => chute.setVisible(false).setAngle(0).setX(0) });
+    if (!s.textures.exists(FlightTextures.rescueShip) || this.capsule?.texture.key !== FlightTextures.returnCapsule) return;
+    // Los flotadores naranjas se inflan y mantienen la cápsula derecha.
+    s.time.delayedCall(700, () => this.capsule?.setTexture(FlightTextures.seaCapsule));
+    const water = this.ground + 10;
+    this.ship = s.add.image(-320, water + 22, FlightTextures.rescueShip).setOrigin(0.5, 1).setScale(ART).setFlipX(true);
+    this.frontGround.add(this.ship);
+    s.tweens.add({ targets: this.ship, x: RESCUE.shipX, delay: 900, duration: 3200, ease: 'Sine.Out', onComplete: () => this.disembark() });
+    this.helicopter = s.add.image(ART_VIEW.width + 200, RESCUE.heliY - 60, FlightTextures.helicopter).setOrigin(0.5, 0.5).setScale(ART);
+    this.frontGround.add(this.helicopter);
+    s.tweens.add({ targets: this.helicopter, x: RESCUE.heliX, y: RESCUE.heliY, delay: 500, duration: 2600, ease: 'Sine.Out' });
+    s.time.delayedCall(1400, () => this.flash(t('maneuvers.rescue'), 26, 150));
+  }
+
+  /** La tripulación sale a la cubierta del barco: quien llegó en forma camina; quien no, va en camilla. */
+  private disembark(): void {
+    const s = this.scene;
+    if (!this.ship) return;
+    const deck = this.ship.y - (this.ship.height - RESCUE.deckRow) * ART;
+    const edge = this.ship.x + (this.ship.width * ART) / 2 - 70;
+    CREW_ROSTER.forEach(({ id }, i) => {
+      if (!s.textures.exists(crewTextureKey(id))) return;
+      const stretcher = this.arrival[id] === 'stretcher';
+      const sprite = s.add.sprite(edge, deck, crewTextureKey(id), 0).setOrigin(CREW_SHEET.origin.x, CREW_SHEET.origin.y).setScale(CREW_SCALE).setVisible(false);
+      let bed: Phaser.GameObjects.Graphics | null = null;
+      if (stretcher) {
+        // Camilla con ruedas: el tripulante va sentado arriba (se ve de la cintura para arriba) y la empujan.
+        bed = s.add.graphics().setVisible(false);
+        bed.fillStyle(0x1a202c).fillRect(-26, -22, 52, 12).fillStyle(0xf7fafc).fillRect(-24, -20, 48, 8).fillStyle(0xed8936).fillRect(-24, -14, 48, 2);
+        bed.fillStyle(0x1a202c).fillRect(-20, -10, 4, 10).fillRect(16, -10, 4, 10).fillStyle(0x4a5568).fillRect(-22, -4, 8, 4).fillRect(14, -4, 8, 4);
+        sprite.setCrop(0, 0, CREW_SHEET.frameWidth, 52).setY(deck - 4);
+        this.frontGround.add(bed);
+      }
+      this.frontGround.add(sprite);
+      this.rescued.push({ sprite, bed, from: edge, to: edge - 40 - (CREW_ROSTER.length - 1 - i) * 42, start: this.time + i * 0.9 });
+    });
+  }
+
+  private updateRescue(): void {
+    if (this.floatingSince !== null) {
+      // La cápsula se mece en el agua y el barco también, apenas.
+      const bob = Math.round(Math.sin((this.time - this.floatingSince) * 2.4) * 1.5) * 2;
+      this.capsule?.setY(CAPSULE_BASE + 8 + bob);
+      if (this.helicopter) this.helicopter.setScale(ART, ART).setAngle(Math.sin(this.time * 3) * 2);
+    }
+    for (const r of this.rescued) {
+      const k = Phaser.Math.Clamp((this.time - r.start) / 2.2, 0, 1);
+      const x = Phaser.Math.Linear(r.from, r.to, k);
+      r.sprite.setVisible(this.time >= r.start).setX(x).setFlipX(true);
+      if (r.bed) r.bed.setVisible(this.time >= r.start).setPosition(x, this.ship ? this.ship.y - (this.ship.height - RESCUE.deckRow) * ART : r.sprite.y);
+      // Hoja de 9 columnas: la fila de costado camina con los cuadros 3 a 8 (como en la escena de entrada).
+      else r.sprite.setFrame(k > 0 && k < 1 ? 3 + (Math.floor(this.time * 10) % 6) : 0);
+    }
+  }
+
+  /** Plasma de la entrada: onda de choque en bandas bajo el escudo, lenguas que suben por los costados y chispas. */
+  private paintPlasma(dt: number): void {
+    const g = this.plasmaFx.clear();
+    const on = this.plasma.visible;
+    this.heat.setFillStyle(0xf6ad55, on ? 0.07 + 0.05 * Math.abs(Math.sin(this.time * 19)) : 0);
+    if (!on) return;
+    const strength = this.plasma.radius / 76;
+    const half = (this.capsule?.width ?? 20) * ART * 0.5;
+    const base = this.capsule && this.capsule.originY === 1 ? CAPSULE_BASE : 28;
+    // Bandas de la onda de choque: blanca pegada al escudo, después amarilla, naranja y roja.
+    const bands: [number, number, number][] = [[0xfff4d6, 0.9, 0], [0xfbd38d, 0.75, 1], [0xf6ad55, 0.6, 2], [0xed8936, 0.45, 3], [0xe53e3e, 0.3, 4]];
+    for (const [color, alpha, i] of bands) {
+      const wobble = Math.round(Math.sin(this.time * 23 + i * 1.7) * 2) * ART;
+      const width = (half + 8 + i * 14 * strength) * 2 + wobble;
+      g.fillStyle(color, alpha).fillRect(Math.round(-width / 2 / ART) * ART, base - 4 + i * ART * 2, Math.round(width / ART) * ART, ART * 2);
+    }
+    // Lenguas de plasma que suben por los costados y chispas que quedan atrás (ruido fijo, sin azar).
+    for (let i = 0; i < 16; i++) {
+      const side = i % 2 ? 1 : -1;
+      const phase = (this.time * (2.2 + (i % 5) * 0.35) + i * 0.37) % 1;
+      const x = side * (half + 6 + ((i * 13) % 22) * strength);
+      const y = base - phase * (170 + 90 * strength);
+      const length = ART * (3 + (i % 4)) * (1 - phase * 0.6);
+      g.fillStyle(i % 3 === 0 ? 0xfff4d6 : i % 3 === 1 ? 0xf6ad55 : 0xe53e3e, 0.8 * (1 - phase)).fillRect(Math.round(x / ART) * ART, Math.round(y / ART) * ART, ART, Math.round(length / ART) * ART);
+    }
+    // El calor sacude la cápsula (no con movimiento reducido).
+    this.sinceShake += dt;
+    if (this.sinceShake > 0.3 && !reducedMotion()) {
+      this.sinceShake = 0;
+      this.camera.shake(300, 0.0025 * strength);
+    }
+  }
+
+  /** Brillos del mar que corren despacio (sólo en la reentrada). */
+  private paintSea(): void {
+    const g = this.seaFx;
+    if (!g) return;
+    g.clear();
+    for (let i = 0; i < 22; i++) {
+      const y = this.ground - 96 + ((i * 37) % 200);
+      const x = (((i * 173 + this.time * (10 + (i % 4) * 5)) % (ART_VIEW.width + 80)) + ART_VIEW.width + 80) % (ART_VIEW.width + 80) - 40;
+      g.fillStyle(0xffffff, 0.35 + 0.25 * Math.sin(this.time * 2 + i)).fillRect(Math.round(x / ART) * ART, Math.round(y / ART) * ART, ART * (3 + (i % 3)), ART / 2);
+    }
   }
 
   // --- Efectos ---
 
-  /** Bocanada de humo (o vapor, agua, polvo) que se aleja `drift` px hacia abajo (negativo: hacia arriba). */
-  private puff(x: number, y: number, tint: number, scale: number, drift: number): void {
-    const puff = this.add(this.scene.add.sprite(x, y, FlightTextures.smoke, 0).setScale(scale * ART).setTint(tint).setAlpha(0.9));
+  /** Cuánto bajó el paisaje en pantalla por la altura de la nave (px). */
+  private worldShift(): number {
+    return this.altitude * 760;
+  }
+
+  /**
+   * Bocanada de humo (o vapor, agua, polvo) que se aleja `drift` px hacia abajo (negativo: hacia arriba). `y` es la
+   * altura sobre el suelo del lugar (en px de pantalla con la nave en tierra): la bocanada queda en el aire donde
+   * nació y baja con el paisaje cuando la nave sube.
+   */
+  private puff(x: number, y: number, tint: number, scale: number, drift: number, duration = 1500): void {
+    const puff = this.scene.add.sprite(x, y, FlightTextures.smoke, 0).setScale(scale * ART).setTint(tint).setAlpha(0.9);
+    this.smoke.add(puff);
     puff.play('flight-smoke');
-    this.scene.tweens.add({ targets: puff, x: x + this.rng.between(-50, 50), y: puff.y + drift, alpha: 0, duration: 1500, onComplete: () => puff.destroy() });
+    this.scene.tweens.add({ targets: puff, x: x + this.rng.between(-50, 50), y: y + drift, alpha: 0, duration, onComplete: () => puff.destroy() });
   }
 
   private flash(text: string, size = 34, y = 120): void {
@@ -697,8 +958,10 @@ export class FlightArt {
     const a = this.altitude;
     this.space.setAlpha(Phaser.Math.Clamp((a - 0.25) / 0.6, 0, 1));
     this.stars.setAlpha(Phaser.Math.Clamp((a - 0.45) / 0.4, 0, 1));
-    this.backGround.setY(WORLD_Y + a * 760);
-    this.frontGround.setY(WORLD_Y + a * 760);
+    this.backGround.setY(WORLD_Y + this.worldShift());
+    this.frontGround.setY(WORLD_Y + this.worldShift());
+    // El humo acompaña al paisaje y se desvanece con él antes de llegar al espacio (sin cortes).
+    this.smoke.setY(WORLD_Y + this.worldShift()).setAlpha(Phaser.Math.Clamp((SMOKE_UNTIL + 0.1 - a) / 0.2, 0, 1));
     this.far.setY(WORLD_Y + a * 420).setAlpha(Phaser.Math.Clamp((0.8 - a) / 0.3, 0, 1));
     this.clouds.setY(WORLD_Y + a * 600).setAlpha(Phaser.Math.Clamp((0.8 - a) / 0.3, 0, 1));
     if (this.look.startsOnGround) {
@@ -706,7 +969,7 @@ export class FlightArt {
       // Se aleja: se achica para que entre entera en pantalla.
       this.vehicle.setScale(Phaser.Math.Linear(1, 0.6, smooth(a / 0.3)));
     } else {
-      this.vehicle.setY(WORLD_Y + Phaser.Math.Linear(PLAIN_GROUND - 34, 220, Math.min(1, a / 0.45)));
+      this.vehicle.setY(WORLD_Y + Phaser.Math.Linear(this.ground - CAPSULE_BASE, this.look.plain ? 380 : 220, Math.min(1, a / 0.45)));
     }
     if (a > 0.02) this.walkers.forEach((w) => w.setAlpha(0));
     this.speedLines.clear();

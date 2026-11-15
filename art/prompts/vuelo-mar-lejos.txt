@@ -1,0 +1,6 @@
+Create ONE image using built-in image_gen with transparent_background=true.
+Far ocean parallax background for a kids' 2D space game, side view, wide 16:9.
+Retro pixel art drawn as a 320 x 180 canvas enlarged: chunky square pixels on one consistent grid, limited palette, dark 1-pixel outlines, flat cel-shaded color steps. References: docs/mision_a_marte_referencias_topdown/01_laminas_originales/lamina_05_catalogo_de_escenas.png and docs/prototipos-despegue/01-amanecer.png, style only.
+Upper 60 percent genuinely transparent with real alpha=0. Only bottom 40 percent contains content: calm morning Pacific ocean, perfectly level horizon across the width near logical y=110, opaque deep-blue water to both edges and the bottom edge, lighter turquoise horizontal bands near the horizon, sparse rows of small white wave crests, warm pale yellow/orange pixel-dash sun reflections. No visible sun. A few tiny puffy white clouds hugging the horizon and one small distant green island on the far left. Open sea in the center. Darker blue bottom rows.
+No sky fill or painted checkerboard. No ships, boats, people, characters, buildings, foreground, UI, border, text, letters, numbers, logos or watermark. No anti-aliasing, smooth gradients, glow halos, blur, noise or tiny high-resolution detail.
+Preserve the generated PNG unchanged: no re-encoding or resizing.

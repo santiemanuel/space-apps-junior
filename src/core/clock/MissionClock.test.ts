@@ -130,6 +130,23 @@ describe('MissionClock', () => {
     });
   });
 
+  it('una fase puede tener su propio ritmo sin tareas y al dormir (la estancia en Gale)', () => {
+    const clock = new MissionClock({
+      start: '2024-01-02T00:00:00Z',
+      end: '2024-01-05T00:00:00Z',
+      playWindows: [{ start: '2024-01-02T00:00:00Z', end: '2024-01-05T00:00:00Z' }],
+      playHoursPerSecond: 0.7,
+      idleHoursPerSecond: 0.7,
+      sleepHoursPerSecond: 1,
+    });
+    clock.setIdle(true);
+    // Sin nada que hacer no se apura: no hay "avance rápido" que mostrar.
+    expect(clock.idleBoost).toBe(false);
+    expect(clock.hoursPerSecond).toBe(0.7);
+    clock.setSleep(true);
+    expect(clock.hoursPerSecond).toBe(1);
+  });
+
   it('en pausa no avanza', () => {
     const clock = new MissionClock({ start: '2024-01-01T00:00:00Z', end: '2024-01-05T00:00:00Z' });
     clock.pause();
@@ -192,7 +209,7 @@ describe('tormentas largas y dormir', () => {
     });
     clock.setSleep(true);
     expect(clock.hoursPerSecond).toBe(CLOCK_RULES.sleepHoursPerSecond);
-    clock.advance(1);
+    clock.advance(12 / CLOCK_RULES.sleepHoursPerSecond);
     expect(clock.level).toBe('alert');
     expect(clock.hoursPerSecond).toBeLessThan(CLOCK_RULES.sleepHoursPerSecond);
   });

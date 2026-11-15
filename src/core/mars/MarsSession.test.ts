@@ -441,3 +441,113 @@ describe('Mars: cosecha del invernadero y volver antes', () => {
     expect(full.canLeaveEarly).toBe(false);
   });
 });
+
+describe('Mars: tareas de riesgo y recompensa', () => {
+  const panelsAt = MARS_CONTENT.panels.at;
+  const inner = (s: MarsSession) => s as unknown as { dust: number; averageGenerationKw(): number };
+  const battery = (s: MarsSession) => s.state.meters.energy.batteryKwh;
+
+  it('los paneles están afuera, en terreno que se pisa', () => {
+    expect(zoneAt(GALE_LAYOUT, panelsAt)).toBe(EXTERIOR);
+    expect(routeToPoint(GALE_LAYOUT, zoneSpot(zoneById(GALE_LAYOUT, 'airlock')), panelsAt).length).toBeGreaterThan(1);
+  });
+
+  it('el polvo se junta de a poco sobre los paneles y baja lo que generan', () => {
+    const { session } = mars();
+    const clean = inner(session).averageGenerationKw();
+    runUntil(session, () => hoursIn(session) >= 48);
+    expect(session.panels.dust).toBeGreaterThanOrEqual(2 * MARS_CONTENT.panels.dustPerSol);
+    expect(session.panels.dust).toBeLessThan(3 * MARS_CONTENT.panels.dustPerSol);
+    expect(session.panels.loss).toBeGreaterThan(0);
+    expect(inner(session).averageGenerationKw()).toBeLessThan(clean);
+    expect(session.snapshot().mars!.panels).toEqual(session.panels);
+  });
+
+  it('con los paneles sucios la batería carga menos en el día', () => {
+    const afterDay = (dust: number) => {
+      const { session } = mars({ meters: makeMeters({ energy: { batteryKwh: 20, capacityKwh: 160 } }) });
+      inner(session).dust = dust;
+      runUntil(session, () => hoursIn(session) >= 17);
+      return battery(session);
+    };
+    expect(afterDay(1)).toBeLessThan(afterDay(0) - 5);
+  });
+
+  it('limpiarlos es una salida: junto a los paneles, E abre su minijuego y al terminar vuelven a dar todo', () => {
+    const { session } = mars({ length: 'long' });
+    const there: HabitatInput = { activeZone: EXTERIOR, activePosition: panelsAt, interacting: false };
+    runUntil(session, () => session.evaOpen, there);
+    // Con poco polvo todavía no hace falta.
+    expect(session.minigameAt(EXTERIOR, panelsAt)).toBeNull();
+    inner(session).dust = 0.6;
+    expect(session.taskAt(EXTERIOR, panelsAt)).toMatchObject({ kind: 'task', task: { id: 'cleanPanels', tradeoff: true } });
+    const game = session.minigameAt(EXTERIOR, panelsAt)!;
+    expect(game).toMatchObject({ id: 'dust', zone: 'panels' });
+    // Lejos de los paneles no hay nada que limpiar.
+    expect(session.minigameAt(EXTERIOR, { x: panelsAt.x, y: panelsAt.y + 12 })).toBeNull();
+    const dusty = inner(session).averageGenerationKw();
+    expect(session.finishTask(game.zone)).toBe(true);
+    expect(session.panels.dust).toBe(0);
+    expect(inner(session).averageGenerationKw()).toBeGreaterThan(dusty * 1.2);
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'mars.log.panelsCleaned' }));
+    // No es una tarea de las que frenan el reloj ni aparece entre las pendientes.
+    inner(session).dust = 0.6;
+    expect(session.snapshot().todo.some((i) => i.kind === 'task' && i.taskId === 'cleanPanels')).toBe(false);
+  });
+
+  it('preparar la noche se hace a la tarde: la batería gasta menos de noche, pero el invernadero no crece', () => {
+    const night = (prepare: boolean) => {
+      const { session } = mars({ length: 'long' });
+      const input: HabitatInput = { activeZone: 'battery', interacting: false };
+      runUntil(session, () => hoursIn(session) >= 9, input);
+      expect(session.minigameAt('battery')).toBeNull();
+      runUntil(session, () => hoursIn(session) >= 13, input);
+      expect(session.minigameAt('battery')).toMatchObject({ id: 'night' });
+      if (prepare) {
+        expect(session.finishTask('battery')).toBe(true);
+        expect(session.nightReady).toBe(true);
+        expect(session.minigameAt('battery')).toBeNull();
+      }
+      runUntil(session, () => hoursIn(session) >= 18, input);
+      const dusk = { battery: battery(session), food: session.state.inventory.foodKg };
+      runUntil(session, () => hoursIn(session) >= 29.5, input);
+      return { session, used: dusk.battery - battery(session), eaten: dusk.food - session.state.inventory.foodKg };
+    };
+    const ready = night(true);
+    const normal = night(false);
+    expect(ready.used).toBeLessThan(normal.used * 0.9);
+    // El costo: con las lámparas apagadas el invernadero no da comida esa noche.
+    expect(ready.eaten).toBeGreaterThan(normal.eaten);
+    expect(ready.session.state.history).toContainEqual(expect.objectContaining({ key: 'mars.log.nightReady' }));
+    // Dura hasta que sale el Sol.
+    runUntil(ready.session, () => hoursIn(ready.session) >= 31, { activeZone: 'battery', interacting: false });
+    expect(ready.session.nightReady).toBe(false);
+  });
+
+  it('el polvo y la noche preparada se conservan al guardar la partida', () => {
+    const { session, bus } = mars({ length: 'long' });
+    const saved: GameState[] = [];
+    bus.on('phase:progress', (s) => saved.push(s));
+    runUntil(session, () => hoursIn(session) >= 13, { activeZone: 'battery', interacting: false });
+    session.finishTask('battery');
+    const state = saved.at(-1)!;
+    expect(state.habitat?.mars?.panelDust).toBeGreaterThan(0);
+    const resumed = mars(JSON.parse(JSON.stringify(state)) as GameState).session;
+    expect(resumed.panels.dust).toBeCloseTo(session.panels.dust, 5);
+    expect(resumed.nightReady).toBe(true);
+  });
+
+  it('ciencia a fondo: las muestras se juntan más rápido', () => {
+    const hoursToSample = (science: boolean) => {
+      const { session } = mars({ length: 'long' });
+      const site = session.sites[0]!;
+      const input: HabitatInput = { activeZone: EXTERIOR, activePosition: site, interacting: true };
+      runUntil(session, () => session.evaOpen, STILL);
+      if (science) (session as unknown as { mode: string }).mode = 'science';
+      const start = hoursIn(session);
+      runUntil(session, () => session.state.inventory.samples.length > 0, input, 0.05);
+      return hoursIn(session) - start;
+    };
+    expect(hoursToSample(true)).toBeLessThan(hoursToSample(false) * 0.8);
+  });
+});

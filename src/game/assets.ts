@@ -93,6 +93,18 @@ export const FlightTextures = {
   fuelTanks: 'flight-fuel-tanks',
   mothership: 'flight-mothership',
   van: 'flight-van',
+  /** Aterrizaje en Marte y reentrada en la Tierra (generados, `scripts/art/flight-scenery.py`). */
+  galePlain: 'flight-gale-plain',
+  seaFar: 'flight-sea-far',
+  entryCapsule: 'flight-entry-capsule',
+  descentLander: 'flight-descent-lander',
+  heatShield: 'flight-heat-shield',
+  chute: 'flight-chute',
+  seaCapsule: 'flight-sea-capsule',
+  returnCapsule: 'flight-return-capsule',
+  rescueShip: 'flight-rescue-ship',
+  helicopter: 'flight-helicopter',
+  chutes: 'flight-chutes',
 } as const;
 
 const SCENERY_FILES = {
@@ -108,6 +120,17 @@ const SCENERY_FILES = {
   fuelTanks: 'fuel-tanks',
   mothership: 'mothership',
   van: 'van',
+  galePlain: 'gale-plain',
+  seaFar: 'sea-far',
+  entryCapsule: 'entry-capsule',
+  descentLander: 'descent-lander',
+  heatShield: 'heat-shield',
+  chute: 'chute',
+  seaCapsule: 'sea-capsule',
+  returnCapsule: 'return-capsule',
+  rescueShip: 'rescue-ship',
+  helicopter: 'helicopter',
+  chutes: 'chutes',
 } as const;
 
 export const FLIGHT_ASSETS: readonly AssetEntry[] = [

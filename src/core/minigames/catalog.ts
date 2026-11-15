@@ -3,6 +3,7 @@ import { BikeGame, MoxieGame, PulseGame, RadioGame, ScrubberGame } from './arcad
 import type { Minigame, MinigameId, MinigameSetup } from './Minigame';
 import { PatchGame, StarsGame, WaterGame } from './puzzles';
 import type { IncidentId } from '../incidents/definitions';
+import { DustGame, NightGame } from './outpost';
 import { FusesGame, WiresGame } from './power';
 import { HarvestGame, MealGame, PlantsGame, SealsGame, ShieldGame } from './rooms';
 
@@ -22,6 +23,8 @@ const GAMES: Record<MinigameId, new (setup: MinigameSetup) => Minigame> = {
   patch: PatchGame,
   fuses: FusesGame,
   wires: WiresGame,
+  dust: DustGame,
+  night: NightGame,
 };
 
 export const MINIGAME_IDS = Object.keys(GAMES) as MinigameId[];

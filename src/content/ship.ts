@@ -17,8 +17,8 @@ import { landmarksFromTiled, layoutFromTiled, type TiledMap } from './tiledLayou
  */
 export const SHIP_MAP: TiledMap = shipMap;
 export const SHIP_LAYOUT: ShipLayout = layoutFromTiled(SHIP_MAP);
-/** Puntos con nombre del mapa: `recipe`, donde se lee el recetario de la cocina. */
-const SHIP_LANDMARKS = landmarksFromTiled(SHIP_MAP);
+/** Puntos con nombre del mapa: `recipe` (donde se lee el recetario), `bed` (la cama donde se duerme) y `console` (la consola de recursos). */
+export const SHIP_LANDMARKS = landmarksFromTiled(SHIP_MAP);
 
 /**
  * Cuidados del día en los cuartos sin máquina [regla]: una vez por día, con su minijuego, suben un poco el ánimo o la
@@ -65,10 +65,13 @@ export const VOYAGE_CONTENT: VoyageContent = {
   // [regla] Sin nadie que lo cuide, un sistema se gasta en 4 días (2 en la vuelta).
   wear: { systems: ['scrubber', 'waterRecycler'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
   back: { wearMultiplier: 2, exerciseMultiplier: 2 },
-  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, capacityKwh: SHIP_POWER.capacityKwh, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'], socketKw: 2 },
+  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, capacityKwh: SHIP_POWER.capacityKwh, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'], socketKw: 2, panelZone: 'command' },
+  // La consola de recursos está en la sala de mando.
+  resourceConsole: { zone: 'command', at: SHIP_LANDMARKS.console! },
   // Algo más rápido que el jugador (210 px/s ≈ 4,4 tiles/s) [regla]: la nave mide 41 tiles de largo.
   crewSpeedTilesPerS: 4.5,
   infirmaryZone: 'infirmary',
+  bedAt: SHIP_LANDMARKS.bed!,
   shelterZone: 'shelter',
   // El comandante pide desde la radio; el diagnóstico acelera ×1,5 (game-design §3.7).
   missionControl: { consoleZone: 'radio', diagnosisKwh: 0.5, diagnosisBoost: 1.5 },

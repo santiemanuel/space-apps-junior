@@ -156,7 +156,7 @@ export class TitleScene extends Phaser.Scene {
         .text(INNER.left + INNER.width - (primary ? 16 : 10), centerY, '', { fontFamily: FONT, fontSize: primary ? '12px' : '15px', color: COLOR.text })
         .setOrigin(1, 0.5);
       const hit = this.add.rectangle(INNER.left, centerY, INNER.width, height, 0xffffff, 0.001).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-      hit.on('pointerover', () => this.after(() => this.menu.select(index)));
+      hit.on('pointerover', () => this.after(() => this.menu.select(index), 'hover'));
       hit.on('pointerdown', () => this.activate());
       panel.add([...(box ? [box] : []), label, value, hit]);
       this.rows.push({ id, y: centerY, primary, box, label, value });

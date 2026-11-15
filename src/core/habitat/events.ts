@@ -7,7 +7,8 @@ import type { AlertLevel } from '../meters/types';
 import type { GameState } from '../state/types';
 import type { Point } from './layout';
 import type { HabitatTask } from './types';
-import type { Departure, PendingDecision, ZoneMinigame } from './HabitatSession';
+import type { Departure, PendingDecision, StormInfo, ZoneMinigame } from './HabitatSession';
+import type { ResourceModeId } from './resourceModes';
 import type { MarsGrid } from '../mars/MarsSession';
 import type { CrewPresence } from '../crew/presence';
 import type { CrewId } from '../crew/types';
@@ -38,7 +39,15 @@ export interface PowerLoad {
 export type TodoItem =
   | { kind: 'decision' | 'emergency' | 'shelter' | 'departure' | 'sleep' }
   | { kind: 'repair'; textKey: string; /** Automático que ya está yendo a repararlo. */ helper?: CrewId }
-  | { kind: 'task'; taskId: string; zone: string };
+  | {
+      kind: 'task';
+      taskId: string;
+      zone: string;
+      /** A quién nombra el motivo (la llamada a casa: quien está más desanimado). */
+      crewId?: CrewId;
+      /** Apareció al azar: horas simuladas hasta que un automático la tome, y quién la tomó. */
+      chore?: { hoursLeft: number; helper?: CrewId };
+    };
 
 /** Lo que muestran las escenas superpuestas en cada cuadro (JSON puro). */
 export interface SimSnapshot {
@@ -84,6 +93,10 @@ export interface SimSnapshot {
   };
   /** Embarque final: la carga del depósito y quiénes ya subieron a la nave. */
   departure?: Departure;
+  /** Consola de recursos: la prioridad elegida y si el jugador está lejos de ella (no puede cambiarla). */
+  resources: { mode: ResourceModeId; blocked: boolean };
+  /** Tormenta de radiación en camino o en curso. */
+  storm: StormInfo | null;
   missionControl: {
     /** Clave del motivo por el que no se puede pedir nada ahora, o null. */
     blockedKey: string | null;
@@ -107,6 +120,12 @@ export interface SimSnapshot {
     canLeave: boolean;
     /** Red eléctrica: tubos rotos, cables cortados, fusible y cómo llega la energía. */
     grid: MarsGrid;
+    /** Polvo sobre los paneles (0..1), la parte de la generación que se pierde y si ya vale la pena limpiarlos. */
+    panels: { dust: number; loss: number; canClean: boolean };
+    /** La base está preparada para la noche (gasta menos hasta que salga el Sol). */
+    nightReady: boolean;
+    /** Es la tarde y todavía no se preparó: se puede hacer ahora en la sala de la batería. */
+    nightPrepOpen: boolean;
   };
 }
 
@@ -122,6 +141,12 @@ export interface SimulationEvents {
   /** Tablero de energía: sistemas desenchufados. */
   'sim:loads': { off: string[] };
   'sim:ask': { kind: 'advice' | 'diagnosis'; incidentId: string };
+  /** Consola de recursos: prioridad elegida. */
+  'sim:mode': { id: ResourceModeId };
+  /** El mapa abre la consola de recursos (E junto a ella). */
+  'sim:console': Record<string, never>;
+  /** Aviso sobre el mapa (ya traducido), con un ícono del tablero o una imagen chica de un atlas. */
+  'sim:toast': { text: string; icon?: string; image?: { key: string; frame: string } };
   /** El mapa abre el minijuego de una zona (E); `reward` y `badge` ya vienen traducidos para el cartel final. */
   'sim:minigame': ZoneMinigame & { reward: string; badge: string | null };
   /** Minijuego ganado: la sesión termina la tarea de la zona. */

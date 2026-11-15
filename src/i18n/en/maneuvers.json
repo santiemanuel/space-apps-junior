@@ -139,5 +139,8 @@
   "cinematic.marsAscent": "Morning in Gale crater: the crew leaves the base for the ascent vehicle.",
   "cinematic.skip": "SPACE to continue",
   "cinematic.liftoff": "Liftoff! There go Vega, Miga, Brote and Senda…",
-  "game.key.space": "SPACE"
+  "game.key.space": "SPACE",
+  "blackout": "Radio blackout: plasma all around…",
+  "radioBack": "Radio is back!",
+  "rescue": "The rescue team is here!"
 }

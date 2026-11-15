@@ -136,7 +136,7 @@ const WALL_DECOR = {
 };
 // Puntos con nombre (`landmark`): [nombre, zona, columna, fila] en tiles desde la esquina del cuarto. `recipe`: donde
 // se lee el recetario de la cocina.
-const LANDMARKS = [['recipe', 'pantry', 7.8, 4.7]];
+const LANDMARKS = [['recipe', 'pantry', 7.8, 4.7], ['bed', 'infirmary', 1.3, 1.5], ['console', 'command', 6.3, 4.7]];
 // Donde se para quien trabaja en el cuarto (tiles desde la esquina).
 const SPOT = { top: [4.5, 3.4], bottom: [4.5, 3.6] };
 

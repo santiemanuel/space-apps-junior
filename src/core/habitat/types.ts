@@ -36,6 +36,11 @@ export interface HabitatTask {
    * de trabajo del cuarto (`spot`).
    */
   recipeAt?: Point;
+  /**
+   * Tarea optativa de riesgo y recompensa (limpiar los paneles, preparar la noche): no aparece al azar ni frena el
+   * reloj; la interfaz muestra qué se gana y qué se arriesga (`<lugar>.tradeoff.<id>.gain|risk`).
+   */
+  tradeoff?: boolean;
 }
 
 /** Cuánto sube el ánimo o la condición física de cada tripulante (0..1). */
@@ -87,6 +92,13 @@ export interface HabitatContent {
   crewSpeedTilesPerS: number;
   /** Zona de las camas: ahí se duerme y ahí reposa quien entra en la emergencia de salud (§3.5). */
   infirmaryZone: string;
+  /**
+   * Consola de recursos (sala de mando; en Marte, la de energía): ahí se elige la prioridad (`RESOURCE_MODES`) y se
+   * enchufan o desenchufan sistemas. `at`: dónde está en el cuarto (tiles); sin eso, vale todo el cuarto.
+   */
+  resourceConsole?: { zone: string; at?: Point };
+  /** Dónde está la cama en la que se duerme (tiles, de un `landmark` del mapa): ahí va el marcador de la tecla Z. */
+  bedAt?: Point;
   /** Refugio de agua (§3.2). */
   shelterZone: string;
   /** Control de Misión (§3.7) [regla]: consola, energía del diagnóstico y cuánto acelera la reparación. */

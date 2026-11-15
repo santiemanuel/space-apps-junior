@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BikeGame, MoxieGame, PulseGame, RadioGame, ScrubberGame } from './arcade';
 import { createMinigame, MINIGAME_IDS } from './catalog';
 import { NO_KEYS, NO_INPUT, type GridCursor, type Minigame, type MinigameInput, type MinigameKeys, type MinigameSetup } from './Minigame';
+import { DustGame, NightGame } from './outpost';
 import { FUSE_TYPES, FusesGame, WiresGame } from './power';
 import { PatchGame, rotateSides, StarsGame, WaterGame } from './puzzles';
 import { DISH_IDS, HarvestGame, MEAL_DISHES, MEAL_INGREDIENTS, MealGame, PLANT_TOOLS, PlantsGame, SealsGame, ShieldGame, type HarvestPlant } from './rooms';
@@ -155,6 +156,20 @@ const POLICIES: { [K in string]: (setup: MinigameSetup) => [Minigame, (g: never,
       return toward(g.cursor, 0, row, f) ?? input({}, { action: f % 2 === 0 });
     },
   ],
+  dust: (s) => [
+    new DustGame(s),
+    (g: DustGame, f: number) => {
+      const i = g.panels.findIndex((layers) => layers > 0);
+      return toward(g.cursor, i % g.cols, Math.floor(i / g.cols), f) ?? input({}, { action: f % 2 === 0 });
+    },
+  ],
+  night: (s) => [
+    new NightGame(s),
+    (g: NightGame, f: number) => {
+      const row = g.switches.findIndex((x) => !x.essential && x.on);
+      return toward(g.cursor, 0, row, f) ?? input({}, { action: f % 2 === 0 });
+    },
+  ],
 };
 
 describe('minijuegos de las salas', () => {
@@ -285,6 +300,44 @@ describe('minijuegos de las salas', () => {
       expect(game.right).not.toEqual(game.left);
       expect([...game.right].sort()).toEqual([...game.left].sort());
     }
+  });
+});
+
+describe('tareas de riesgo y recompensa de Gale', () => {
+  const press = input({}, { action: true });
+
+  it('paneles: cepillar uno limpio lo raya (error); cada pasada saca una capa de polvo', () => {
+    const game = new DustGame({ seed: 5 });
+    const at = (k: number) => {
+      game.cursor.col = k % game.cols;
+      game.cursor.row = Math.floor(k / game.cols);
+    };
+    const clean = game.panels.findIndex((layers) => layers === 0);
+    const dirty = game.panels.findIndex((layers) => layers > 0);
+    at(clean);
+    game.update(DT, press);
+    expect(game.message).toMatchObject({ key: 'scratch', good: false });
+    expect(game.mistakes).toBe(1);
+    const layers = game.panels[dirty]!;
+    at(dirty);
+    game.update(DT, press);
+    expect(game.panels[dirty]).toBe(layers - 1);
+    expect(game.progress).toBeGreaterThan(0);
+  });
+
+  it('noche: el soporte vital no se apaga; lo demás, sí', () => {
+    const game = new NightGame({ seed: 5 });
+    expect(game.switches.some((x) => x.essential)).toBe(true);
+    game.cursor.row = game.switches.findIndex((x) => x.essential);
+    game.update(DT, press);
+    expect(game.message).toMatchObject({ key: 'essential', good: false });
+    expect(game.switches.every((x) => x.on)).toBe(true);
+    game.cursor.row = game.switches.findIndex((x) => !x.essential);
+    game.update(DT, press);
+    expect(game.switches[game.cursor.row]!.on).toBe(false);
+    game.update(DT, press);
+    expect(game.message).toMatchObject({ key: 'already', good: false });
+    expect(game.mistakes).toBe(2);
   });
 });
 

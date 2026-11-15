@@ -10,6 +10,7 @@ import type { VoyageContent } from '../voyage/types';
 import { VoyageSession } from '../voyage/VoyageSession';
 import type { SimSnapshot, SimulationEvents } from './events';
 import type { HabitatInput } from './HabitatSession';
+import { modeEffects, RESOURCE_MODES, type ResourceModeId } from './resourceModes';
 
 const H = 3_600_000;
 const START = '2024-05-01T00:00:00.000Z';
@@ -75,6 +76,11 @@ describe('bus de la simulación', () => {
     const { session, sim, last } = setup();
     session.update(0.25, AT_RADIO);
     const before = last().power.loadKw;
+    // Lejos de la consola de la sala de mando no se toca nada.
+    sim.emit('sim:loads', { off: ['radio'] });
+    session.update(0.25, AT_RADIO);
+    expect(last().power).toMatchObject({ loadKw: before, panelBlocked: true });
+    session.update(0.25, { activeZone: 'command', interacting: false });
     sim.emit('sim:loads', { off: ['radio', 'lifeSupport'] });
     session.update(0.25, AT_RADIO);
     expect(last().power.loadKw).toBeCloseTo(before - VOYAGE_CONTENT.power.loadsKw.radio!);
@@ -131,5 +137,85 @@ describe('Control de Misión (§3.7)', () => {
     const { session, last } = setup({ helpMode: true });
     run(session, () => !!failure(session));
     expect(last().hints).toEqual([{ incidentId: failure(session)!.id, responseId: 'repair' }]);
+  });
+});
+
+describe('consola de recursos (sala de mando)', () => {
+  const AT_COMMAND: HabitatInput = { activeZone: 'command', interacting: false };
+  const consoleAt = VOYAGE_CONTENT.resourceConsole!.at!;
+
+  /** Un día a tiempo normal con una prioridad elegida desde la consola. */
+  const dayWith = (mode: ResourceModeId) => {
+    // Con el ánimo y la forma a medias, para que se vea si suben o bajan.
+    const { session, last } = setup({ crew: makeGameState().crew.map((m) => ({ ...m, morale: 0.6, condition: 0.6 })) });
+    session.update(0.25, AT_COMMAND);
+    if (mode !== 'balanced') expect(session.setMode(mode)).toBe(true);
+    const start = Date.parse(session.simDate);
+    run(session, () => Date.parse(session.simDate) - start >= 20 * H, AT_COMMAND);
+    return { session, last };
+  };
+
+  it('E la abre sólo pegado a ella, en la sala de mando', () => {
+    const { session } = setup();
+    expect(session.consoleAt('command', consoleAt)).toBe(true);
+    expect(session.consoleAt('command', { x: consoleAt.x - 4, y: consoleAt.y })).toBe(false);
+    expect(session.consoleAt('radio', consoleAt)).toBe(false);
+  });
+
+  it('la prioridad sólo se cambia desde la consola y queda anotada', () => {
+    const { session, sim, last } = setup();
+    session.update(0.25, AT_RADIO);
+    sim.emit('sim:mode', { id: 'saveEnergy' });
+    expect(last().resources).toEqual({ mode: 'balanced', blocked: true });
+    session.update(0.25, AT_COMMAND);
+    sim.emit('sim:mode', { id: 'saveEnergy' });
+    expect(last().resources).toEqual({ mode: 'saveEnergy', blocked: false });
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'hud.log.resourceMode.saveEnergy' }));
+    expect(session.savedState.habitat?.resourceMode).toBe('saveEnergy');
+  });
+
+  it('cada opción tiene algo que se gana y algo que cuesta', () => {
+    for (const mode of RESOURCE_MODES) {
+      const effects = modeEffects(mode);
+      if (mode.id === 'balanced') expect(effects).toEqual([]);
+      else {
+        expect(effects.some((e) => e.good), mode.id).toBe(true);
+        expect(effects.some((e) => !e.good), mode.id).toBe(true);
+      }
+    }
+  });
+
+  it('ahorro de energía: la nave consume menos, pero se gasta más aire y agua', () => {
+    const normal = dayWith('balanced');
+    const saving = dayWith('saveEnergy');
+    expect(saving.last().power.loadKw).toBeLessThan(normal.last().power.loadKw * 0.8);
+    expect(saving.session.state.meters.lifeSupport.oxygenKg).toBeLessThan(normal.session.state.meters.lifeSupport.oxygenKg);
+  });
+
+  it('soporte vital primero: el aire rinde más y la nave consume algo más', () => {
+    const normal = dayWith('balanced');
+    const safe = dayWith('lifeSupport');
+    expect(safe.session.state.meters.lifeSupport.oxygenKg).toBeGreaterThan(normal.session.state.meters.lifeSupport.oxygenKg);
+    expect(safe.last().power.loadKw).toBeGreaterThan(normal.last().power.loadKw);
+  });
+
+  it('racionar: la comida rinde más días, pero la tripulación queda con hambre (baja el ánimo y la forma)', () => {
+    const normal = dayWith('balanced').session.state;
+    const rationed = dayWith('ration').session.state;
+    expect(rationed.inventory.foodKg).toBeGreaterThan(normal.inventory.foodKg);
+    const senda = (s: GameState) => s.crew.find((m) => m.id === 'senda')!;
+    expect(senda(rationed).nutrition).toBeLessThan(1);
+    expect(senda(rationed).morale).toBeLessThan(senda(normal).morale);
+    expect(senda(rationed).condition).toBeLessThan(senda(normal).condition);
+  });
+
+  it('ciencia a fondo: sube el ánimo, pero la nave consume más y los sistemas se gastan más rápido', () => {
+    const normal = dayWith('balanced');
+    const science = dayWith('science');
+    const wear = (s: VoyageSession) => (s as unknown as { maintenance: Record<string, { hoursSince: number }> }).maintenance.waterRecycler!.hoursSince;
+    const senda = (s: VoyageSession) => s.state.crew.find((m) => m.id === 'senda')!;
+    expect(senda(science.session).morale).toBeGreaterThan(senda(normal.session).morale);
+    expect(science.last().power.loadKw).toBeGreaterThan(normal.last().power.loadKw);
+    expect(wear(science.session)).toBeGreaterThan(wear(normal.session) * 1.3);
   });
 });
