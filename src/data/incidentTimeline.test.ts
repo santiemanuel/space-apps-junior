@@ -15,7 +15,10 @@ import { EventBus } from '../core/events/EventBus';
 import type { GameEvents } from '../core/events/GameEvents';
 import type { RealEvent } from '../core/events/RealEvent';
 import { Rng } from '../core/rng/Rng';
-import { makeGameState } from '../test-utils/factories';
+import { VOYAGE_CONTENT } from '../content/ship';
+import { VoyageSession } from '../core/voyage/VoyageSession';
+import { makeGameState, makeMeters } from '../test-utils/factories';
+import { seriesFor } from './realData';
 import { incidentTimeline } from './incidentTimeline';
 
 const campaign = (phase: TimedPhase) => incidentTimeline(phase, CAMPAIGN_2024.windows[phase], INCIDENTS, INCIDENT_RULES);
@@ -87,5 +90,32 @@ describe('planificador + reloj en la campaña 2024', () => {
   it('en Marte con nivel 1 no hay noche extrema (es del nivel 3), pero sí la tormenta y el polvo', () => {
     expect(playPhase('mars', 1).shown.map((e) => e.id)).toEqual(['mars-storm-2024-05-20', 'dust-2024-05-28']);
     expect(playPhase('mars', 3).shown.map((e) => e.id)).toEqual(['mars-storm-2024-05-20', 'cold-2024-05-24', 'dust-2024-05-28']);
+  });
+});
+
+describe('Voyage con los datos reales de 2024', () => {
+  it('la tormenta de mayo frena el reloj, todos van al refugio y la ida termina el 15/05', () => {
+    const bus = new EventBus<GameEvents>();
+    const completed: string[] = [];
+    bus.on('phase:completed', (r) => completed.push(`${r.outcome}@${r.state.simDate}`));
+    const session = new VoyageSession({
+      leg: 'out',
+      state: makeGameState({ simDate: '2024-05-07T00:00:00.000Z', meters: makeMeters({ lifeSupport: { oxygenKg: 400, waterL: 300, co2MmHg: 1.5 } }) }),
+      bus,
+      content: VOYAGE_CONTENT,
+      timeline: campaign('cruiseOut'),
+      doseRate: (date) => seriesFor('cruiseOut', date).dose,
+    });
+    const input = { activeZone: 'command', interacting: false };
+    for (let i = 0; i < 40_000 && !session.outcome; i++) {
+      const storm = session.pendingDecisions().find((d) => d.incident.id === 'storm-2024-05-11');
+      if (storm && session.level === 'impact') {
+        session.respond(storm.incident.id, 'goToShelter');
+        input.activeZone = 'shelter';
+      }
+      session.update(0.25, input);
+    }
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'voyage.log.allInShelter', data: expect.objectContaining({ incidentId: 'storm-2024-05-11' }) }));
+    expect(completed).toEqual(['completed@2024-05-15T00:00:00.000Z']);
   });
 });

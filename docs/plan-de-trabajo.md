@@ -332,6 +332,11 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
   nivel 3.
 - Tormenta de radiación: alarma, todos al refugio, tiempo de llegada según la reacción de cada tripulante.
 - `leg: 'back'`: nave gastada, sólo los repuestos que sobraron, el ejercicio cuenta doble.
+- Hecho: `core/voyage/` (`ship.ts` con zonas y rutas óptima o a ciegas, `VoyageSession.ts` que junta reloj, medidores,
+  rutinas, cascada e incidentes y publica en el bus), `content/ship.ts` (plano de 19 × 15 tiles, tareas, rutinas por
+  defecto, desgaste) y `VoyageScene` con un tablero provisional a la derecha (lo reemplaza `Hud` en S9). El estado de
+  la cascada, del planificador y del desgaste viaja con la sesión, como en S3/S5. Provisional hasta F2: Tab emite
+  `crew:switched` desde la escena (quitar en la integración). Dev: `?scene=Voyage&leg=back&from=2024-05-07&help=1&level=2&length=long`.
 
 ### S8 · Escena `Mars`
 

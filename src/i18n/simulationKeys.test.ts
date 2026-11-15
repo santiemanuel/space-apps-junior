@@ -3,7 +3,9 @@ import { CAMPAIGN_2024 } from '../content/campaign';
 import { INCIDENT_RULES, INCIDENTS } from '../content/incidents';
 import { CLOCK_RULES } from '../core/clock/MissionClock';
 import { stormAlert } from '../core/clock/schedule';
+import { SHIP_LAYOUT, VOYAGE_TASKS } from '../content/ship';
 import { SACRIFICES } from '../core/cascade/sacrifices';
+import { CORRIDOR } from '../core/voyage/ship';
 import { incidentTimeline } from '../data/incidentTimeline';
 import { hasKey, LOCALES } from './index';
 
@@ -34,6 +36,13 @@ describe('claves de texto de la simulación', () => {
     'incidents.vanAllen.explanation',
     ...['flare', 'sep', 'cmeMars', 'cmeMarsGlancing'].map((k) => `hud.missionControl.notice.${k}`),
     ...SACRIFICES.flatMap((s) => [`incidents.sacrifice.${s.id}.title`, `incidents.sacrifice.${s.id}.cost`]),
+    ...[...SHIP_LAYOUT.zones.map((z) => z.id), CORRIDOR].map((z) => `voyage.zone.${z}`),
+    ...VOYAGE_TASKS.flatMap((task) => [`voyage.task.${task.id}`, `voyage.station.${task.id}`]),
+    ...VOYAGE_TASKS.flatMap((task) => (task.system ? [`voyage.system.${task.system}`] : [])),
+    ...['green', 'yellow', 'red'].map((s) => `voyage.status.${s}`),
+    ...METERS.map((m) => `voyage.meterName.${m}`),
+    ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),
+    'voyage.log.allInShelter',
   ];
 
   it.each(LOCALES)('existen en %s', (locale) => {
