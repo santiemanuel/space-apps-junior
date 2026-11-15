@@ -7,7 +7,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - `npm test` — tests unitarios (Vitest, entorno node)
 - `npm run typecheck` — tsc
 - `npm run build` — typecheck + build de producción
-- `npm run dev` — servidor en http://localhost:5173 (`?scene=Voyage`, `?scene=Maneuver&id=landing`… abre una escena sola con `makeGameState()`; `Voyage` acepta `&leg=back&from=AAAA-MM-DD&help=1&level=N&length=long`)
+- `npm run dev` — servidor en http://localhost:5173 (`?scene=Voyage`, `?scene=Maneuver&id=landing`… abre una escena sola con `makeGameState()`; `Voyage` y `Mars` aceptan `&from=AAAA-MM-DD&help=1&level=N&length=long`, más `&leg=back` y `&km=N&where=<zona>`)
 - `npm run datasets:fetch` — regenera `datasets/donki/` (lo que usa el juego; requiere red)
 - `npm run datasets:download [-- fuente...]` — descargas crudas a `datasets/raw/` + `manifest.json` (RadLab tarda varios minutos)
 - `node scripts/build-storms.mjs` — regenera `datasets/storms/biosentinel-storms.json` desde `datasets/raw/` (sin red)
@@ -15,7 +15,7 @@ Phaser 4.2 · TypeScript 7 (strict) · Vite 8 · Vitest 5. Versiones fijadas exa
 - `node scripts/build-series.mjs` — regenera `datasets/series/` (dosis diaria y clima de Gale) desde `datasets/raw/`
 
 ## Convenciones
-- La lógica de juego vive en `src/core/` y no puede importar `phaser` ni `src/game/`.
+- La lógica de juego vive en `src/core/` y no puede importar `phaser` ni `src/game/`. `Voyage` y `Mars` comparten el motor `core/habitat/HabitatSession` (y la escena base `SimulationMapScene`).
 - Sólo `src/data/` importa `datasets/` (ambas reglas en `src/architecture.test.ts`).
 - Cada dataset nuevo se documenta en `datasets/README.md` (fuente, URL, uso en el juego). Los valores curados llevan su cita dentro del JSON.
 - Nunca presentar datos archivados como "en vivo": `EnvironmentSnapshot.source` debe reflejarlo.

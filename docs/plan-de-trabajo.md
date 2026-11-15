@@ -345,6 +345,13 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Puntos de muestreo ubicados por semilla, con masa y valor según la distancia.
 - MOXIE escalado, invernadero, esclusa.
 - Entrega a Facundo el `inventory.samples` para `Loadout` en modo `return`.
+- Hecho: el motor de `Voyage` pasó a `core/habitat/` (`HabitatSession` + `layout.ts`, con esclusa y exterior) y
+  `Voyage` y `Mars` son subclases. `core/mars/MarsSession.ts`: luz del sol marciano (día de 6 a 18 h UTC, aproximación),
+  polvo por el UV de REMS, calefacción con la mínima real, MOXIE, invernadero, EVA de día con dosis sin blindaje y
+  puntos de muestreo por semilla (más lejos si el aterrizaje quedó lejos). `content/gale.ts` y `MarsScene` (mapa de
+  48 × 15 tiles con cámara). `GALE_POWER` pasó a 100 kW a 1 UA y 160 kWh para que alcance con cielo limpio y una noche.
+  Las muestras quedan en `inventory.samples` del `PhaseResult`. Dev: `?scene=Mars&km=6&where=airlock&from=2024-05-20`.
+  `HabitatScene` (prototipo lunar) sigue hasta la integración.
 
 ### S9 · Escenas superpuestas: `Hud`, `Planning`, `MissionControl`, `DataPanel`
 

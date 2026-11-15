@@ -1,14 +1,15 @@
 import type { CrewId } from '../core/crew/types';
 import { DEFAULT_ROUTINE, type RoutinePlan } from '../core/crew/routines';
-import type { ShipLayout, ShipZone } from '../core/voyage/ship';
-import type { VoyageContent, VoyageTask } from '../core/voyage/types';
+import type { ShipLayout, ShipZone } from '../core/habitat/layout';
+import type { HabitatTask } from '../core/habitat/types';
+import type { VoyageContent } from '../core/voyage/types';
 import { CAMPAIGN_2024 } from './campaign';
 import { CASCADE_RULES } from './cascade';
 import { INCIDENT_RULES, INCIDENTS } from './incidents';
 import { METER_RULES, SHIP_POWER } from './meters';
 
 /** Cuartos de 4 tiles de alto arriba y abajo del pasillo; la puerta queda en la pared, en el medio del cuarto. */
-const room = (id: string, col: number, cols: number, top: boolean): ShipZone => ({
+export const room = (id: string, col: number, cols: number, top: boolean): ShipZone => ({
   id,
   rect: { col, row: top ? 1 : 10, cols, rows: 4 },
   door: { col: col + Math.floor(cols / 2), row: top ? 5 : 9 },
@@ -37,11 +38,11 @@ export const SHIP_LAYOUT: ShipLayout = {
 };
 
 /** Tareas del viaje (§4.2). Textos en `voyage.task.<id>`. */
-export const VOYAGE_TASKS: readonly VoyageTask[] = [
-  { id: 'exercise', zone: 'exercise', category: 'exercise' },
-  { id: 'scrubber', zone: 'scrubber', category: 'scrubber', system: 'scrubber' },
-  { id: 'recycler', zone: 'recycler', category: 'water', system: 'waterRecycler' },
-  { id: 'callHome', zone: 'radio', category: 'comms' },
+export const VOYAGE_TASKS: readonly HabitatTask[] = [
+  { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise' },
+  { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber' },
+  { id: 'recycler', zone: 'recycler', kind: 'maintenance', category: 'water', system: 'waterRecycler' },
+  { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms' },
 ];
 
 /**
@@ -55,17 +56,18 @@ export const VOYAGE_ROUTINES: RoutinePlan = {
   senda: DEFAULT_ROUTINE,
 };
 
-const ROUTINE_OFFSET_HOURS: Record<CrewId, number> = { vega: 0, miga: 2, brote: 4, senda: 6 };
+export const ROUTINE_OFFSET_HOURS: Record<CrewId, number> = { vega: 0, miga: 2, brote: 4, senda: 6 };
 
 export const VOYAGE_CONTENT: VoyageContent = {
   calendar: CAMPAIGN_2024,
-  ship: SHIP_LAYOUT,
+  layout: SHIP_LAYOUT,
   tasks: VOYAGE_TASKS,
   routines: VOYAGE_ROUTINES,
   routineOffsetHours: ROUTINE_OFFSET_HOURS,
   // [regla] Sin nadie que lo cuide, un sistema se gasta en 4 días (2 en la vuelta).
-  wear: { hoursToYellow: 96, maintenanceHours: 2, backWearMultiplier: 2, backExerciseMultiplier: 2, callHours: 1 },
-  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, loadsKw: SHIP_POWER.loadsKw, essentialLoad: 'lifeSupport' },
+  wear: { systems: ['scrubber', 'waterRecycler'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
+  back: { wearMultiplier: 2, exerciseMultiplier: 2 },
+  power: { panelKwAt1Au: SHIP_POWER.panelKwAt1Au, loadsKw: SHIP_POWER.loadsKw, essentialLoads: ['lifeSupport'] },
   // Algo más rápido que el jugador del prototipo (160 px/s ≈ 3,3 tiles/s) [regla].
   crewSpeedTilesPerS: 3.5,
   infirmaryZone: 'infirmary',

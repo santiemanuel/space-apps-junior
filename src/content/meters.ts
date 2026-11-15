@@ -68,8 +68,10 @@ export const SHIP_POWER: PowerProfile = {
 
 /** Base en el cráter Gale: a 1,52 UA llega el 43 % de la luz y el polvo la reduce más (§3.2, §4.4). */
 export const GALE_POWER: PowerProfile = {
-  panelKwAt1Au: 50,
-  capacityKwh: 100,
+  // Con la luz promedio de un sol (~0,32) alcanza con cielo limpio y no con polvo "Low" [regla].
+  panelKwAt1Au: 100,
+  // Aguanta una noche de 12 h con calefacción [regla].
+  capacityKwh: 160,
   loadsKw: { lifeSupport: 3, radio: 0.3, greenhouse: 1.5, moxie: 2 },
 };
 

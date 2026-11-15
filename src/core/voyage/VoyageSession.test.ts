@@ -10,9 +10,10 @@ import type { GameEvents } from '../events/GameEvents';
 import type { PhaseResult } from '../flow/types';
 import { stormTimeline } from '../incidents/timeline';
 import type { GameState } from '../state/types';
-import { isWalkable, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot } from './ship';
+import { isWalkable, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot } from '../habitat/layout';
 import type { VoyageContent } from './types';
-import { VoyageSession, type VoyageInput } from './VoyageSession';
+import type { HabitatInput as VoyageInput } from '../habitat/HabitatSession';
+import { VoyageSession } from './VoyageSession';
 
 const H = 3_600_000;
 const START = '2024-05-01T00:00:00.000Z';
@@ -168,7 +169,7 @@ describe('Voyage: tormenta de radiación', () => {
     expect(arrived.brote).toBeLessThan(6);
     expect(arrived.miga).toBeGreaterThan(arrived.brote! + 3);
     expect(session.level).toBe('calm');
-    expect(session.state.history.find((e) => e.key === 'voyage.log.allInShelter')).toMatchObject({ data: { incidentId: 'storm-test' } });
+    expect(session.state.history.find((e) => e.key === 'hud.log.allInShelter')).toMatchObject({ data: { incidentId: 'storm-test' } });
   });
 
   it('en el refugio se recibe mucha menos dosis que trabajando', () => {

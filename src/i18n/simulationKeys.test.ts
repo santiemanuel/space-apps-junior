@@ -3,9 +3,10 @@ import { CAMPAIGN_2024 } from '../content/campaign';
 import { INCIDENT_RULES, INCIDENTS } from '../content/incidents';
 import { CLOCK_RULES } from '../core/clock/MissionClock';
 import { stormAlert } from '../core/clock/schedule';
+import { GALE_LAYOUT, GALE_TASKS } from '../content/gale';
 import { SHIP_LAYOUT, VOYAGE_TASKS } from '../content/ship';
 import { SACRIFICES } from '../core/cascade/sacrifices';
-import { CORRIDOR } from '../core/voyage/ship';
+import { CORRIDOR, EXTERIOR } from '../core/habitat/layout';
 import { incidentTimeline } from '../data/incidentTimeline';
 import { hasKey, LOCALES } from './index';
 
@@ -36,13 +37,24 @@ describe('claves de texto de la simulación', () => {
     'incidents.vanAllen.explanation',
     ...['flare', 'sep', 'cmeMars', 'cmeMarsGlancing'].map((k) => `hud.missionControl.notice.${k}`),
     ...SACRIFICES.flatMap((s) => [`incidents.sacrifice.${s.id}.title`, `incidents.sacrifice.${s.id}.cost`]),
-    ...[...SHIP_LAYOUT.zones.map((z) => z.id), CORRIDOR].map((z) => `voyage.zone.${z}`),
-    ...VOYAGE_TASKS.flatMap((task) => [`voyage.task.${task.id}`, `voyage.station.${task.id}`]),
-    ...VOYAGE_TASKS.flatMap((task) => (task.system ? [`voyage.system.${task.system}`] : [])),
-    ...['green', 'yellow', 'red'].map((s) => `voyage.status.${s}`),
-    ...METERS.map((m) => `voyage.meterName.${m}`),
+    ...[CORRIDOR, EXTERIOR].map((z) => `hud.zone.${z}`),
+    ...(
+      [
+        ['voyage', SHIP_LAYOUT, VOYAGE_TASKS],
+        ['mars', GALE_LAYOUT, GALE_TASKS],
+      ] as const
+    ).flatMap(([ns, layout, tasks]) => [
+      ...layout.zones.map((z) => `${ns}.zone.${z.id}`),
+      ...tasks.flatMap((task) => [`${ns}.task.${task.id}`, `${ns}.station.${task.id}`]),
+      ...tasks.flatMap((task) => (task.system ? [`hud.system.${task.system}`] : [])),
+    ]),
+    ...['Very_High', 'High', 'Moderate', 'Low', 'none'].map((uv) => `mars.uv.${uv}`),
+    ...['completed', 'suspended'].map((o) => `mars.outcome.${o}`),
+    'mars.log.sample',
+    ...['green', 'yellow', 'red'].map((s) => `hud.status.${s}`),
+    ...METERS.map((m) => `hud.meterName.${m}`),
     ...['out', 'back', 'suspended'].map((o) => `voyage.outcome.${o}`),
-    'voyage.log.allInShelter',
+    'hud.log.allInShelter',
   ];
 
   it.each(LOCALES)('existen en %s', (locale) => {

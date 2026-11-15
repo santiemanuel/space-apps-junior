@@ -15,10 +15,13 @@ import { EventBus } from '../core/events/EventBus';
 import type { GameEvents } from '../core/events/GameEvents';
 import type { RealEvent } from '../core/events/RealEvent';
 import { Rng } from '../core/rng/Rng';
+import { MARS_CONTENT } from '../content/gale';
 import { VOYAGE_CONTENT } from '../content/ship';
+import { MarsSession } from '../core/mars/MarsSession';
 import { VoyageSession } from '../core/voyage/VoyageSession';
 import { makeGameState, makeMeters } from '../test-utils/factories';
 import { seriesFor } from './realData';
+import { galeWeatherOn } from './series';
 import { incidentTimeline } from './incidentTimeline';
 
 const campaign = (phase: TimedPhase) => incidentTimeline(phase, CAMPAIGN_2024.windows[phase], INCIDENTS, INCIDENT_RULES);
@@ -115,7 +118,39 @@ describe('Voyage con los datos reales de 2024', () => {
       }
       session.update(0.25, input);
     }
-    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'voyage.log.allInShelter', data: expect.objectContaining({ incidentId: 'storm-2024-05-11' }) }));
+    expect(session.state.history).toContainEqual(expect.objectContaining({ key: 'hud.log.allInShelter', data: expect.objectContaining({ incidentId: 'storm-2024-05-11' }) }));
     expect(completed).toEqual(['completed@2024-05-15T00:00:00.000Z']);
+  });
+});
+
+describe('Mars con los datos reales de 2024', () => {
+  it('los 19 soles en Gale: la tormenta del 20/05 y el polvo del 28/05 llegan, y la tripulación aguanta', () => {
+    const bus = new EventBus<GameEvents>();
+    const shown: string[] = [];
+    const cascade: string[] = [];
+    const completed: string[] = [];
+    bus.on('realEvent:shown', (e) => shown.push(e.id));
+    bus.on('cascade:entered', (e) => cascade.push(e.meter));
+    bus.on('phase:completed', (r) => completed.push(r.outcome));
+    const session = new MarsSession({
+      state: makeGameState({
+        phase: 'mars',
+        simDate: CAMPAIGN_2024.windows.mars.start,
+        meters: makeMeters({ energy: { batteryKwh: 160, capacityKwh: 160 }, lifeSupport: { oxygenKg: 80, waterL: 300, co2MmHg: 1.5 } }),
+      }),
+      bus,
+      content: MARS_CONTENT,
+      timeline: campaign('mars'),
+      doseRate: (date) => seriesFor('mars', date).dose,
+      weather: galeWeatherOn,
+    });
+    for (let i = 0; i < 60_000 && !session.outcome; i++) {
+      for (const d of session.pendingDecisions()) session.respond(d.incident.id, d.options[0]!.response.id);
+      session.update(0.25, { activeZone: 'shelter', interacting: false });
+    }
+    expect(shown).toEqual(['mars-storm-2024-05-20', 'dust-2024-05-28']);
+    expect(completed).toEqual(['completed']);
+    // El polvo real de fines de mayo deja la batería en cero: la base entra en emergencia pero no se termina.
+    expect(cascade).toContain('energy');
   });
 });

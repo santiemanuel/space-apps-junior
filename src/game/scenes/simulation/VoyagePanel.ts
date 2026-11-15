@@ -28,8 +28,8 @@ export class VoyagePanel {
     private readonly width: number,
     height: number,
   ) {
-    scene.add.rectangle(x - 16, 0, width + 32, height, 0x0b1020, 0.96).setOrigin(0, 0).setDepth(50);
-    scene.add.rectangle(x - 16, 0, 2, height, 0x2d3748).setOrigin(0, 0).setDepth(50);
+    scene.add.rectangle(x - 16, 0, width + 32, height, 0x0b1020, 0.96).setOrigin(0, 0).setDepth(50).setScrollFactor(0);
+    scene.add.rectangle(x - 16, 0, 2, height, 0x2d3748).setOrigin(0, 0).setDepth(50).setScrollFactor(0);
   }
 
   render(rows: readonly PanelRow[]): void {
@@ -61,7 +61,8 @@ export class VoyagePanel {
   private create(): Phaser.GameObjects.Text {
     const text = this.scene.add
       .text(this.x, this.y, '', { fontFamily: FONT, fontSize: '13px', color: '#e2e8f0', wordWrap: { width: this.width } })
-      .setDepth(51);
+      .setDepth(51)
+      .setScrollFactor(0);
     text.on('pointerdown', () => this.handlers.get(text)?.());
     text.on('pointerover', () => text.setAlpha(0.75));
     text.on('pointerout', () => text.setAlpha(1));
