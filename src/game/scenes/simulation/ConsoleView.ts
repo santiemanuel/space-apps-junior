@@ -6,7 +6,7 @@ import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { audio } from '../../audio/audio';
 import { GAME_HEIGHT } from '../../display';
 import { HUD_ICONS } from '../../hudIcons';
-import { panelIn } from '../../ui/ui';
+import { addKeyButton, KEY_BUTTON, panelIn } from '../../ui/ui';
 import { VIEW_WIDTH } from './HudScene';
 
 const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
@@ -145,9 +145,9 @@ export class ConsoleView {
     const g = this.add(this.scene.add.graphics());
     this.text(MODES.x, 14, t('hud.console.title'), 22, HEAD);
     this.text(MODES.x, 44, t('hud.console.subtitle'), 12, SOFT);
-    this.text(VIEW_WIDTH - 28, 20, t('hud.console.close'), 11, DIM).setOrigin(1, 0);
     this.modes(g, s);
     this.power(g, s);
+    this.add(addKeyButton(this.scene, VIEW_WIDTH - KEY_BUTTON.margin, GAME_HEIGHT - KEY_BUTTON.margin, 'Q', t('hud.console.close'), this.close, { sfx: null }));
   }
 
   /** Las prioridades, una tarjeta cada una: nombre, lo que hace y, con íconos y flechas, qué sube y qué baja. */

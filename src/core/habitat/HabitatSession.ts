@@ -697,6 +697,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       sim.on('sim:loads', ({ off }) => this.setLoadsOff(off)),
       sim.on('sim:ask', ({ kind, incidentId }) => this.ask(kind, incidentId)),
       sim.on('sim:mode', ({ id }) => this.setMode(id)),
+      sim.on('sim:wake', () => this.wakeUp()),
     ];
     this.publishSnapshot();
     return () => {

@@ -143,6 +143,8 @@ export interface SimulationEvents {
   'sim:ask': { kind: 'advice' | 'diagnosis'; incidentId: string };
   /** Consola de recursos: prioridad elegida. */
   'sim:mode': { id: ResourceModeId };
+  /** Botón de despertarse en la pantalla de dormir (lo mismo que Z o E). */
+  'sim:wake': Record<string, never>;
   /** El mapa abre la consola de recursos (E junto a ella). */
   'sim:console': Record<string, never>;
   /** Aviso sobre el mapa (ya traducido), con un ícono del tablero o una imagen chica de un atlas. */

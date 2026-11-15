@@ -11,7 +11,7 @@ import { GAME_HEIGHT } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
 import { VIEW_WIDTH } from './HudScene';
 import type { SimulationSceneData } from './simulationData';
-import { overlayFade } from '../../ui/ui';
+import { addKeyButton, KEY_BUTTON, overlayFade } from '../../ui/ui';
 
 const DAY_MS = 86_400_000;
 /** Días que se muestran antes y después de la fecha del jugador. */
@@ -62,6 +62,7 @@ export class DataPanelScene extends Phaser.Scene {
       layer.removeAll(true);
       this.draw(s, layer);
     });
+    addKeyButton(this, VIEW_WIDTH - KEY_BUTTON.margin, GAME_HEIGHT - KEY_BUTTON.margin, 'G', t('hud.dataPanel.close'), () => this.scene.stop(), { sfx: 'back' });
     sim.emit('sim:pause', { paused: true });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       off();
@@ -85,7 +86,6 @@ export class DataPanelScene extends Phaser.Scene {
 
     text(24, 14, t('hud.dataPanel.sceneTitle'), '#90cdf4', 20);
     text(24, 42, t('hud.dataPanel.subtitle', { date: short(s.simDate) }), '#a0aec0');
-    text(RIGHT - 200, 18, t('hud.dataPanel.close'), '#718096', 11);
 
     // Dosis real de la fase.
     const dose = doseDaysBetween(site, iso(from), iso(to));

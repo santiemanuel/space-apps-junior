@@ -12,7 +12,7 @@ import { MINIGAME_ICON, renderMinigame, type Area } from './renderers';
 import { renderTutorial } from './tutorials';
 import { audio } from '../../../audio/audio';
 import { MinigameSounds } from './sounds';
-import { panelIn } from '../../../ui/ui';
+import { KEY_BUTTON, KEY_BUTTON_COLOR, panelIn } from '../../../ui/ui';
 
 const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
 /** La vista del mapa (el tablero queda al lado, a la vista). */
@@ -28,6 +28,8 @@ const CHECKBOX = { x: AREA.x, w: 330 } as const;
 const START = { x: AREA.x + AREA.w - 200, w: 200 } as const;
 /** Entre la casilla y el botón de empezar: cancelar y volver al mapa sin jugar (Q o clic). */
 const CANCEL = { x: CHECKBOX.x + CHECKBOX.w + 24, w: 180 } as const;
+/** Esquina de abajo a la derecha del cartel: el botón de salir (Q) mientras se juega y el de seguir (E) al ganar. */
+const CORNER = { right: BOX.x + BOX.w - 24, bottom: BOX.y + BOX.h - 12 } as const;
 
 type Request = SimulationEvents['sim:minigame'];
 type KeyName = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'W' | 'A' | 'S' | 'D' | 'E' | 'SPACE' | 'ONE' | 'TWO' | 'THREE' | 'Q' | 'ENTER' | 'X';
@@ -53,9 +55,11 @@ export class MinigameView {
   private tutorial: { checked: boolean } | null = null;
   /** Último aviso del minijuego que ya sonó. */
   private readonly prefs = new TutorialPrefs(createBrowserSaveStore());
+  /** Botón de la esquina dibujado en este cuadro (para el clic). */
+  private corner: { x: number; y: number; w: number; h: number; action: 'exit' | 'continue' } | null = null;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly sim: EventBus<SimulationEvents>,
   ) {
     this.root = scene.add.container(0, 0).setDepth(110).setVisible(false);
@@ -144,9 +148,15 @@ export class MinigameView {
     this.tutorial = null;
   }
 
-  /** Clic en la casilla o en el botón de empezar del tutorial. */
+  /** Clic en el botón de la esquina, o en la casilla o el botón de empezar del tutorial. */
   private click(x: number, y: number): void {
-    if (!this.tutorial || !this.root.visible || y < TUTORIAL_ROW.y || y > TUTORIAL_ROW.y + TUTORIAL_ROW.h) return;
+    if (!this.root.visible) return;
+    const c = this.corner;
+    if (!this.tutorial && c && x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) {
+      audio.sfx(c.action === 'exit' ? 'back' : 'select');
+      return this.close();
+    }
+    if (!this.tutorial || y < TUTORIAL_ROW.y || y > TUTORIAL_ROW.y + TUTORIAL_ROW.h) return;
     if (x >= CHECKBOX.x && x <= CHECKBOX.x + CHECKBOX.w) {
       this.tutorial.checked = !this.tutorial.checked;
       audio.sfx('toggle');
@@ -208,11 +218,11 @@ export class MinigameView {
     const ns = `hud.minigame.${game.id}`;
     p.image(MINIGAME_ICON[game.id], BOX.x + 52, BOX.y + 38, { scale: 0.6 });
     p.text(tr(`${ns}.title`), BOX.x + 84, BOX.y + 24, { size: 22, color: '#fbd38d' });
+    this.corner = null;
     if (request.badge) p.text(request.badge, BOX.x + BOX.w - 30, BOX.y + 30, { size: 13, color: request.setup.hard ? '#fc8181' : '#9ae6b4', originX: 1 });
     if (this.tutorial) {
       renderTutorial(p, game.id, AREA, now);
       this.tutorialRow(this.tutorial.checked, now);
-      p.text(tr('hud.minigame.exit'), BOX.x + 30, BOX.y + BOX.h - 32, { size: 12, color: '#718096' });
       this.over.begin();
       this.over.end();
       p.focus(AREA.x + AREA.w / 2, AREA.y + 80);
@@ -224,10 +234,11 @@ export class MinigameView {
     const msg = game.message;
     if (msg && game.elapsed - msg.at < MESSAGE_S && this.wonAt === null) {
       const alpha = Math.min(1, (MESSAGE_S - (game.elapsed - msg.at)) / 0.4);
-      p.text(tr(`${ns}.${msg.key}`), BOX.x + BOX.w / 2, below + 48, { size: 16, color: msg.good ? '#9ae6b4' : '#fbd38d', originX: 0.5, wrap: AREA.w, align: 'center' }).setAlpha(alpha);
+      p.text(tr(`${ns}.${msg.key}`), BOX.x + BOX.w / 2, below + 42, { size: 16, color: msg.good ? '#9ae6b4' : '#fbd38d', originX: 0.5, wrap: AREA.w, align: 'center' }).setAlpha(alpha);
     }
-    if (!game.card) this.progressBar(game.progress, BOX.y + BOX.h - 52);
-    p.text(tr('hud.minigame.exit'), BOX.x + 30, BOX.y + BOX.h - 32, { size: 12, color: '#718096' });
+    if (!game.card) this.progressBar(game.progress, BOX.y + BOX.h - 62);
+    if (this.wonAt === null) this.cornerButton('Q', tr('hud.minigame.exit'), 'exit');
+    else if (now - this.wonAt > RESULT_LOCK_MS) this.cornerButton('E', tr('hud.minigame.continue'), 'continue', Math.sin(now / 200) > 0);
     this.over.begin();
     if (this.wonAt !== null) this.result(game, request, now);
     this.over.end();
@@ -249,6 +260,26 @@ export class MinigameView {
     p.text(tr('hud.minigame.tutorial.cancel'), CANCEL.x + 44, cy, { size: 14, color: '#cbd5e0', originY: 0.5 });
     p.key('E', START.x + 22, cy, lit);
     p.text(tr('hud.minigame.tutorial.start'), START.x + 50, cy, { size: 18, color: '#fbd38d', originY: 0.5 });
+  }
+
+  /** Botón de la esquina con su tecla, como los de las otras pantallas (`addKeyButton`); `lit` lo hace latir. */
+  private cornerButton(key: string, label: string, action: 'exit' | 'continue', lit = false): void {
+    const p = this.painter;
+    const { height, pad, gap, cap, size } = KEY_BUTTON;
+    const c = KEY_BUTTON_COLOR;
+    const text = p.text(label, 0, 0, { size, color: c.text, originY: 0.5 });
+    const w = pad + cap + gap + text.width + pad;
+    const x = CORNER.right - w;
+    const y = CORNER.bottom - height;
+    const pointer = this.scene.input.activePointer;
+    const hover = pointer.x >= x && pointer.x <= x + w && pointer.y >= y && pointer.y <= y + height;
+    p.g.fillStyle(c.outline).fillRect(x - 3, y - 3, w + 6, height + 6);
+    p.g.fillStyle(hover || lit ? c.hover : c.fill).fillRect(x, y, w, height);
+    p.g.fillStyle(c.shine).fillRect(x, y, w, 3);
+    p.g.fillStyle(c.cap).fillRect(x + pad, y + (height - cap) / 2, cap, cap);
+    p.text(key, x + pad + cap / 2, y + height / 2, { size: 13, color: c.capText, originX: 0.5, originY: 0.5 });
+    text.setPosition(x + pad + cap + gap, Math.round(y + height / 2 + 1));
+    this.corner = { x, y, w, h: height, action };
   }
 
   private progressBar(fraction: number, y: number): void {
@@ -278,7 +309,6 @@ export class MinigameView {
     p.text(request.reward, cx, AREA.y + 132, { size: 17, color: '#9ae6b4', originX: 0.5, wrap: AREA.w - 40, align: 'center' }).setAlpha(k);
     p.text(tr('hud.minigame.fact'), AREA.x + 30, AREA.y + 182, { size: 14, color: '#90cdf4' }).setAlpha(k);
     p.text(tr(`hud.minigame.${game.id}.fact`, { delay: this.delayText(request.setup.delaySeconds ?? 0) }), AREA.x + 30, AREA.y + 204, { size: 15, color: '#e2e8f0', wrap: AREA.w - 60 }).setAlpha(k);
-    if (now - this.wonAt! > RESULT_LOCK_MS) p.text(tr('hud.minigame.continue'), cx, AREA.y + AREA.h - 14, { size: 14, color: '#fbd38d', originX: 0.5 }).setAlpha(0.6 + 0.4 * Math.sin(now / 200));
     this.painter.focus(cx, AREA.y + 82);
   }
 

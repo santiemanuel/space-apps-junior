@@ -234,11 +234,11 @@ export class HudScene extends Phaser.Scene {
     const keyboard = this.input.keyboard!;
     keyboard.addKey('M').on('down', () => (this.muted = audio.toggleMute()));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
-    this.status = new StatusView(this, this.data_.namespace);
+    this.status = new StatusView(this, this.data_.namespace, () => this.show(null));
     this.minigame = new MinigameView(this, sim);
     this.console_ = new ConsoleView(this, sim, () => this.show(null));
     this.banner = new StormBanner(this);
-    this.sleep = new SleepOverlay(this, t('hud.sleep.wakeHint'));
+    this.sleep = new SleepOverlay(this, () => sim.emit('sim:wake', {}));
     this.stormCard = { root: this.add.container(0, 0).setDepth(51), signature: '' };
     this.wasAsleep = false;
     this.toasts = new Toasts(this);
@@ -269,7 +269,7 @@ export class HudScene extends Phaser.Scene {
     keyboard.addKey('I').on('down', () => this.toggleStatus());
     keyboard.addKey('ENTER').on('down', () => this.show(null));
     if (mars) {
-      this.crater = new CraterView(this, MARS_CONTENT.layout);
+      this.crater = new CraterView(this, MARS_CONTENT.layout, () => this.show(null));
       keyboard.addKey('V').on('down', () => this.toggleCrater());
       // Recién llegados a Gale: primero, dónde estamos.
       if (Date.parse(this.data_.state.simDate) <= Date.parse(MARS_CONTENT.calendar.windows.mars.start)) this.show('crater');

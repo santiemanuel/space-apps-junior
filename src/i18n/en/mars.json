@@ -71,7 +71,7 @@
   "crater.credit": "Real photo: {credit}, pixelated for the game",
   "crater.inset": "Your map, magnified",
   "crater.compressed": "From where Curiosity landed to the channel it is {km} km in a straight line. The game shrinks that path: you walk it in a moment, with one strip of each landscape. The blinking cross is you.",
-  "crater.close": "V or Enter: close",
+  "crater.close": "Close",
   "crater.hint": "V: crater map",
   "realEvent.sulfur.kidValue": "On its Martian day number 4200, Curiosity drove over a rock, cracked it open and found yellow crystals of pure sulfur inside.",
   "realEvent.sulfur.explanation": "Pure sulfur had never been found on Mars. It only forms in very special conditions: scientists are still working out how it got into this channel.",

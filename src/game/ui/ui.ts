@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { SystemStatus } from '../../core/systems/types';
 import { audio } from '../audio/audio';
+import type { SfxId } from '../audio/themes';
 
 /** Paleta y estilos comunes de las pantallas del flujo (menús, maniobras, tarjetas, informe). */
 export const FONT = 'monospace';
@@ -122,6 +123,54 @@ export function addButton(
   };
   paint();
   return button;
+}
+
+/** Botón para cerrar o seguir, abajo a la derecha de las pantallas: la tecla que hace lo mismo y lo que hace. */
+export const KEY_BUTTON = { height: 38, pad: 12, gap: 8, cap: 24, size: 16, margin: 16 } as const;
+export const KEY_BUTTON_COLOR = { outline: 0x05070d, fill: 0xf6ad55, hover: 0xfbd38d, shine: 0xffe0a0, cap: 0x1a202c, text: '#1a202c', capText: '#fbd38d' } as const;
+
+/**
+ * Botón con su tecla (`[I] Cerrar`), anclado por la esquina de abajo a la derecha en (`right`, `bottom`). Se puede
+ * meter en un contenedor; con el mouse se resalta y al hacer clic llama a `onClick` (con `sfx: null` si ya suena ahí).
+ */
+export function addKeyButton(
+  scene: Phaser.Scene,
+  right: number,
+  bottom: number,
+  key: string,
+  label: string,
+  onClick: () => void,
+  { sfx = 'select' }: { sfx?: SfxId | null } = {},
+): Phaser.GameObjects.Container {
+  const { height, pad, gap, cap, size } = KEY_BUTTON;
+  const c = KEY_BUTTON_COLOR;
+  const capText = scene.add.text(0, 0, key, textStyle(13, c.capText, { fontStyle: 'bold' })).setOrigin(0.5);
+  const text = scene.add.text(0, 0, label, textStyle(size, c.text, { fontStyle: 'bold' })).setOrigin(0, 0.5);
+  const capW = Math.max(cap, capText.width + 10);
+  const width = pad + capW + gap + text.width + pad;
+  const cy = -height / 2;
+  capText.setPosition(-width + pad + capW / 2, cy);
+  text.setPosition(-width + pad + capW + gap, cy + 1);
+  const g = scene.add.graphics();
+  const draw = (hover: boolean) => {
+    g.clear();
+    g.fillStyle(c.outline).fillRect(-width - 3, -height - 3, width + 6, height + 6);
+    g.fillStyle(hover ? c.hover : c.fill).fillRect(-width, -height, width, height);
+    g.fillStyle(c.shine).fillRect(-width, -height, width, 3);
+    g.fillStyle(c.cap).fillRect(-width + pad, cy - cap / 2, capW, cap);
+  };
+  draw(false);
+  const hit = scene.add.zone(-width, -height, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+  hit.on('pointerover', () => {
+    draw(true);
+    audio.sfx('hover');
+  });
+  hit.on('pointerout', () => draw(false));
+  hit.on('pointerdown', () => {
+    if (sfx) audio.sfx(sfx);
+    onClick();
+  });
+  return scene.add.container(right, bottom, [g, capText, text, hit]);
 }
 
 // --- Transiciones de la interfaz ---
