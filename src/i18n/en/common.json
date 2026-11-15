@@ -17,5 +17,21 @@
   "phase.marsAscent": "Leaving Mars",
   "phase.cruiseBack": "Trip home",
   "phase.reentry": "Back to Earth",
-  "dataDate": "Real data from {date}"
+  "dataDate": "Real data from {date}",
+  "language.es": "Español",
+  "language.en": "English",
+  "system.scrubber": "CO2 scrubber",
+  "system.waterRecycler": "Water recycler",
+  "system.radio": "Radio",
+  "system.solarPanels": "Solar panels",
+  "system.engines": "Engines",
+  "system.heatShield": "Heat shield",
+  "system.parachutes": "Parachutes",
+  "system.moxie": "MOXIE (oxygen maker)",
+  "system.greenhouse": "Greenhouse",
+  "system.airlock": "Airlock",
+  "light.green": "Good",
+  "light.yellow": "Careful",
+  "light.red": "Danger",
+  "button.continue": "Continue"
 }

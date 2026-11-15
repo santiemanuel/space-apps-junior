@@ -17,5 +17,21 @@
   "phase.marsAscent": "Despegue de Marte",
   "phase.cruiseBack": "Viaje de vuelta",
   "phase.reentry": "Regreso a la Tierra",
-  "dataDate": "Dato real del {date}"
+  "dataDate": "Dato real del {date}",
+  "language.es": "Español",
+  "language.en": "English",
+  "system.scrubber": "Depurador de CO2",
+  "system.waterRecycler": "Reciclador de agua",
+  "system.radio": "Radio",
+  "system.solarPanels": "Paneles solares",
+  "system.engines": "Motores",
+  "system.heatShield": "Escudo térmico",
+  "system.parachutes": "Paracaídas",
+  "system.moxie": "MOXIE (fábrica de oxígeno)",
+  "system.greenhouse": "Invernadero",
+  "system.airlock": "Esclusa",
+  "light.green": "Bien",
+  "light.yellow": "Cuidado",
+  "light.red": "Peligro",
+  "button.continue": "Continuar"
 }

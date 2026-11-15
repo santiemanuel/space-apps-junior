@@ -1,3 +1,22 @@
 {
-  "sceneTitle": "Viaje en la nave"
+  "sceneTitle": "Viaje en la nave",
+  "zone.command": "Módulo de mando",
+  "zone.exercise": "Ejercicio",
+  "zone.scrubber": "Depurador de CO2",
+  "zone.recycler": "Reciclador de agua",
+  "zone.infirmary": "Camas y enfermería",
+  "zone.pantry": "Despensa",
+  "zone.shelter": "Refugio de agua",
+  "zone.radio": "Radio",
+  "station.exercise": "Bici",
+  "station.scrubber": "CO2",
+  "station.recycler": "Agua",
+  "station.callHome": "Radio",
+  "task.exercise": "E: hacer ejercicio",
+  "task.scrubber": "E: revisar el depurador",
+  "task.recycler": "E: revisar el reciclador",
+  "task.callHome": "E: llamar a casa",
+  "outcome.out": "¡Llegaron a Marte! Ahora viene el aterrizaje.",
+  "outcome.back": "¡Llegaron a la Tierra! Ahora viene la reentrada.",
+  "outcome.suspended": "Misión suspendida: la tripulación está a salvo en el refugio esperando el rescate."
 }

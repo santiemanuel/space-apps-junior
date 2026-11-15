@@ -302,6 +302,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Contenido en `src/content/incidents.ts`: tormenta de radiación, tormenta de polvo, depurador averiado,
   micrometeorito, aislamiento, noche extrema, CO2 alto, plaga, polvo en los sellos, conjunción solar.
 - Emite `realEvent:shown` con un `RealEvent` completo para cada evento del dataset.
+- Hecho: `core/incidents/` (`definitions.ts` con el formato de §3.4, `timeline.ts`, `planner.ts`), `content/incidents.ts`,
+  `data/incidentTimeline.ts`. Los avisos dinámicos llegan al reloj con `MissionClock.addAlert`; el estado del
+  planificador (`IncidentPlannerState`) viaja junto al `GameState`, como el de la cascada.
 
 ### S6 · Datos — `src/data/`
 
@@ -317,6 +320,9 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - API: `seriesFor(phase, date)` y `eventsBetween(from, to)`.
 - Cada serie nueva se documenta en `datasets/README.md` (fuente, URL, uso).
 - Cuando se recorta un valor de BioSentinel: `capped: true` en el `RealEvent`.
+- Hecho: `src/data/realData.ts` (`seriesFor(phase, date)`, `eventsBetween(from, to, rules)`), `vanAllen.ts`
+  (`VAN_ALLEN` con su `RealEvent` para el ascenso), `notices.ts` (`DONKI_NOTICES` + `noticeText`) y picos a
+  resolución completa en las tarjetas. Todo sale de `node scripts/build-events.mjs`.
 
 ### S7 · Escena `Voyage`
 
@@ -326,6 +332,11 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
   nivel 3.
 - Tormenta de radiación: alarma, todos al refugio, tiempo de llegada según la reacción de cada tripulante.
 - `leg: 'back'`: nave gastada, sólo los repuestos que sobraron, el ejercicio cuenta doble.
+- Hecho: `core/voyage/` (`ship.ts` con zonas y rutas óptima o a ciegas, `VoyageSession.ts` que junta reloj, medidores,
+  rutinas, cascada e incidentes y publica en el bus), `content/ship.ts` (plano de 19 × 15 tiles, tareas, rutinas por
+  defecto, desgaste) y `VoyageScene` con un tablero provisional a la derecha (lo reemplaza `Hud` en S9). El estado de
+  la cascada, del planificador y del desgaste viaja con la sesión, como en S3/S5. Provisional hasta F2: Tab emite
+  `crew:switched` desde la escena (quitar en la integración). Dev: `?scene=Voyage&leg=back&from=2024-05-07&help=1&level=2&length=long`.
 
 ### S8 · Escena `Mars`
 
@@ -334,6 +345,13 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - Puntos de muestreo ubicados por semilla, con masa y valor según la distancia.
 - MOXIE escalado, invernadero, esclusa.
 - Entrega a Facundo el `inventory.samples` para `Loadout` en modo `return`.
+- Hecho: el motor de `Voyage` pasó a `core/habitat/` (`HabitatSession` + `layout.ts`, con esclusa y exterior) y
+  `Voyage` y `Mars` son subclases. `core/mars/MarsSession.ts`: luz del sol marciano (día de 6 a 18 h UTC, aproximación),
+  polvo por el UV de REMS, calefacción con la mínima real, MOXIE, invernadero, EVA de día con dosis sin blindaje y
+  puntos de muestreo por semilla (más lejos si el aterrizaje quedó lejos). `content/gale.ts` y `MarsScene` (mapa de
+  48 × 15 tiles con cámara). `GALE_POWER` pasó a 100 kW a 1 UA y 160 kWh para que alcance con cielo limpio y una noche.
+  Las muestras quedan en `inventory.samples` del `PhaseResult`. Dev: `?scene=Mars&km=6&where=airlock&from=2024-05-20`.
+  `HabitatScene` (prototipo lunar) sigue hasta la integración.
 
 ### S9 · Escenas superpuestas: `Hud`, `Planning`, `MissionControl`, `DataPanel`
 
@@ -342,14 +360,24 @@ Rama: `feat/simulacion`. Todo lo de `src/core/` lleva tests.
 - `Planning`: rutinas y tablero de energía con el mouse.
 - `MissionControl`: demora real con cuenta regresiva y bloqueo durante la conjunción solar.
 - `DataPanel`: gráficas con la posición del jugador en el tiempo.
+- Hecho: las superpuestas hablan con la sesión por un bus propio, `SimulationEvents` (`core/habitat/events.ts`):
+  `sim:snapshot` en cada cuadro y pedidos `sim:pause|respond|sacrifice|routines|loads|ask`. No toca `GameEvents.ts`;
+  se puede unir en la integración. Las escenas de mapa lanzan `Hud` y abren `Planning` (P, pausa), `MissionControl`
+  (C, el reloj sigue) y `DataPanel` (G, pausa). `HudScene` conserva el tablero del prototipo lunar si `Boot` la abre
+  con `{ session }`. Demora de la señal con las órbitas aproximadas de JPL (`datasets/curated/planet-elements.json`);
+  consejos y diagnóstico remoto (×1,5) los pide la comandante desde la radio. El monitor de partículas suena con
+  Web Audio (M silencia).
+- Después de S9: la planificación se abre sola con cada aviso nuevo; el tablero tiene tantos enchufes como alcanza
+  el sol de hoy (`power.socketKw`, con polvo "Low" en Gale no queda ninguno); Control de Misión suma noticias de casa
+  cada 3 días; Curiosity está estacionado en el exterior con el dato del día; el tablero titila en Alerta.
 
 ### Entregables de Santiago
 
-- [ ] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
-- [ ] Series de `src/data/` documentadas en `datasets/README.md`.
-- [ ] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
-- [ ] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
-- [ ] Textos en `voyage/mars/hud/incidents.json` (es + en).
+- [x] `core/clock`, `meters`, `cascade`, `crew`, `incidents` con tests.
+- [x] Series de `src/data/` documentadas en `datasets/README.md`.
+- [x] `Voyage` jugable (ida y vuelta) y `Mars` jugable con un estado de prueba.
+- [x] `Hud`, `Planning`, `MissionControl`, `DataPanel`.
+- [x] Textos en `voyage/mars/hud/incidents.json` (es + en).
 
 ---
 
@@ -362,6 +390,9 @@ Rama: `feat/flujo-maniobras`.
 - Selector ES/EN en `Title` y `Pause`.
 - Migrar a claves los textos que hoy están escritos en `HudScene` y en `content/missions.ts`.
 - Formateo de números y fechas por idioma (`Intl`).
+- Hecho: selector ES/EN en `Title` y `Pause` (se recuerda en el navegador), `i18n/format.ts` (fechas, números y horas
+  con `Intl`) e `i18n/locales.ts`. Pendiente: los textos de `HudScene` y `content/missions.ts` (prototipo que se retira en
+  la integración).
 
 ### F2 · Personajes visibles — `src/game/entities/CrewSprite.ts`
 
@@ -369,12 +400,20 @@ Rama: `feat/flujo-maniobras`.
 - Animaciones `idle-{dir}` y `walk-{dir}` para las 4 direcciones.
 - Burbuja de estado (motivo de la lentitud), marcador del tripulante activo, Tab.
 - **Conviene publicar esto primero** como rama o paquete aparte para que Santiago lo vea, aunque se integre al final.
+- Hecho: `entities/CrewSprite.ts` (misma firma) + `entities/crewAnimations.ts`: hojas `crew-<id>` cargadas en `Boot`
+  (`src/game/assets.ts`, archivos en `public/assets/crew/`), `idle-*`/`walk-*` en 4 direcciones, ritmo según la velocidad,
+  burbuja con `slowReasonKey`, flecha y anillo del activo, cuerpo físico en los pies. Tab: `input/crewSwitch.ts`
+  (`bindCrewSwitch`, saltea a los que están en reposo); en la integración reemplaza el Tab provisional de `VoyageScene`.
 
 ### F3 · Flujo de misión — `src/core/flow/MissionFlow.ts`
 
 - Máquina de estados de las 7 fases: `prep → ascent → cruiseOut → landing → mars → marsAscent → cruiseBack → reentry → report`.
 - Aplica el `PhaseResult` al `GameState` y decide la escena siguiente.
 - Pura y testeable: test de un recorrido completo con resultados falsos.
+- Hecho: `core/flow/MissionFlow.ts` (`stepFor`, `complete`, `recordRealEvent`; el despegue de Marte tiene dos pasos y una
+  partida guardada en medio retoma donde quedó) y `game/scenes/flow/FlowDirector.ts`, que lo conecta por el bus: arranca
+  cada escena (`phaseScenes.ts`), emite `phase:started`, autoguarda en cada `phase:completed`, abre `DataCard` con
+  `realEvent:shown` (en cola, pausando lo que corre), `Pause` con Esc y al final actualiza la progresión.
 
 ### F4 · Motor de maniobras — `src/core/maneuvers/`
 
@@ -383,6 +422,8 @@ Rama: `feat/flujo-maniobras`.
 - Barras por etapa: Espacio en la zona correcta; un sistema amarillo achica la zona (§4.0).
 - Un error cuesta combustible, precisión o una corrección extra, y **nunca termina la partida**.
 - Resultado: precisión total, combustible restante, `PhaseResult`.
+- Hecho: `core/maneuvers/` (`ManeuverRun`: checklist con reparar o arriesgarse, zonas por semilla, marca que va y
+  vuelve, errores que cuestan combustible, `toPhaseResult()` con historial).
 
 ### F5 · Escena `Maneuver` + 4 configuraciones — `src/content/maneuvers.ts`
 
@@ -394,6 +435,9 @@ Rama: `feat/flujo-maniobras`.
 | Reentrada (§4.7) | Orientar el escudo, reentrada (calor y apagón de comunicaciones), paracaídas y amerizaje | Final: la tripulación camina o va en camilla según su condición física |
 
 Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta confirmarlas.
+- Hecho: `content/maneuvers.ts` (4 maniobras, `MANEUVER_RULES`, dificultad del aterrizaje por combustible y carga,
+  `VAN_ALLEN_EVENT` provisional hasta usar `VAN_ALLEN` de `src/data/`) y `ManeuverScene`. Dev:
+  `?scene=Maneuver&id=landing&yellow=heatShield&red=parachutes`. El polvo real del día (REMS) se suma en la integración.
 
 ### F6 · `Title` y `Loadout`
 
@@ -402,6 +446,9 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
   efecto explicado y su semáforo.
 - `Loadout` modo `return`: límite de masa, muestras contra comida, agua y repuestos; recordatorio de que el agua
   también es blindaje.
+- Hecho: `TitleScene` (+ `core/flow/titleMenu.ts`, `core/flow/newGame.ts`, `content/missionStart.ts`) y `LoadoutScene`
+  (+ `core/loadout/loadout.ts`, `content/loadouts.ts`). Límite de vuelta: 1660 kg [regla] (ver §11). Dev:
+  `?scene=Title&level=3&save=1`, `?scene=Loadout&level=4`, `?scene=Loadout&mode=return`.
 
 ### F7 · `DataCard` y `Report`
 
@@ -412,6 +459,10 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
   - Logros: "Refugio a tiempo", "Como Opportunity", "Cero radiografías extra", "Sobreviviste a la X9.0".
   - Decisiones del jugador junto a las gráficas reales; tarjetas vividas; explicación de la ruta nuclear.
   - En misión suspendida: cadena de decisiones, con el lenguaje "la tripulación está a salvo esperando rescate".
+- Hecho: `DataCardScene`, `ReportScene` (3 páginas) + `core/report/report.ts` y `content/achievements.ts`. Los logros
+  que dependen de la simulación ("Refugio a tiempo", "Cero radiografías extra") llegan en `PhaseResult.achievements` y se
+  guardan en `GameState.achievements` (campo opcional nuevo). Las gráficas reales del informe se suman en la integración
+  con `seriesFor()`; hoy hay una línea de tiempo con las decisiones y las tarjetas vividas. Dev: `?scene=Report&outcome=suspended`.
 
 ### F8 · Guardado y progresión — `src/core/save/`, `src/core/progression/`
 
@@ -421,14 +472,18 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 - Progresión: niveles 1–4, récords, logros.
 
 **Acepta:** test de ida y vuelta: guardar → cargar → mismo estado y misma secuencia del `Rng`.
+- Hecho: `core/save/` (`SaveStore`, `MemorySaveStore`, partida/progresión/ajustes con versión) y
+  `game/storage/browserSaveStore.ts`; `core/progression/` (niveles, `UNLOCK_AT`, `recordMissionEnd`). `PauseScene`: continuar,
+  guardar, guardar y salir, idioma. Mientras una fase de simulación corre se guarda el estado del inicio de la fase más
+  las tarjetas vividas: en la integración, `Voyage`/`Mars` tienen que publicar su estado para el guardado manual.
 
 ### Entregables de Facundo
 
-- [ ] `i18n` completo y textos actuales migrados.
-- [ ] `createCrewSprite` con los 4 personajes animados y el cambio por Tab.
-- [ ] `core/flow`, `maneuvers`, `save`, `progression` con tests.
-- [ ] `Title`, `Loadout`, `Maneuver` (4 configuraciones), `DataCard`, `Report`, `Pause`.
-- [ ] Textos en `menu/maneuvers/report/common.json` (es + en).
+- [x] `i18n` completo y textos actuales migrados (revisado en la integración: en `src/game/` sólo quedan nombres propios como "Curiosity").
+- [x] `createCrewSprite` con los 4 personajes animados y el cambio por Tab.
+- [x] `core/flow`, `maneuvers`, `save`, `progression` con tests.
+- [x] `Title`, `Loadout`, `Maneuver` (4 configuraciones), `DataCard`, `Report`, `Pause`.
+- [x] Textos en `menu/maneuvers/report/common.json` (es + en).
 
 ---
 
@@ -439,11 +494,12 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/core/clock/`, `meters/`, `cascade/`, `crew/`, `incidents/`, `environment/`, `resources/` | Santiago |
 | `src/core/flow/` (salvo `types.ts`), `maneuvers/`, `save/`, `progression/` | Facundo |
 | `src/data/`, `datasets/`, `scripts/` | Santiago |
-| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts` | Santiago |
+| `src/content/habitat.ts`, `ship.ts`, `gale.ts`, `incidents.ts`, `startingConditions.ts`, `campaign.ts`, `meters.ts`, `cascade.ts` | Santiago |
 | `src/content/maneuvers.ts`, `loadouts.ts`, `achievements.ts` | Facundo |
 | `src/game/scenes/simulation/*`, `simulationScenes.ts` | Santiago |
 | `src/game/scenes/flow/*` (incluye `BootScene.ts`), `flowScenes.ts` | Facundo |
 | `src/game/entities/CrewSprite.ts`, `src/game/input/`, `src/game/textures.ts`, `src/game/dev/flowDev.ts` | Facundo |
+| `src/core/loadout/`, `report/`, `src/content/missionStart.ts`, `src/game/assets.ts`, `src/game/ui/`, `src/game/storage/`, `public/assets/crew/` | Facundo |
 | `src/game/dev/simulationDev.ts` | Santiago |
 | `src/game/entities/StationView.ts` | Santiago |
 | `src/i18n/*/voyage\|mars\|hud\|incidents.json` | Santiago |
@@ -486,23 +542,51 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 | `Mars` → `inventory.samples` → `Loadout(return)` | Santiago |
 | Resultado del aterrizaje (distancia) → puntos de muestreo y EVA en `Mars` | Santiago |
 | Guardado: serializa reloj, medidores, tripulación e incidentes activos | Facundo |
+| `CascadeState` (`src/core/cascade/types.ts`) entra en `GameState` como campo opcional `cascade` para guardarlo; hasta entonces viaja aparte para no tocar los contratos | Santiago (tipo) · Facundo (guardado) |
 | Historial de decisiones e incidentes → `Report` | Facundo |
 | Desbloqueos de `progression` → filtro del planificador de incidentes | Santiago |
 
 4. Se retiran el prototipo lunar y el código muerto (`ResourceModel` de 4 recursos, decisiones con 1/2/3, fin de
    partida por recurso), y se actualiza `README.md` (hoy dice "Base Lunar").
 
+**Hecho en `feat/integracion`:**
+- `main.ts` sólo crea el juego: `BootScene` arranca `FlowDirector`, `Title` crea el `GameState` con `createNewGame` y
+  cada fase arma su sesión (`VoyageSession`, `MarsSession`, `ManeuverRun`). `GameSession` se retiró con el prototipo.
+- Tab: `SimulationMapScene` usa `bindCrewSwitch` (saltea a los que reposan).
+- `realEvent:shown` → `DataCard` con las escenas en pausa (el reloj no avanza). La tarjeta de Van Allen es `VAN_ALLEN`
+  de `src/data/` (HERA, Artemis I). El planificador anota cada tarjeta con todos sus datos (`realEventLogEntry`) y
+  `MissionFlow` no la repite.
+- Aterrizaje: la dificultad suma el polvo real del día (UV de REMS en Gale, el mismo factor de los paneles) y el
+  narrador lo avisa. La distancia ya llegaba a `Mars` por `GameState.landingDistanceKm`.
+- Carga: `MISSION_START` lleva el O2 de toda la misión (+10 %); cada lugar tiene su batería (`HabitatPower.capacityKwh`:
+  al llegar a Gale se usa la de la base, cargada; al volver, la de la nave).
+- Guardado a mitad de fase: `Voyage`/`Mars` publican `phase:progress` con `GameState.habitat` (planificador y
+  cascada, en lugar del campo `cascade` previsto) y `MissionFlow.progress()` lo guarda; al retomar no se repiten los
+  incidentes ya disparados.
+- Logros de la simulación en `PhaseResult.achievements`: "Refugio a tiempo" (todos en el refugio antes del impacto) y
+  "Cero radiografías extra" (en las tormentas nadie recibió más de 0,1 mSv por encima de lo que da el refugio).
+- `Report`: traduce las claves que anota la simulación, muestra cada incidente una vez y dibuja la dosis real de cada
+  día (`dailyDoses`) sobre la línea de tiempo.
+- Progresión → planificador: ya funcionaba por `GameState.unlockLevel`.
+- Retirados: `core/session|resources|missions|decisions`, `HabitatScene`, `PrototypeHud`, `Player`, `StationView`,
+  `services.ts`, `content/missions|startingConditions|habitat` y los eventos del prototipo en `GameEvents`. Queda sin
+  conectar el cliente de DONKI en vivo (`src/data/donki/`, `EnvironmentService`): decidir si se retira.
+
 ### 10.2 Criterios de aceptación del PR final
 
-- [ ] `npm test`, `npm run typecheck` y `npm run build` en verde, incluido `src/architecture.test.ts`.
-- [ ] Test de partida completa en Node: campaña 2024, modo corto, semilla fija, de `prep` a `report`.
+- [x] `npm test`, `npm run typecheck` y `npm run build` en verde, incluido `src/architecture.test.ts`.
+- [x] Test de partida completa en Node: campaña 2024, modo corto, semilla fija, de `prep` a `report` (`src/fullGame.test.ts`).
+- [x] Un medidor en cero entra en cascada y no termina la partida (`VoyageSession.test.ts`, "sin aire entra en emergencia").
+- [x] Los datos archivados nunca se presentan como en vivo: el tablero dice "Dato real archivado del <fecha> · <fuente>" y cada tarjeta muestra la fecha del dato. (Reemplaza al criterio de `EnvironmentSnapshot.source`, que sólo usaba el prototipo lunar.)
+- [x] Ningún texto de UI escrito en el código; todas las claves existen en `es` y `en`.
+- [x] Revisión cruzada: cada uno revisa la parte del otro (confirmada por Santiago y Facundo; además se revisaron las convenciones de `AGENTS.md` en todo el código).
+
+Pruebas manuales postergadas por decisión del equipo hasta después de fusionar en `master` (se cubren en Node con
+`src/fullGame.test.ts`; quedan para la primera sesión de juego):
+
 - [ ] Prueba manual en `npm run dev`: las 7 fases en orden, en ES y en EN.
 - [ ] Guardar en `Voyage`, recargar la página y continuar con el mismo estado.
 - [ ] La tormenta de mayo de 2024 frena el reloj, se tiñe de amarillo y abre su `DataCard`.
-- [ ] Un medidor en cero entra en cascada y no termina la partida.
-- [ ] `EnvironmentSnapshot.source` dice "archivo" cuando el dato no es en vivo.
-- [ ] Ningún texto de UI escrito en el código; todas las claves existen en `es` y `en`.
-- [ ] Revisión cruzada: cada uno revisa la parte del otro.
 
 ---
 
@@ -510,12 +594,12 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 
 | Tema | Responsable | Antes de |
 |---|---|---|
-| Fechas de las conjunciones solares de Marte (§10 del diseño) | Santiago | S5 |
-| Antelación real DONKI→RadLab en mayo y octubre de 2024 | Santiago | S1 |
-| Factores Q por fase (Hassler 2014, Zeitlin 2013) | Santiago | S2 |
-| Mínimas de REMS por debajo de −90 °C | Santiago | S8 |
-| Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I) | Facundo | F5 |
-| Límites de masa de las cargas de ida y vuelta | Facundo | F6 |
+| ~~Fechas de las conjunciones solares de Marte (§10 del diseño)~~ Hecho: 2015, 2017, 2019, 2021 y 2023 (JPL), en `datasets/curated/mars-conjunctions.json` | Santiago | S5 |
+| ~~Antelación real DONKI→RadLab en mayo y octubre de 2024~~ Hecho: mayo 69 h, octubre 1,9 h (ver `datasets/README.md`) | Santiago | S1 |
+| ~~Factores Q por fase (Hassler 2014, Zeitlin 2013)~~ Hecho: 3,05 y 3,8, citados en `datasets/curated/radiation-dose.json` | Santiago | S2 |
+| ~~Mínimas de REMS por debajo de −90 °C~~ Hecho: son artefactos aislados, se reemplazan por la mediana vecina (ver `datasets/README.md`) | Santiago | S8 |
+| ~~Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I)~~ Hecho: Perseverance y Orion con fuentes de la NASA en `src/content/maneuvers.ts` y game-design §4.3, §4.7 | Facundo | F5 |
+| ~~Límites de masa de las cargas de ida y vuelta~~ Hecho: los tres perfiles de ida pesan 2700 kg; la vuelta tiene 1660 kg y las muestras de Gale pesan 4–14 kg, así que con lo recomendado entran 3 o 4 de 8 (`src/content/loadouts.test.ts`) | Facundo | F6 |
 | Pesos de la eficiencia y márgenes de la cascada: ajustar con pruebas con niños | Ambos | Después de la integración |
 
 ---

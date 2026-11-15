@@ -1,0 +1,312 @@
+import { describe, expect, it } from 'vitest';
+import { INCIDENT_RULES } from '../../content/incidents';
+import { SHIP_LAYOUT, VOYAGE_CONTENT } from '../../content/ship';
+import { makeCrew, makeGameState, makeMeters } from '../../test-utils/factories';
+import type { PhaseCalendar } from '../clock/schedule';
+import { DEFAULT_ROUTINE } from '../crew/routines';
+import type { CrewId } from '../crew/types';
+import { EventBus } from '../events/EventBus';
+import type { GameEvents } from '../events/GameEvents';
+import type { PhaseResult } from '../flow/types';
+import { stormTimeline } from '../incidents/timeline';
+import type { GameState } from '../state/types';
+import { isWalkable, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot } from '../habitat/layout';
+import type { VoyageContent } from './types';
+import type { HabitatInput as VoyageInput } from '../habitat/HabitatSession';
+import { VoyageSession } from './VoyageSession';
+
+const H = 3_600_000;
+const START = '2024-05-01T00:00:00.000Z';
+const at = (hours: number) => new Date(Date.parse(START) + hours * H).toISOString();
+
+/** Fases de 3 días; con `long` el primer día se juega a tiempo normal. */
+const CALENDAR: PhaseCalendar = {
+  windows: {
+    cruiseOut: { start: START, end: at(72) },
+    mars: { start: at(72), end: at(96) },
+    cruiseBack: { start: at(96), end: at(168) },
+  },
+  playedDays: { short: { cruiseOut: 0, mars: 0, cruiseBack: 0 }, long: { cruiseOut: 1, mars: 1, cruiseBack: 1 } },
+  playHoursPerSecond: { cruiseOut: 0.2, mars: 0.2, cruiseBack: 0.2 },
+};
+const CONTENT: VoyageContent = { ...VOYAGE_CONTENT, calendar: CALENDAR };
+
+const storm = stormTimeline(
+  [
+    {
+      id: 'storm-test',
+      warnAt: at(10),
+      impactAt: at(20),
+      endAt: at(40),
+      leadHours: 10,
+      warning: { kind: 'rule48h' },
+      peakMeanUGyH: 380,
+      baselineUGyH: 7,
+      capped: false,
+      sourceLinks: [],
+    },
+  ],
+  INCIDENT_RULES,
+  'https://radlab',
+);
+
+const STILL: VoyageInput = { activeZone: null, interacting: false };
+
+function voyage(over: Partial<GameState> = {}, opts: { leg?: 'out' | 'back'; content?: VoyageContent; timeline?: typeof storm } = {}) {
+  const bus = new EventBus<GameEvents>();
+  const leg = opts.leg ?? 'out';
+  const window = CALENDAR.windows[leg === 'out' ? 'cruiseOut' : 'cruiseBack'];
+  const session = new VoyageSession({
+    leg,
+    state: makeGameState({ simDate: window.start, ...over }),
+    bus,
+    content: opts.content ?? CONTENT,
+    timeline: opts.timeline ?? [],
+    // Fondo de 15 μGy/h y 380 μGy/h durante la tormenta de prueba.
+    doseRate: (date) => ({ date: date.slice(0, 10), uGyH: date >= at(20) && date < at(40) ? 380 : 15, capped: false }),
+  });
+  return { session, bus };
+}
+
+/** Avanza hasta que se cumpla `until` (o se acabe la fase) en pasos de `dt` segundos reales. */
+function runUntil(session: VoyageSession, until: () => boolean, input: VoyageInput = STILL, dt = 0.25, maxSteps = 20_000): number {
+  let steps = 0;
+  while (!until() && !session.outcome && steps < maxSteps) {
+    session.update(dt, input);
+    steps++;
+  }
+  return steps * dt;
+}
+
+const hoursSince = (session: VoyageSession) => (Date.parse(session.simDate) - Date.parse(START)) / H;
+const member = (session: VoyageSession, id: CrewId) => session.state.crew.find((m) => m.id === id)!;
+
+describe('plano de la nave', () => {
+  it('la ruta del módulo de mando al refugio pasa por las puertas y nunca atraviesa paredes', () => {
+    const from = zoneSpot(zoneById(SHIP_LAYOUT, 'command'));
+    for (const blind of [false, true]) {
+      const path = route(SHIP_LAYOUT, from, 'shelter', blind);
+      for (let d = 0; d <= pathLength(path); d += 0.1) {
+        const p = pointAlong(path, d);
+        expect(isWalkable(SHIP_LAYOUT, Math.floor(p.x), Math.floor(p.y)), `${p.x},${p.y}`).toBe(true);
+      }
+      expect(zoneAt(SHIP_LAYOUT, path.at(-1)!)).toBe('shelter');
+    }
+  });
+
+  it('la ruta a ciegas es más larga que la óptima (§3.3)', () => {
+    const from = zoneSpot(zoneById(SHIP_LAYOUT, 'command'));
+    expect(pathLength(route(SHIP_LAYOUT, from, 'shelter', true))).toBeGreaterThan(pathLength(route(SHIP_LAYOUT, from, 'shelter')));
+  });
+});
+
+describe('Voyage: el mundo corre solo', () => {
+  it('en avance rápido avanzan el calendario y los medidores, día a día', () => {
+    const { session, bus } = voyage({ unlockLevel: 2 });
+    const days: string[] = [];
+    bus.on('clock:day', ({ simDate }) => days.push(simDate));
+    runUntil(session, () => hoursSince(session) >= 48);
+    expect(days).toEqual(['2024-05-02', '2024-05-03']);
+    expect(session.manual).toBe(false);
+    const { oxygenKg } = session.state.meters.lifeSupport;
+    // 4 tripulantes × 0,82 kg/día durante 2 días [BVAD].
+    expect(oxygenKg).toBeCloseTo(makeMeters().lifeSupport.oxygenKg - 4 * 0.82 * 2, 1);
+    expect(member(session, 'vega').doseMSv).toBeGreaterThan(0);
+    expect(session.state.rngState).not.toBe(1);
+  });
+
+  it('al terminar el calendario de la fase emite phase:completed con el estado de salida', () => {
+    const { session, bus } = voyage();
+    const results: PhaseResult[] = [];
+    bus.on('phase:completed', (r) => results.push(r));
+    runUntil(session, () => false);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ phase: 'cruiseOut', outcome: 'completed', state: { simDate: at(72) } });
+  });
+
+  it('con la misma semilla la partida es idéntica', () => {
+    const a = voyage({ unlockLevel: 4 }).session;
+    const b = voyage({ unlockLevel: 4 }).session;
+    runUntil(a, () => false);
+    runUntil(b, () => false);
+    expect(a.state).toEqual(b.state);
+  });
+
+  it('continúa una partida guardada desde su fecha', () => {
+    const { session } = voyage({ simDate: at(30) });
+    expect(session.simDate).toBe(at(30));
+  });
+});
+
+describe('Voyage: tormenta de radiación', () => {
+  /** Miga trasnochó y no hizo ejercicio: reacciona tarde y va por la ruta a ciegas. */
+  const tiredMiga = () => makeCrew().map((m) => (m.id === 'miga' ? { ...m, fatigue: 0.9, condition: 0.5 } : m));
+
+  it('frena el reloj, todos van al refugio según su reacción y el aviso deja de frenar al llegar', () => {
+    const { session, bus } = voyage({ crew: tiredMiga() }, { timeline: storm });
+    const levels: string[] = [];
+    bus.on('alert:level', ({ level }) => levels.push(level));
+    runUntil(session, () => session.level === 'impact');
+    expect(levels).toEqual(['alert', 'impact']);
+    expect(session.manual).toBe(true);
+    const [decision] = session.pendingDecisions();
+    expect(decision!.textKey).toBe('incidents.radiationStorm');
+
+    session.respond(decision!.incident.id, 'goToShelter');
+    const arrived: Partial<Record<CrewId, number>> = {};
+    let t = 0;
+    runUntil(
+      session,
+      () => {
+        for (const m of session.state.crew) if (m.location === 'shelter' && arrived[m.id] === undefined) arrived[m.id] = t;
+        t += 0.1;
+        return session.level !== 'impact';
+      },
+      { activeZone: 'shelter', interacting: false },
+      0.1,
+    );
+    // La tripulación descansada llega en pocos segundos; la cansada tarda bastante más (§4.2).
+    expect(arrived.brote).toBeLessThan(6);
+    expect(arrived.miga).toBeGreaterThan(arrived.brote! + 3);
+    expect(session.level).toBe('calm');
+    expect(session.state.history.find((e) => e.key === 'hud.log.allInShelter')).toMatchObject({ data: { incidentId: 'storm-test' } });
+  });
+
+  it('en el refugio se recibe mucha menos dosis que trabajando', () => {
+    const dose = (response: string) => {
+      const { session } = voyage({}, { timeline: storm });
+      runUntil(session, () => session.level === 'impact');
+      const id = session.pendingDecisions()[0]!.incident.id;
+      session.respond(id, response);
+      const before = member(session, 'brote').doseMSv;
+      const zone = response === 'goToShelter' ? 'shelter' : 'command';
+      runUntil(session, () => hoursSince(session) >= 40, { activeZone: zone, interacting: false });
+      return member(session, 'brote').doseMSv - before;
+    };
+    expect(dose('goToShelter')).toBeLessThan(dose('keepWorking') * 0.6);
+  });
+
+  it('con el modo ayuda los automáticos van solos al refugio con la alarma (§3.3)', () => {
+    const { session } = voyage({ helpMode: true }, { timeline: storm });
+    runUntil(session, () => session.level === 'impact');
+    runUntil(session, () => member(session, 'senda').location === 'shelter', STILL, 0.1, 200);
+    expect(member(session, 'senda').location).toBe('shelter');
+    expect(member(session, 'vega').location).not.toBe('shelter');
+  });
+});
+
+describe('Voyage: tareas de la nave', () => {
+  it('en la nave gastada de la vuelta, sin nadie asignado el depurador se gasta; con la ingeniera sigue sano', () => {
+    const lazy: VoyageContent = {
+      ...CONTENT,
+      routines: { vega: DEFAULT_ROUTINE, miga: DEFAULT_ROUTINE, brote: DEFAULT_ROUTINE, senda: DEFAULT_ROUTINE },
+    };
+    const neglected = voyage({}, { content: lazy, leg: 'back' }).session;
+    const cared = voyage({}, { leg: 'back' }).session;
+    runUntil(neglected, () => false);
+    runUntil(cared, () => false);
+    expect(neglected.state.systems.scrubber).toBe('yellow');
+    expect(cared.state.systems.scrubber).toBe('green');
+  });
+
+  it('el jugador repara el depurador gastado trabajando en su cuarto (a tiempo normal)', () => {
+    const { session } = voyage({ length: 'long', systems: { ...makeGameState().systems, scrubber: 'yellow' } });
+    expect(session.manual).toBe(true);
+    expect(session.taskAt('scrubber')).toMatchObject({ kind: 'task', task: { id: 'scrubber' } });
+    runUntil(session, () => session.state.systems.scrubber === 'green', { activeZone: 'scrubber', interacting: true }, 0.25, 400);
+    expect(session.state.systems.scrubber).toBe('green');
+  });
+
+  it('con el depurador al día, mantener apretado no repite el mantenimiento', () => {
+    const { session } = voyage({ length: 'long', systems: { ...makeGameState().systems, scrubber: 'yellow' } });
+    runUntil(session, () => session.state.systems.scrubber === 'green', { activeZone: 'scrubber', interacting: true }, 0.25, 400);
+    expect(session.taskAt('scrubber')).toMatchObject({ upToDate: true, progress: 1 });
+    const fatigue = member(session, 'vega').fatigue;
+    runUntil(session, () => false, { activeZone: 'scrubber', interacting: true }, 0.25, 40);
+    expect(session.taskAt('scrubber')).toMatchObject({ upToDate: true });
+    // No trabaja de más: sin horas de trabajo no se cansa por la tarea.
+    expect(member(session, 'vega').fatigue).toBeLessThanOrEqual(fatigue);
+  });
+
+  it('una llamada a casa desde la radio levanta el ánimo de toda la tripulación', () => {
+    const crew = makeCrew().map((m) => ({ ...m, morale: 0.5 }));
+    const { session } = voyage({ length: 'long', crew });
+    runUntil(session, () => member(session, 'senda').morale > 0.6, { activeZone: 'radio', interacting: true }, 0.25, 200);
+    expect(member(session, 'senda').morale).toBeGreaterThan(0.6);
+  });
+
+  it('en la vuelta el ejercicio cuenta doble para la condición física (§4.6)', () => {
+    const gain = (leg: 'out' | 'back') => {
+      const crew = makeCrew().map((m) => ({ ...m, condition: 0.5 }));
+      const { session } = voyage({ crew }, { leg });
+      const start = Date.parse(session.simDate);
+      runUntil(session, () => Date.parse(session.simDate) - start >= 48 * H);
+      return member(session, 'senda').condition - 0.5;
+    };
+    expect(gain('out')).toBeGreaterThan(0);
+    expect(gain('back')).toBeCloseTo(gain('out') * 2, 2);
+  });
+
+  it('Tab: el tripulante que deja el jugador queda donde estaba y pasa a ser automático', () => {
+    const { session } = voyage({ length: 'long' });
+    const spot = zoneSpot(zoneById(SHIP_LAYOUT, 'pantry'));
+    session.switchCrew('miga', spot);
+    expect(session.state.activeCrewId).toBe('miga');
+    expect(session.positionOf('vega')).toEqual(spot);
+  });
+});
+
+describe('Voyage: falla en cascada', () => {
+  it('sin aire entra en emergencia, la partida sigue y se puede beber el escudo de agua', () => {
+    const { session, bus } = voyage({ meters: makeMeters({ lifeSupport: { oxygenKg: 0.5, waterL: 300, co2MmHg: 1.5 } }) });
+    const entered: string[] = [];
+    bus.on('cascade:entered', (e) => entered.push(e.meter));
+    runUntil(session, () => entered.length > 0);
+    expect(entered).toEqual(['lifeSupport']);
+    expect(session.outcome).toBeNull();
+    expect(session.sacrifices().map((s) => s.id)).toContain('drinkWaterShield');
+    const water = session.state.meters.lifeSupport.waterL;
+    session.sacrifice('drinkWaterShield');
+    expect(session.state.waterShield).toBe(0);
+    expect(session.state.meters.lifeSupport.waterL).toBeGreaterThan(water);
+  });
+
+  it('si toda la tripulación queda en reposo, la misión se suspende (tripulación a salvo)', () => {
+    const crew = makeCrew().map((m) => ({ ...m, condition: 0.1 }));
+    const { session, bus } = voyage({ crew });
+    const results: PhaseResult[] = [];
+    bus.on('phase:completed', (r) => results.push(r));
+    session.update(0.25, STILL);
+    expect(results[0]).toMatchObject({ outcome: 'suspended' });
+  });
+});
+
+describe('Voyage: guardado a mitad de fase y logros', () => {
+  it('publica su estado para el guardado manual y retoma sin repetir los incidentes ya disparados', () => {
+    const { session, bus } = voyage({}, { timeline: storm });
+    const published: GameState[] = [];
+    bus.on('phase:progress', (s) => published.push(s));
+    runUntil(session, () => session.state.activeIncidents.length > 0);
+    const saved = published.at(-1)!;
+    expect(saved.habitat?.planner.fired).toContain('storm-test');
+
+    const resumed = voyage(JSON.parse(JSON.stringify(saved)) as GameState, { timeline: storm }).session;
+    expect(resumed.state.habitat).toBeUndefined();
+    runUntil(resumed, () => hoursSince(resumed) >= 30);
+    expect(resumed.state.activeIncidents.filter((i) => i.id === 'storm-test')).toHaveLength(1);
+  });
+
+  it('"Refugio a tiempo" y "Cero radiografías extra" si todos esperan la tormenta en el refugio', () => {
+    const achievements = (response: string, zone: string) => {
+      const { session, bus } = voyage({}, { timeline: storm });
+      const results: PhaseResult[] = [];
+      bus.on('phase:completed', (r) => results.push(r));
+      runUntil(session, () => session.level === 'alert');
+      session.respond(session.pendingDecisions()[0]!.incident.id, response);
+      runUntil(session, () => false, { activeZone: zone, interacting: false });
+      return results[0]!.achievements;
+    };
+    expect(achievements('goToShelter', 'shelter')).toEqual(expect.arrayContaining(['shelterInTime', 'zeroExtraXrays']));
+    expect(achievements('keepWorking', 'command')).toEqual([]);
+  });
+});
