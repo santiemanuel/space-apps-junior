@@ -17,6 +17,7 @@ import { ensureCrewAnimations } from '../../entities/CrewSprite';
 import { GAME_WIDTH } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
 import { fadeIn, onKeys, pulse } from '../../ui/ui';
+import { openCredits } from './creditsPanel';
 import { openSettings } from './settingsPanel';
 import { TitleSky } from './titleSky';
 import { audio } from '../../audio/audio';
@@ -58,7 +59,7 @@ interface RowView {
   value: Phaser.GameObjects.Text;
 }
 
-/** Menú principal (§2.1, §3.3, §8): idioma, campaña o modo libre, corta o larga, modo ayuda y continuar. */
+/** Menú principal (§2.1, §3.3, §8): idioma, campaña o modo libre, corta o larga, modo ayuda, continuar y créditos. */
 export class TitleScene extends Phaser.Scene {
   private data_!: TitleSceneData;
   private menu!: TitleMenu;
@@ -218,6 +219,13 @@ export class TitleScene extends Phaser.Scene {
         this.menu.locale = getLocale();
         this.render();
       });
+    } else if (action === 'credits') {
+      this.leaving = true;
+      audio.sfx('open');
+      openCredits(this, () => {
+        this.leaving = false;
+        this.render();
+      });
     } else if (action === 'newGame') {
       this.leaving = true;
       audio.sfx('missionStart');
@@ -292,6 +300,8 @@ export class TitleScene extends Phaser.Scene {
         return { label: t('menu.title.language'), value: choice(t(`common.language.${locale}`)) };
       case 'settings':
         return { label: t('menu.settings.title'), value: `${t('menu.settings.summary')} ›` };
+      case 'credits':
+        return { label: t('menu.title.credits'), value: `${t('menu.title.credits.summary')} ›` };
     }
   }
 

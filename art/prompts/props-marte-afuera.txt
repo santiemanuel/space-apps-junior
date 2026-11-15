@@ -1,6 +1,6 @@
 Create ONE square sprite sheet with FOUR small isolated game props arranged in a 2 x 2 grid on a genuinely TRANSPARENT background with real alpha.
 
-Use case: stylized-concept. Asset: retro pixel art props for a kids' top-down 2D space game. The first attached image (docs/ref-nave.png) is ONLY a STYLE reference: dark outlines, soft CEL shading using flat colors, lavender-gray metal, blue technology accents, orange/yellow lights. Do not copy its layout, rooms, characters, UI or text.
+Use case: stylized-concept. Asset: retro pixel art props for a kids' top-down 2D space game. The first attached image (docs/referencias/ref-nave.png) is ONLY a STYLE reference: dark outlines, soft CEL shading using flat colors, lavender-gray metal, blue technology accents, orange/yellow lights. Do not copy its layout, rooms, characters, UI or text.
 
 VERY LOW RESOLUTION: draw as if on a 128 x 128 pixel canvas enlarged with nearest-neighbor blocks. Every pixel block is the same large square size across the entire sheet. Each prop only about 40 to 48 logical pixels wide, centered in its own 64 x 64 quadrant, with wide empty margins. Clean ONE logical pixel dark silhouette outlines. Simple chunky shapes, limited palette, hard stepped pixel edges, flat discrete cel-shaded colors. No anti-aliasing, gradients, blur, glow halos, fine high-resolution detail or smooth curves.
 

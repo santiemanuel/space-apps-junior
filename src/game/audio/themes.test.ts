@@ -1,22 +1,23 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LOOPS, MUSIC, noteFrequency, SFX, soundUrl } from './themes';
+import { LOOPS, MUSIC, MUSIC_TRACKS, musicUrl, SFX, soundUrl } from './themes';
 
 describe('sonido', () => {
-  it('las notas tienen la frecuencia de la escala temperada (La 440)', () => {
-    expect(noteFrequency('A4')).toBe(440);
-    expect(noteFrequency('A5')).toBeCloseTo(880);
-    expect(noteFrequency('C4')).toBeCloseTo(261.63, 1);
-    expect(noteFrequency('-')).toBeNull();
+  it('cada pista de música tiene su archivo y su punto de loop dentro de la pista', () => {
+    for (const [id, track] of Object.entries(MUSIC)) {
+      expect(existsSync(`public/${musicUrl(track.file)}`), id).toBe(true);
+      const { duration, loopAt, loopFade } = MUSIC_TRACKS[track.file];
+      expect(loopAt + loopFade, id).toBeLessThanOrEqual(duration);
+      expect(loopAt, id).toBeGreaterThan(duration / 2);
+      expect(track.fadeIn, id).toBeGreaterThan(0);
+      // Nada por encima del máster: la mezcla sólo baja pistas.
+      expect(track.gainDb, id).toBeLessThanOrEqual(0);
+    }
   });
 
-  it('cada tema tiene melodía y bajo del mismo largo, con notas válidas', () => {
-    for (const [id, theme] of Object.entries(MUSIC)) {
-      expect(theme.bass.length, id).toBe(theme.lead.length);
-      for (const note of [...theme.lead, ...theme.bass]) expect(note === '-' || noteFrequency(note) !== null, `${id}: ${note}`).toBe(true);
-      // Un tema que no se repite pasa a otro que sí: ninguna pantalla queda en silencio.
-      if (!theme.loop) expect(theme.next && MUSIC[theme.next].loop, id).toBe(true);
-    }
+  it('todas las pistas masterizadas suenan parejo (±1 LU)', () => {
+    const levels = Object.values(MUSIC_TRACKS).map((track) => track.lufs);
+    expect(Math.max(...levels) - Math.min(...levels)).toBeLessThanOrEqual(1);
   });
 
   it('cada efecto y cada ambiente tiene su archivo en public/', () => {

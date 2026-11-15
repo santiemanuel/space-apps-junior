@@ -1,8 +1,8 @@
-# Recursos de la carga de vuelta
+# Return cargo assets
 
-Pixel art de las piezas de la bodega de casilleros de `Loadout` (vuelta): caja de comida, tanque de agua, bolsa del
-escudo, caja de repuestos, rocas de tres tamaños y la muestra de plantas. Un casillero = 16 px de arte.
+Pixel art for the pieces of the grid cargo hold in `Loadout` (return trip): food crate, water tank, shield bag, spare
+parts box, rocks in three sizes and the plant sample. One cell = 16 art pixels.
 
-- Se rehacen con `python scripts/art/cargo.py`.
-- Registro completo (tamaños y casilleros): [`docs/pixel-art.md`](../../../../docs/pixel-art.md).
-- Los carga `Boot` con las claves de `CargoTextures` (`src/game/assets.ts`).
+- Rebuilt with `python scripts/art/cargo.py`.
+- Full record (sizes and cells): [`docs/produccion/pixel-art.md`](../../../../docs/produccion/pixel-art.md).
+- Loaded by `Boot` with the `CargoTextures` keys (`src/game/assets.ts`).

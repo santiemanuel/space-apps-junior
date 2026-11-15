@@ -1,46 +1,98 @@
-import { LOOPS, MUSIC, noteFrequency, SFX, soundUrl, type AmbienceId, type LoopId, type MusicId, type SfxId } from './themes';
-import { ZZFX_SAMPLE_RATE, zzfxSamples } from './zzfx';
+import { LOOPS, MUSIC, MUSIC_DUCK, MUSIC_TRACKS, musicUrl, SFX, soundUrl, type AmbienceId, type LoopId, type MusicId, type SfxId } from './themes';
 
-/** Cuánto se programa por adelantado la música (s) y cada cuánto se revisa (ms). */
-const LOOKAHEAD_S = 0.25;
-const TICK_MS = 60;
-const LEAD_GAIN = 0.07;
-const BASS_GAIN = 0.11;
-const HAT_GAIN = 0.03;
 /** Volumen del ambiente respecto de los efectos, y el fundido de los loops (s). */
 const AMBIENCE_GAIN = 0.35;
 const LOOP_FADE_S = 0.6;
+/** Cambio de pista: cuánto tarda en irse la que suena y cuánto espera la nueva (se cruzan un poco). */
+const MUSIC_FADE_OUT_S = 1.8;
+const MUSIC_ENTRY_DELAY_S = 0.4;
+/** Cada cuánto se revisa si una pista llegó a su punto de loop (ms). */
+const LOOP_TICK_MS = 100;
+/** Pausa y tarjetas: la música y los ambientes se oyen apagados, como detrás de un vidrio. */
+const MUFFLE = { frequency: 900, gainDb: -7, open: 20000, timeConstant: 0.12 } as const;
+/** Bajada de la música bajo un efecto importante: ataque y vuelta (constantes de tiempo, s). */
+const DUCK = { attack: 0.03, release: 0.25 } as const;
+/** Rampa de los volúmenes de los ajustes y del silencio (constante de tiempo, s): sin chasquidos. */
+const VOLUME_TIME_CONSTANT = 0.02;
+
+const dbToGain = (db: number) => 10 ** (db / 20);
+
+/** Una pista que suena (o está por sonar): un `<audio>` que se transmite de a poco, con su propio volumen. */
+interface MusicVoice {
+  id: MusicId;
+  el: HTMLAudioElement;
+  source: MediaElementAudioSourceNode;
+  gain: GainNode;
+  /** Ya arrancó y entró con su fundido. */
+  started: boolean;
+  /** Ya lanzó la vuelta a empezar. */
+  looped: boolean;
+  /** Se está yendo (cambio de pista o loop). */
+  ending: boolean;
+  startTimer: number;
+}
 
 /**
- * Audio del juego sobre Web Audio: efectos y ambientes en MP3 (se bajan y decodifican al habilitarse el audio) y
- * música chiptune con un secuenciador propio. Sonidos y música tienen cada uno su volumen (los ajustes). El navegador no deja sonar nada hasta el primer
- * clic o tecla: el contexto se crea y se reanuda entonces.
+ * Audio del juego sobre Web Audio. Efectos y ambientes en MP3 (se bajan y decodifican al habilitarse el audio);
+ * la banda sonora en MP3 masterizados que se transmiten con `<audio>` (no se decodifican enteros: son pistas de
+ * varios minutos). Cadena:
+ *
+ *   pistas → bajada (duck) → filtro de pausa → volumen de música ┐
+ *   loops  → filtro de pausa → volumen de sonidos ────────────────┼→ limitador → salida
+ *   efectos → volumen de sonidos ─────────────────────────────────┘
+ *
+ * Las pistas entran y salen con fundidos de igual potencia, se repiten cruzándose con su propio comienzo (punto
+ * de loop medido en `musicTracks.json`), se apagan bajo los efectos importantes (`MUSIC_DUCK`) y se oyen
+ * filtradas mientras está abierta la pausa. Si la pestaña queda oculta, todo se detiene y sigue al volver.
+ * El navegador no deja sonar nada hasta el primer clic o tecla: el contexto se crea y se reanuda entonces.
  */
 class GameAudio {
   private context: AudioContext | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
+  private duckGain: GainNode | null = null;
+  private musicFilter: BiquadFilterNode | null = null;
+  private musicFocus: GainNode | null = null;
+  private loopFilter: BiquadFilterNode | null = null;
   /** Sonidos ya decodificados, por archivo. */
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly loading = new Set<string>();
-  private hatBuffer: AudioBuffer | null = null;
   /** Loops por canal (ambiente, vuelo, clima…): el pedido y lo que suena. */
   private readonly loops = new Map<string, { id: LoopId | null; volume: number; node: { source: AudioBufferSourceNode; gain: GainNode } | null }>();
   private volumes = { sound: 0.8, music: 0.6 };
   private muted = false;
+  private muffled = false;
   private theme: MusicId | null = null;
-  private song: { id: MusicId; step: number; nextAt: number; gain: GainNode; timer: number } | null = null;
+  private voices: MusicVoice[] = [];
+  private loopTimer = 0;
+  private duck = { level: 1, until: 0 };
 
   constructor() {
     if (typeof window === 'undefined') return;
     const unlock = () => {
       const ctx = this.ensure();
-      if (ctx?.state === 'suspended') void ctx.resume();
-      if (this.theme && !this.song) this.music(this.theme);
-      for (const [channel, loop] of this.loops) if (loop.id && !loop.node) this.startLoop(channel, loop.id, loop.volume);
+      if (!ctx || document.hidden) return;
+      if (ctx.state === 'suspended') void ctx.resume().then(() => this.wake());
+      else this.wake();
     };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
+    document.addEventListener('visibilitychange', () => {
+      const ctx = this.context;
+      if (!ctx) return;
+      if (document.hidden) {
+        for (const voice of this.voices) voice.el.pause();
+        void ctx.suspend();
+      } else void ctx.resume().then(() => this.wake());
+    });
+  }
+
+  /** Arranca lo pedido antes de que hubiera audio (o mientras la pestaña estaba oculta). */
+  private wake(): void {
+    if (this.context?.state !== 'running') return;
+    if (this.theme && !this.currentVoice()) this.startVoice(this.theme, MUSIC[this.theme].delay ?? 0, MUSIC[this.theme].fadeIn);
+    for (const voice of this.voices) if (!voice.ending && voice.el.paused && !voice.startTimer) this.playVoice(voice);
+    for (const [channel, loop] of this.loops) if (loop.id && !loop.node) this.startLoop(channel, loop.id, loop.volume);
   }
 
   private ensure(): AudioContext | null {
@@ -49,13 +101,38 @@ class GameAudio {
     if (!Ctor) return null;
     const ctx = new Ctor();
     this.context = ctx;
+    // Limitador de seguridad: sólo actúa si la suma de música, ambientes y efectos pasa de −3 dBFS.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    limiter.connect(ctx.destination);
     this.sfxGain = ctx.createGain();
+    this.sfxGain.connect(limiter);
     this.musicGain = ctx.createGain();
-    this.sfxGain.connect(ctx.destination);
-    this.musicGain.connect(ctx.destination);
+    this.musicGain.connect(limiter);
+    this.musicFocus = ctx.createGain();
+    this.musicFocus.connect(this.musicGain);
+    this.musicFilter = this.lowpass(ctx);
+    this.musicFilter.connect(this.musicFocus);
+    this.duckGain = ctx.createGain();
+    this.duckGain.connect(this.musicFilter);
+    this.loopFilter = this.lowpass(ctx);
+    this.loopFilter.connect(this.sfxGain);
     this.applyVolumes();
+    this.applyMuffle();
     for (const file of [...Object.values(SFX), ...Object.values(LOOPS)]) this.load(file);
     return ctx;
+  }
+
+  private lowpass(ctx: AudioContext): BiquadFilterNode {
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = MUFFLE.open;
+    filter.Q.value = 0.5;
+    return filter;
   }
 
   /** Baja y decodifica un sonido (una sola vez); `then` corre cuando está listo. */
@@ -77,9 +154,19 @@ class GameAudio {
   }
 
   private applyVolumes(): void {
+    const ctx = this.context;
+    if (!ctx) return;
     const factor = this.muted ? 0 : 1;
-    this.sfxGain?.gain.setValueAtTime(this.volumes.sound * factor, this.context?.currentTime ?? 0);
-    this.musicGain?.gain.setValueAtTime(this.volumes.music * factor, this.context?.currentTime ?? 0);
+    this.sfxGain?.gain.setTargetAtTime(this.volumes.sound * factor, ctx.currentTime, VOLUME_TIME_CONSTANT);
+    this.musicGain?.gain.setTargetAtTime(this.volumes.music * factor, ctx.currentTime, VOLUME_TIME_CONSTANT);
+  }
+
+  private applyMuffle(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const frequency = this.muffled ? MUFFLE.frequency : MUFFLE.open;
+    for (const filter of [this.musicFilter, this.loopFilter]) filter?.frequency.setTargetAtTime(frequency, ctx.currentTime, MUFFLE.timeConstant);
+    this.musicFocus?.gain.setTargetAtTime(this.muffled ? dbToGain(MUFFLE.gainDb) : 1, ctx.currentTime, MUFFLE.timeConstant);
   }
 
   /** Volúmenes de los ajustes (0..1). */
@@ -100,6 +187,12 @@ class GameAudio {
     return this.muted;
   }
 
+  /** Pausa y tarjetas: la música y los ambientes se oyen apagados (los efectos de la interfaz siguen claros). */
+  muffle(on: boolean): void {
+    this.muffled = on;
+    this.applyMuffle();
+  }
+
   /** Efecto de sonido. Si el audio todavía no se habilitó (sin clic ni tecla) o el archivo no llegó, no suena. */
   sfx(id: SfxId, rate = 1, volume = 1): void {
     const ctx = this.context;
@@ -115,6 +208,23 @@ class GameAudio {
       source.connect(gain).connect(this.sfxGain);
     }
     source.start();
+    const duck = MUSIC_DUCK[id];
+    if (duck !== undefined) this.duckMusic(duck, buffer.duration / rate);
+  }
+
+  /** Baja la música `db` durante `seconds` y la devuelve de a poco; si se superponen, manda la más profunda. */
+  private duckMusic(db: number, seconds: number): void {
+    const ctx = this.context;
+    const param = this.duckGain?.gain;
+    if (!ctx || !param) return;
+    const now = ctx.currentTime;
+    const active = now < this.duck.until;
+    this.duck = { level: Math.min(dbToGain(db), active ? this.duck.level : 1), until: Math.max(active ? this.duck.until : 0, now + seconds) };
+    const current = param.value;
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(current, now);
+    param.setTargetAtTime(this.duck.level, now, DUCK.attack);
+    param.setTargetAtTime(1, this.duck.until, DUCK.release);
   }
 
   /** Ambiente del lugar (loop de fondo, bajo); null lo apaga. */
@@ -151,109 +261,129 @@ class GameAudio {
     if (!ctx || ctx.state !== 'running') return;
     this.load(LOOPS[id], (buffer) => {
       const wanted = this.loops.get(channel);
-      if (!wanted || wanted.id !== id || wanted.node || !this.sfxGain) return;
+      if (!wanted || wanted.id !== id || wanted.node || !this.loopFilter) return;
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
       source.buffer = buffer;
       source.loop = true;
       gain.gain.setValueAtTime(0, ctx.currentTime);
       gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + LOOP_FADE_S);
-      source.connect(gain).connect(this.sfxGain);
+      source.connect(gain).connect(this.loopFilter);
       source.start();
       wanted.node = { source, gain };
     });
   }
 
-  /** Cambia la música (con un fundido corto); null la apaga. El mismo tema no vuelve a empezar. */
+  /**
+   * Cambia la música: la que suena se va con un fundido y la nueva entra con el suyo (se cruzan un poco); null la
+   * apaga. La misma pista no vuelve a empezar.
+   */
   music(id: MusicId | null): void {
-    if (id === this.theme && this.song) return;
+    if (id === this.theme && (this.currentVoice() || this.context?.state !== 'running')) return;
     this.theme = id;
-    this.stopSong();
+    const replacing = this.voices.some((voice) => !voice.ending && voice.started);
+    for (const voice of [...this.voices]) this.fadeOutVoice(voice, MUSIC_FADE_OUT_S);
+    if (!id || this.context?.state !== 'running') return;
+    const track = MUSIC[id];
+    this.startVoice(id, track.delay ?? (replacing ? MUSIC_ENTRY_DELAY_S : 0), track.fadeIn);
+  }
+
+  private currentVoice(): MusicVoice | undefined {
+    return this.voices.find((voice) => !voice.ending);
+  }
+
+  private startVoice(id: MusicId, delay: number, fadeIn: number): void {
     const ctx = this.context;
-    if (!id || !ctx || ctx.state !== 'running' || !this.musicGain) return;
+    if (!ctx || !this.duckGain) return;
+    const track = MUSIC[id];
+    const el = new Audio(musicUrl(track.file));
+    el.preload = 'auto';
+    const source = ctx.createMediaElementSource(el);
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.6);
-    gain.connect(this.musicGain);
-    const song = { id, step: 0, nextAt: ctx.currentTime + 0.1, gain, timer: 0 };
-    song.timer = window.setInterval(() => this.schedule(), TICK_MS);
-    this.song = song;
-    this.schedule();
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.duckGain);
+    const voice: MusicVoice = { id, el, source, gain, started: false, looped: false, ending: false, startTimer: 0 };
+    // El fundido empieza cuando de verdad suena (la pista se transmite: puede tardar en llegar).
+    el.addEventListener('playing', () => {
+      if (voice.started || voice.ending) return;
+      voice.started = true;
+      this.fade(gain.gain, 0, dbToGain(track.gainDb), fadeIn);
+    });
+    // Por si se llegó al final sin pasar por el punto de loop (pestaña frenada, por ejemplo).
+    el.addEventListener('ended', () => {
+      if (!voice.ending && !voice.looped && this.theme === id) this.startVoice(id, 0, 0.05);
+      this.disposeVoice(voice);
+    });
+    this.voices.push(voice);
+    if (delay > 0) voice.startTimer = window.setTimeout(() => this.playVoice(voice), delay * 1000);
+    else this.playVoice(voice);
+    if (!this.loopTimer) this.loopTimer = window.setInterval(() => this.checkLoops(), LOOP_TICK_MS);
   }
 
-  private stopSong(): void {
-    const song = this.song;
-    const ctx = this.context;
-    if (!song || !ctx) return;
-    window.clearInterval(song.timer);
-    song.gain.gain.cancelScheduledValues(ctx.currentTime);
-    song.gain.gain.setValueAtTime(song.gain.gain.value, ctx.currentTime);
-    song.gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-    window.setTimeout(() => song.gain.disconnect(), 600);
-    this.song = null;
+  private playVoice(voice: MusicVoice): void {
+    voice.startTimer = 0;
+    if (voice.ending || document.hidden) return;
+    // Si el navegador todavía no deja (iOS), sigue en el próximo clic o tecla (`wake`).
+    voice.el.play().catch(() => undefined);
   }
 
-  /** Programa las notas que caen dentro de la ventana de adelanto. */
-  private schedule(): void {
-    const song = this.song;
-    const ctx = this.context;
-    if (!song || !ctx) return;
-    const theme = MUSIC[song.id];
-    const stepS = 60 / theme.bpm / 2;
-    const steps = theme.lead.length;
-    while (song.nextAt < ctx.currentTime + LOOKAHEAD_S) {
-      if (song.step >= steps && !theme.loop) {
-        window.clearInterval(song.timer);
-        // Terminó el tema corto: sigue el que le toca, para que la pantalla no quede en silencio.
-        const { next } = theme;
-        if (next) window.setTimeout(() => this.song === song && this.music(next), Math.max(0, song.nextAt - ctx.currentTime) * 1000);
-        return;
-      }
-      const i = song.step % steps;
-      const length = (track: readonly string[]) => {
-        let n = 1;
-        while (track[(i + n) % steps] === '-' && i + n < steps) n++;
-        return n * stepS;
-      };
-      this.note(song.gain, 'square', theme.lead[i]!, song.nextAt, length(theme.lead) * 0.9, LEAD_GAIN);
-      this.note(song.gain, 'triangle', theme.bass[i] ?? '-', song.nextAt, length(theme.bass) * 0.95, BASS_GAIN);
-      if (theme.hat && i % 2 === 0) this.hat(song.gain, song.nextAt);
-      song.nextAt += stepS;
-      song.step++;
+  /** Al llegar al punto de loop, la pista vuelve a empezar cruzándose con su propio final. */
+  private checkLoops(): void {
+    for (const voice of [...this.voices]) {
+      if (voice.ending || voice.looped || !voice.started) continue;
+      const { loopAt, loopFade } = MUSIC_TRACKS[MUSIC[voice.id].file];
+      if (voice.el.currentTime < loopAt) continue;
+      voice.looped = true;
+      this.startVoice(voice.id, 0, loopFade);
+      this.fadeOutVoice(voice, loopFade);
+    }
+    if (!this.voices.length) {
+      window.clearInterval(this.loopTimer);
+      this.loopTimer = 0;
     }
   }
 
-  private note(out: GainNode, type: OscillatorType, note: string, at: number, length: number, volume: number): void {
-    const frequency = noteFrequency(note);
-    const ctx = this.context!;
-    if (frequency === null) return;
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, at);
-    env.gain.setValueAtTime(0, at);
-    env.gain.linearRampToValueAtTime(volume, at + 0.01);
-    env.gain.setValueAtTime(volume, at + Math.max(0.02, length - 0.05));
-    env.gain.linearRampToValueAtTime(0, at + length);
-    osc.connect(env).connect(out);
-    osc.start(at);
-    osc.stop(at + length + 0.02);
+  private fadeOutVoice(voice: MusicVoice, seconds: number): void {
+    if (voice.ending) return;
+    voice.ending = true;
+    window.clearTimeout(voice.startTimer);
+    const ctx = this.context;
+    if (!ctx || !voice.started) return this.disposeVoice(voice);
+    this.fade(voice.gain.gain, voice.gain.gain.value, 0, seconds);
+    window.setTimeout(() => this.disposeVoice(voice), (seconds + 0.15) * 1000);
   }
 
-  private hat(out: GainNode, at: number): void {
+  private disposeVoice(voice: MusicVoice): void {
+    const index = this.voices.indexOf(voice);
+    if (index < 0) return;
+    this.voices.splice(index, 1);
+    voice.ending = true;
+    window.clearTimeout(voice.startTimer);
+    voice.el.pause();
+    voice.source.disconnect();
+    voice.gain.disconnect();
+    voice.el.removeAttribute('src');
+    voice.el.load();
+  }
+
+  /** Fundido de igual potencia (seno al entrar, coseno al salir): el volumen percibido no se hunde en el cruce. */
+  private fade(param: AudioParam, from: number, to: number, seconds: number): void {
     const ctx = this.context!;
-    if (!this.hatBuffer) {
-      const samples = zzfxSamples([1, , 6000, , 0.005, 0.03, 4]);
-      this.hatBuffer = ctx.createBuffer(1, samples.length, ZZFX_SAMPLE_RATE);
-      this.hatBuffer.getChannelData(0).set(samples);
+    const now = ctx.currentTime;
+    const steps = 64;
+    const curve = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const x = (i / (steps - 1)) * (Math.PI / 2);
+      curve[i] = to > from ? from + (to - from) * Math.sin(x) : to + (from - to) * Math.cos(x);
     }
-    const buffer = this.hatBuffer;
-    const source = ctx.createBufferSource();
-    const env = ctx.createGain();
-    env.gain.value = HAT_GAIN;
-    source.buffer = buffer;
-    source.connect(env).connect(out);
-    source.start(at);
+    // Se descarta todo lo programado antes (también un fundido a medias): la curva nueva parte del valor de ahora.
+    param.cancelScheduledValues(0);
+    try {
+      param.setValueCurveAtTime(curve, now, Math.max(0.02, seconds));
+    } catch {
+      param.setValueAtTime(from, now);
+      param.linearRampToValueAtTime(to, now + seconds);
+    }
   }
 }
 

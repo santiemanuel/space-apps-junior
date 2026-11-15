@@ -18,7 +18,7 @@ export interface MarsContent extends HabitatContent {
    */
   realMoments: readonly RealEvent[];
   /**
-   * Red eléctrica de la base (docs/mision_a_marte_referencias_topdown/plano-base-marte.png): tramos de cable entre los
+   * Red eléctrica de la base (docs/referencias/topdown/plano-base-marte.png): tramos de cable entre los
    * paneles (`solar`), la base (`base`), la batería (`battery`), la nave y las cajas de empalme. Un tramo cortado no
    * lleva energía; si no queda camino de los paneles a la base o a la batería, no se carga nada, y si la batería no
    * llega a la base, de noche falta energía [regla].

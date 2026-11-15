@@ -2,7 +2,7 @@
 
 Uso: python scripts/art/favicon.py   (lee art/snapped/favicon.png; prompt en art/prompts/favicon.txt)
 Escribe en public/: favicon.ico (16, 32 y 48 px), favicon-32.png (pixel art 1:1) y apple-touch-icon.png (180 px,
-×5 sobre el fondo del juego). Registro en docs/pixel-art.md.
+×5 sobre el fondo del juego). Registro en docs/produccion/pixel-art.md.
 """
 from pathlib import Path
 from PIL import Image

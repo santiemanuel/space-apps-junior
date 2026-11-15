@@ -37,7 +37,7 @@ export function taskReason(namespace: 'voyage' | 'mars', item: TaskTodo, names: 
   return hasKey(key, getLocale()) ? t(key as TranslationKey, { name: item.crewId ? (names[item.crewId] ?? '') : '', place }) : t('hud.todo.task', { place });
 }
 
-/** Opciones de vista del mapa para probar (docs/plan-visual.md): `&zoom=2&at=gediz`. */
+/** Opciones de vista del mapa para probar (docs/historial/plan-visual.md): `&zoom=2&at=gediz`. */
 export interface MapViewOptions {
   zoom?: number;
   /** Dónde arranca el jugador en `Mars`: una franja del exterior (`plain`, `dunes`, `gediz`…) o `curiosity`. */

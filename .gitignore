@@ -3,3 +3,7 @@ dist
 .env
 .env.local
 *.log
+__pycache__/
+*.pyc
+# Capturas de desarrollo (scripts/art/capture.mjs, scripts/maps/preview.py)
+art/capturas/

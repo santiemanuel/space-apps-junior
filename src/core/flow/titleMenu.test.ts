@@ -6,7 +6,7 @@ const menu = (over: Partial<TitleMenuOptions> = {}) =>
 
 describe('menú principal', () => {
   it('sólo ofrece continuar si hay una misión guardada, y en ese caso va primero', () => {
-    expect(menu().rows).toEqual(['newGame', 'mode', 'length', 'helpMode', 'settings']);
+    expect(menu().rows).toEqual(['newGame', 'mode', 'length', 'helpMode', 'settings', 'credits']);
     expect(menu({ hasSave: true }).rows[0]).toBe('continue');
     expect(menu({ hasSave: true }).current).toBe('continue');
   });
@@ -14,7 +14,7 @@ describe('menú principal', () => {
   it('el cursor da la vuelta por arriba y por abajo', () => {
     const m = menu();
     m.move(-1);
-    expect(m.current).toBe('settings');
+    expect(m.current).toBe('credits');
     m.move(1);
     expect(m.current).toBe('newGame');
   });
@@ -87,5 +87,13 @@ describe('menú principal: ajustes', () => {
     const m = new TitleMenu({ hasSave: false, unlockLevel: 1, locales: ['es', 'en'], locale: 'es' });
     m.select(m.rows.indexOf('settings'));
     expect(m.activate()).toBe('settings');
+  });
+});
+
+describe('menú principal: créditos', () => {
+  it('la última fila abre los créditos', () => {
+    const m = menu();
+    m.select(m.rows.indexOf('credits'));
+    expect(m.activate()).toBe('credits');
   });
 });

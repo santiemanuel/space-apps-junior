@@ -1,3 +1,8 @@
+import MUSIC_TRACKS from './musicTracks.json';
+
+/** Medidas de cada pista masterizada (s): duración, dónde empieza el fundido del loop y cuánto dura. */
+export { MUSIC_TRACKS };
+
 /**
  * Efectos de sonido del juego: cada uno es un MP3 de `public/assets/audio/sfx/` (ElevenLabs Sound Effects; prompts y
  * criterios en `public/assets/audio/README.md`). Menús, puertas, avisos, minijuegos, maniobras y el mundo.
@@ -61,7 +66,7 @@ export const SFX = {
   // Cocina: cocinar y servir.
   mealCook: 'meal-action-01',
   mealServe: 'meal-action-02',
-  // Tercera tanda (docs/sonidos-variedad.md): un sonido propio por minijuego, maniobra, incidente y pantalla.
+  // Tercera tanda (docs/produccion/sonidos-variedad.md): un sonido propio por minijuego, maniobra, incidente y pantalla.
   achievementUnlock: 'achievement-unlock',
   bikeOffPace01: 'bike-off-pace-01',
   bikeOffPace02: 'bike-off-pace-02',
@@ -167,77 +172,70 @@ export const soundUrl = (file: string): string => `assets/audio/sfx/${file}.mp3`
 
 export type SfxId = keyof typeof SFX;
 
-/** Momentos con música propia. */
-export type MusicId = 'menu' | 'launch' | 'voyage' | 'mars' | 'victory' | 'failure';
+/** Momentos con música propia: menú, las dos bodegas, las cuatro maniobras, los dos viajes, la base y los finales. */
+export type MusicId =
+  | 'menu'
+  | 'loadout'
+  | 'marsLoadout'
+  | 'ascent'
+  | 'landing'
+  | 'marsAscent'
+  | 'reentry'
+  | 'voyageOut'
+  | 'voyageBack'
+  | 'mars'
+  | 'victory'
+  | 'failure';
 
 /**
- * Tema chiptune: pasos de corchea a `bpm`, con una melodía (onda cuadrada), un bajo (triangular) y, si va, un platillo
- * de ruido en cada tiempo. Notas como `C5`, `F#4`; `-` deja sonar o calla. `loop: false` para los finales (jingles).
+ * Pista de la banda sonora: un MP3 de `public/assets/audio/music/` (masterizado con `scripts/audio/master-music.mjs`,
+ * todas a −16,5 LUFS) y cómo entra en la mezcla. Duración y punto de loop salen de `musicTracks.json`.
  */
-export interface MusicTheme {
-  bpm: number;
-  lead: readonly string[];
-  bass: readonly string[];
-  hat?: boolean;
-  loop: boolean;
-  /** Tema que sigue cuando termina uno que no se repite (los finales no quedan en silencio). */
-  next?: MusicId;
+export interface MusicTrack {
+  file: keyof typeof MUSIC_TRACKS;
+  /** Nivel en la mezcla (dB, sobre el volumen de música de los ajustes): las de juego largo van más bajas. */
+  gainDb: number;
+  /** Fundido de entrada (s). */
+  fadeIn: number;
+  /** Espera antes de entrar (s): los finales dejan sonar primero el sello de la misión. */
+  delay?: number;
 }
 
-export const MUSIC: Record<MusicId, MusicTheme> = {
-  // Menú: arpegios tranquilos, de asombro.
-  menu: {
-    bpm: 96,
-    lead: ['C5', 'E5', 'G5', 'C6', 'B4', 'D5', 'G5', 'B5', 'A4', 'C5', 'E5', 'A5', 'F4', 'A4', 'C5', 'F5'],
-    bass: ['C3', '-', '-', '-', 'G2', '-', '-', '-', 'A2', '-', '-', '-', 'F2', '-', '-', '-'],
-    loop: true,
-  },
-  // Despegue: rápido y con pulso, para la tensión de la cuenta regresiva.
-  launch: {
-    bpm: 132,
-    lead: ['A4', 'A4', 'C5', 'A4', 'D5', 'A4', 'E5', 'D5', 'A4', 'A4', 'C5', 'A4', 'G5', 'E5', 'D5', 'C5'],
-    bass: ['A2', 'A3', 'A2', 'A3', 'F2', 'F3', 'F2', 'F3', 'G2', 'G3', 'G2', 'G3', 'E2', 'E3', 'E2', 'E3'],
-    hat: true,
-    loop: true,
-  },
-  // Viaje: lento y espacial, notas largas.
-  voyage: {
-    bpm: 76,
-    lead: ['E5', '-', 'G5', '-', 'B5', '-', 'A5', '-', 'G5', '-', 'E5', '-', 'D5', '-', '-', '-'],
-    bass: ['E3', '-', '-', '-', 'C3', '-', '-', '-', 'G2', '-', '-', '-', 'D3', '-', '-', '-'],
-    loop: true,
-  },
-  // Marte: misterioso, en re menor.
-  mars: {
-    bpm: 88,
-    lead: ['D5', 'F5', 'A5', 'G5', 'F5', 'E5', 'D5', '-', 'C5', 'E5', 'G5', 'F5', 'E5', 'D5', 'C5', '-'],
-    bass: ['D3', '-', 'A2', '-', 'D3', '-', 'A2', '-', 'C3', '-', 'G2', '-', 'C3', '-', 'A2', '-'],
-    hat: true,
-    loop: true,
-  },
-  // Final feliz: fanfarria corta.
-  victory: {
-    bpm: 120,
-    lead: ['C5', 'E5', 'G5', 'C6', 'G5', 'C6', 'E6', '-', 'D6', '-', 'C6', '-', 'C6', '-', '-', '-'],
-    bass: ['C3', '-', 'G2', '-', 'C3', '-', 'E3', '-', 'G2', '-', 'C3', '-', 'C3', '-', '-', '-'],
-    loop: false,
-    next: 'menu',
-  },
-  // Misión suspendida: bajada tranquila (la tripulación está a salvo esperando rescate).
-  failure: {
-    bpm: 70,
-    lead: ['A4', '-', 'G4', '-', 'F4', '-', 'E4', '-', 'D4', '-', '-', '-', '-', '-', '-', '-'],
-    bass: ['D3', '-', '-', '-', 'C3', '-', '-', '-', 'A2', '-', '-', '-', '-', '-', '-', '-'],
-    loop: false,
-    next: 'voyage',
-  },
+export const MUSIC: Record<MusicId, MusicTrack> = {
+  // Menú: la pista entera al frente, con una entrada lenta.
+  menu: { file: 'main-menu', gainDb: 0, fadeIn: 2.5 },
+  // Bodegas: fondo para pensar, debajo de los golpes de las cajas.
+  loadout: { file: 'loadout', gainDb: -4, fadeIn: 2 },
+  marsLoadout: { file: 'mars-loadout', gainDb: -4, fadeIn: 2 },
+  // Maniobras: presentes pero dejando lugar al rugido de los motores y a la radio.
+  ascent: { file: 'maneuver-ascent-earth', gainDb: -3, fadeIn: 1.2 },
+  landing: { file: 'maneuver-landing-mars', gainDb: -3, fadeIn: 1.2 },
+  marsAscent: { file: 'maneuver-ascent-mars', gainDb: -3, fadeIn: 1.2 },
+  reentry: { file: 'maneuver-landing-earth', gainDb: -3, fadeIn: 1.2 },
+  // Viajes y base: horas de juego con avisos, alarmas y minijuegos encima; más bajas para no cansar.
+  voyageOut: { file: 'voyage-mars', gainDb: -6, fadeIn: 4 },
+  voyageBack: { file: 'voyage-earth', gainDb: -5, fadeIn: 4 },
+  mars: { file: 'mars-base', gainDb: -6, fadeIn: 4 },
+  // Finales: entran cuando termina el sello (`missionVictory` / `missionSuspended`).
+  victory: { file: 'mission-complete', gainDb: 0, fadeIn: 1.5, delay: 1.6 },
+  failure: { file: 'mission-suspended', gainDb: -1, fadeIn: 2.5, delay: 1.2 },
 };
 
-const NOTE_INDEX: Record<string, number> = { C: -9, 'C#': -8, D: -7, 'D#': -6, E: -5, F: -4, 'F#': -3, G: -2, 'G#': -1, A: 0, 'A#': 1, B: 2 };
+/** URL de una pista de música. */
+export const musicUrl = (file: string): string => `assets/audio/music/${file}.mp3`;
 
-/** Frecuencia (Hz) de una nota como `A4` (440 Hz) o `F#3`; null para un silencio (`-`). */
-export function noteFrequency(note: string): number | null {
-  const match = /^([A-G]#?)(\d)$/.exec(note);
-  if (!match) return null;
-  return 440 * 2 ** ((NOTE_INDEX[match[1]!]! + (Number(match[2]) - 4) * 12) / 12);
-}
+/**
+ * Efectos que bajan la música mientras suenan (dB): sellos de fin de misión, alarmas y logros se oyen claros. La
+ * música vuelve sola al terminar el efecto.
+ */
+export const MUSIC_DUCK: Partial<Record<SfxId, number>> = {
+  missionVictory: -10,
+  missionSuspended: -10,
+  alarm: -5,
+  siren: -6,
+  ignition: -4,
+  engineStart: -3,
+  achievementUnlock: -5,
+  micrometeorite: -4,
+  powerDown: -4,
+};

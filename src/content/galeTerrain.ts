@@ -1,7 +1,7 @@
 /**
- * Morfología real del cráter Gale (docs/plan-visual.md, Fase 4): cifras verificadas una por una contra su fuente
+ * Morfología real del cráter Gale (docs/historial/plan-visual.md, Fase 4): cifras verificadas una por una contra su fuente
  * de la NASA (15/11/2026) y las fotos de referencia de cada franja del exterior. Las fotos están guardadas en
- * `docs/gale/` (PIA = número del Photojournal de la NASA; crédito NASA/JPL-Caltech/MSSS para Mastcam y MAHLI,
+ * `docs/referencias/gale/` (PIA = número del Photojournal de la NASA; crédito NASA/JPL-Caltech/MSSS para Mastcam y MAHLI,
  * NASA/JPL-Caltech/University of Arizona para HiRISE). El mapa jugable es un corte comprimido y **no a escala**
  * del camino de Curiosity, de norte a sur. Textos para chicos en `mars.terrain.<id>.name|fact`.
  */
@@ -12,7 +12,7 @@ export interface GaleSource {
   url: string;
 }
 
-/** Foto de referencia: `pia` también es el nombre del archivo en `docs/gale/`. */
+/** Foto de referencia: `pia` también es el nombre del archivo en `docs/referencias/gale/`. */
 export interface GalePhoto {
   pia: string;
   instrument: 'HiRISE' | 'Mastcam' | 'MAHLI' | 'render';
@@ -179,7 +179,7 @@ export const GALE_STRIPS: readonly GaleStrip[] = [
 ];
 
 /**
- * Tipo de roca de las muestras de cada franja (docs/plan-visual.md, Fase 4): sprite `sample-<tipo>` del atlas de
+ * Tipo de roca de las muestras de cada franja (docs/historial/plan-visual.md, Fase 4): sprite `sample-<tipo>` del atlas de
  * Marte, nombre y dato para chicos en `mars.rock.<tipo>.name|fact`. Juntar uno de cada tipo da el logro
  * `allRockTypes`; el tipo no cambia el puntaje.
  */

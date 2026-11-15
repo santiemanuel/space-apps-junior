@@ -2,7 +2,7 @@
 estructuras sueltas. Parte de las imágenes ya pasadas por el pixel-snapper (`art/snapped/vuelo-*.png`).
 
 Uso: python scripts/art/flight-scenery.py
-Escribe en public/assets/ui/flight/ a tamaño de arte (el juego las agranda ×4; registro en docs/pixel-art.md).
+Escribe en public/assets/ui/flight/ a tamaño de arte (el juego las agranda ×4; registro en docs/produccion/pixel-art.md).
 - Fondos: 320 × 180, alfa binario, lo de arriba transparente.
 - Hojas en fila (`vuelo-naves`, `vuelo-objetos`): cada objeto separado por columnas vacías, recortado a su contenido.
 """

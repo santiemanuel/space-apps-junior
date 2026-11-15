@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { craterKm, craterPoint, GALE_CRATER_VIEW, GALE_FACTS, GALE_PLACES, GALE_ROCKS, GALE_STRIPS, ROCK_TYPES } from './galeTerrain';
 
 describe('fuentes y rocas de Gale', () => {
-  it('cada franja y cada cifra tiene su fuente de la NASA y fotos de docs/gale/', () => {
+  it('cada franja y cada cifra tiene su fuente de la NASA y fotos de docs/referencias/gale/', () => {
     const sources = [...Object.values(GALE_FACTS).map((f) => f.source), ...GALE_STRIPS.flatMap((s) => s.facts)];
     for (const source of sources) expect(source.url, source.says).toMatch(/^https:\/\/(science\.nasa\.gov|www\.nasa\.gov|www\.jpl\.nasa\.gov)\//);
     for (const strip of GALE_STRIPS) {
       expect(strip.photos.length, strip.id).toBeGreaterThanOrEqual(2);
-      for (const photo of strip.photos) expect(() => readFileSync(`docs/gale/${photo.pia}.jpg`), photo.pia).not.toThrow();
+      for (const photo of strip.photos) expect(() => readFileSync(`docs/referencias/gale/${photo.pia}.jpg`), photo.pia).not.toThrow();
     }
   });
 

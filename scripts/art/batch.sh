@@ -3,7 +3,7 @@
 running=0
 for job in "$@"; do
   name="${job%%:*}"; ref="${job#*:}"
-  if [ "$ref" != "$job" ]; then scripts/art/gen.sh "$name" docs/ref-nave.png "$ref" & else scripts/art/gen.sh "$name" & fi
+  if [ "$ref" != "$job" ]; then scripts/art/gen.sh "$name" docs/referencias/ref-nave.png "$ref" & else scripts/art/gen.sh "$name" & fi
   running=$((running + 1))
   if [ $running -ge 4 ]; then wait -n; running=$((running - 1)); fi
 done

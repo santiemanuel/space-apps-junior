@@ -2,7 +2,7 @@
 la ISS, el CubeSat OPSIS, meteoritos con su estela, asteroides, la nave de la misión y estrellas.
 
 Reproducible y sin red: python scripts/art/title-sky.py
-Escribe en public/assets/ui/title/ (registro en docs/pixel-art.md).
+Escribe en public/assets/ui/title/ (registro en docs/produccion/pixel-art.md).
 
 Fuentes de los mapas (dominio público, copias en art/raw/title/):
 - blue-marble.jpg: NASA Blue Marble 2002, "land_shallow_topo_2048" (Reto Stöckli, NASA GSFC), copia de Wikimedia Commons.

@@ -14,7 +14,7 @@ import { cablesFromTiled, landmarksFromTiled, layoutFromTiled, terrainFromTiled,
 
 /**
  * Base en el cráter Gale (game-design §4.4): sale del mapa de Tiled `maps/gale.json` (72 × 98 tiles, lo arma
- * `scripts/maps/build-gale.mjs`) según el plano `docs/mision_a_marte_referencias_topdown/plano-base-marte.png`:
+ * `scripts/maps/build-gale.mjs`) según el plano `docs/referencias/topdown/plano-base-marte.png`:
  * módulos con forma propia unidos por tubos aislados que se pueden romper (`tube-…`), el taller con la esclusa hacia
  * la nave, y afuera el depósito, la batería y la nave estacionada, a los que se llega con traje. Más al sur, un corte
  * comprimido y no a escala del camino real de Curiosity, de norte a sur (`GALE_STRIPS`, fuentes en

@@ -10,7 +10,7 @@ import {
 } from './crewAnimations';
 
 /**
- * Vista de un tripulante en los mapas. Contrato de la Etapa 0 (docs/plan-de-trabajo.md §5.2):
+ * Vista de un tripulante en los mapas. Contrato de la Etapa 0 (docs/historial/plan-de-trabajo.md §5.2):
  * la escena de simulación mueve `sprite` (velocidad, colisiones) y la vista sólo anima y muestra estado.
  */
 export interface CrewSprite {
@@ -25,7 +25,7 @@ export interface CrewSprite {
   destroy(): void;
 }
 
-/** Las hojas ya vienen a escala de mundo (1 píxel de arte = 2 px): ~1,6 tiles de alto (docs/plan-visual.md §3). */
+/** Las hojas ya vienen a escala de mundo (1 píxel de arte = 2 px): ~1,6 tiles de alto (docs/historial/plan-visual.md §3). */
 export const CREW_SCALE = 1;
 /** Cuerpo físico en los pies, en coordenadas del cuadro de 80×96 (pies en y = 94, centro en x = 40). */
 const FEET_BODY = { width: 28, height: 14, offsetX: 26, offsetY: 80 } as const;

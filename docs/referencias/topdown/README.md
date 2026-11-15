@@ -1,120 +1,156 @@
-# Misión a Marte | Referencias visuales para implementación
+# Mission to Mars | Visual references for implementation
 
-**Versión del paquete:** 1.0 · **Carácter:** concept art y referencias de UX, no assets finales.
+**Package version:** 1.0 · **Nature:** concept art and UX references, not final assets.
 
-Este paquete reúne **6 láminas originales** y **16 recortes de escenas** procedentes de cuatro de ellas. Incluye además una copia de la biblia visual entregada por el proyecto. Los recortes son prácticos para discutir y planificar sistemas individuales, pero su resolución es menor: para producir assets hay que recrearlos a escala de juego, no extraer tiles de estas capturas.
+This package gathers **6 original sheets** and **16 scene crops** taken from four of them, plus `plano-base-marte.png`,
+the floor plan of the Gale base that `scripts/maps/build-gale.mjs` follows. The crops are handy for discussing and
+planning individual systems, but their resolution is lower: to produce assets they must be recreated at game scale,
+not extracted as tiles from these images.
 
-## 1. Cómo usar el paquete
+## 1. How to use the package
 
-- `01_laminas_originales/`: las seis composiciones sin modificaciones.
-- `02_escenas_recortadas/`: cuatro cuadrantes de cada una de las primeras cuatro láminas, identificados con números y nombre del sector.
-- `03_documentacion/biblia_visual_original.md`: especificación funcional y artística recibida.
-- `03_documentacion/manifest.json`: índice de archivos y escenas.
+- `01_laminas_originales/`: the six compositions, unmodified.
+- `02_escenas_recortadas/`: four quadrants of each of the first four sheets, identified by number and sector name.
+- `plano-base-marte.png`: floor plan of the Mars base.
 
-Las láminas 05 y 06 son **tableros de concepto**, no capturas reales del juego ni atlas importables. Los paneles 01–04 son **mockups de gameplay**: el HUD y los textos generados son ilustrativos y no necesariamente representan mecánicas, métricas o copy definitivos.
+(The original package also had a `03_documentacion/` folder with a copy of the visual bible and a manifest; it is not
+included in this repo. The project's visual bible is [`docs/diseno/biblia-visual.md`](../../diseno/biblia-visual.md).)
 
-## 2. Reglas visuales consolidadas
+Sheets 05 and 06 are **concept boards**, not real game screenshots or importable atlases. Panels 01–04 are **gameplay
+mockups**: the generated HUD and texts are illustrative and do not necessarily represent final mechanics, metrics or
+copy.
 
-### Cámara y escala
+## 2. Consolidated visual rules
 
-- Resolución lógica de referencia: **1280 × 720** (escalado FIT).
-- Mundo tileado en **48 × 48 px**, según la biblia original.
-- Cámara **top-down / overhead 2D** para todos los módulos interiores de la nave, la base marciana, la esclusa y la exploración exterior sobre el terreno.
-- Mostrar **solo una parte del mapa** alrededor del personaje activo. Pasillos y módulos pueden continuar fuera de los bordes. No reducir personajes o mobiliario para mostrar una nave entera.
-- Personajes de acuerdo con la biblia: sprites fuente de **176 × 216 px**, representados alrededor de **0,38×** (aprox. 67 × 82 px), ajustando visualmente solo después de probar la legibilidad en pantalla.
-- Un indicador ámbar bajo los pies distingue al personaje controlado, más una señal superior cuando sea necesario. No confundir el anillo con el área de colisión.
-- La cámara sigue al jugador con suavizado y límites de mundo; se puede anticipar sutilmente en la dirección de marcha. Permitir visualizar por completo estaciones con las que se interactúa.
-- Un **side-scroller** queda reservado a actividades que ganan claridad con alturas, escaleras o plataformas, por ejemplo mantenimiento exterior de una estructura orbital. No transformar la exploración marciana ordinaria en plataformas.
+### Camera and scale
 
-### Interfaz
+- Logical reference resolution: **1280 × 720** (FIT scaling).
+- World tiled at **48 × 48 px**, per the original bible.
+- **Top-down / overhead 2D** camera for every interior module of the ship, the Mars base, the airlock and outdoor
+  exploration on the terrain.
+- Show **only part of the map** around the active character. Corridors and modules can continue past the edges. Do
+  not shrink characters or furniture to fit a whole ship on screen.
+- Characters per the bible: source sprites of **176 × 216 px**, shown at about **0.38×** (approx. 67 × 82 px),
+  adjusting visually only after testing on-screen legibility.
+- An amber marker under the feet identifies the controlled character, plus a top marker when needed. Do not confuse
+  the ring with the collision area.
+- The camera follows the player with smoothing and world bounds; it can subtly lead in the walking direction. Allow
+  stations being used to be fully visible.
+- A **side-scroller** is reserved for activities that become clearer with heights, ladders or platforms, for example
+  exterior maintenance of an orbital structure. Do not turn ordinary Mars exploration into a platformer.
 
-- La zona de mapa y los sistemas de interfaz son capas independientes. La interfaz no se mueve con la cámara.
-- Según biblia de `Voyage`: zona de juego de **912 px** + panel derecho de **368 px** como punto de partida. Validar si el panel fijo se necesita siempre; puede compactarse contextualmente durante exploración.
-- Priorizar 3 medidores: **energía, aire/agua y salud**, más estados de tripulantes, alertas, objetivo actual y un minimapa de navegación.
-- En 1280 × 720, usar texto legible, áreas clicables cómodas y evitar micropaneles apilados. Los valores deben venir de la simulación real, **nunca de los píxeles de las imágenes de concepto**.
-- Riesgos en verde/amarillo/rojo **más** forma/símbolo; alertas con causa explícita y acción sugerida.
-- **No incrustar textos, cifras ni logos tipográficos en los assets.** Internacionalización español/inglés desde el código.
+### Interface
 
-### Materiales e identidad
+- The map area and interface systems are independent layers. The interface does not move with the camera.
+- Per the `Voyage` bible: a **912 px** play area + a **368 px** right panel as a starting point. Validate whether the
+  fixed panel is always needed; it can become more compact during exploration.
+- Prioritize 3 meters: **energy, air/water and health**, plus crew status, alerts, current goal and a navigation
+  minimap.
+- At 1280 × 720, use legible text and comfortable click areas, and avoid stacked micro-panels. Values must come from
+  the real simulation, **never from the pixels of the concept images**.
+- Risks in green/yellow/red **plus** shape/symbol; alerts with an explicit cause and a suggested action.
+- **Do not bake text, numbers or typographic logos into the assets.** Spanish/English localization from code.
 
-- Nave: grises lavanda, azul tecnológico, bordes oscuros, iluminación naranja y amarilla.
-- Marte: ocres, óxido y rosas polvorientos; invernadero con luz violeta; indicadores científicos cian.
-- Estética de pixel art con formas claras, contornos consistentes y sombreado suave. Reducir el ruido visual en áreas transitables.
-- Mascotas recurrentes: rana verde con moño, personaje naranja con monóculo, personaje amarillo con gafas, azul con gafas y copete, rosa con auriculares. **Atención:** la biblia narrativa menciona cuatro tripulantes (Vega, Miga, Brote, Senda), pero los concepts muestran cinco mascotas y a veces un avatar humano; resolver el reparto definitivo antes de producir sprites y HUD.
+### Materials and identity
 
-## 3. Índice de las escenas de gameplay
+- Ship: lavender greys, tech blue, dark edges, orange and yellow lighting.
+- Mars: ochres, rust and dusty pinks; greenhouse with violet light; cyan science indicators.
+- Pixel art look with clear shapes, consistent outlines and soft shading. Reduce visual noise in walkable areas.
+- Recurring mascots: green frog with a bow, orange character with a monocle, yellow character with goggles, blue one
+  with goggles and a quiff, pink one with headphones. **Note:** the narrative bible names four crew members (Vega,
+  Miga, Brote, Senda), but the concepts show five mascots and sometimes a human avatar; settle the final cast before
+  producing sprites and HUD. (Resolved: the game uses the four crew members.)
 
-| Archivo (en `02_escenas_recortadas/`) | Uso sugerido | Vista | Elementos a reproducir |
+## 3. Index of gameplay scenes
+
+| File (in `02_escenas_recortadas/`) | Suggested use | View | Elements to reproduce |
 |---|---|---|---|
-| `01_01_nave_puente.png` | Puente de mando durante viaje | Top-down | ventana a la Tierra, monitores, consolas, interacción, HUD |
-| `01_02_nave_emergencia.png` | Incidente ambiental | Top-down | luces rojas, alerta, refugio/depósitos, indicación clara del peligro |
-| `01_03_base_invernadero.png` | Cultivo y soporte vital | Top-down | hileras de plantas, iluminación de crecimiento, máquina adyacente |
-| `01_04_marte_muestras.png` | Recolección de muestras | Top-down | rocas objetivo, rover, huellas, terreno que continúa fuera de pantalla |
-| `02_01_nave_comunicaciones.png` | Trabajo con radio y consola | Top-down | pantallas, ruta hacia otras salas, puesto de mando |
-| `02_02_nave_escudo_agua.png` | Alerta de radiación y refugio | Top-down | depósitos azules, señales de alarma, trayecto hacia protección |
-| `02_03_base_moxie.png` | Vida en la base y oxígeno | Top-down | invernadero, MOXIE, puerta/esclusa, varias estaciones |
-| `02_04_marte_rover.png` | Salida de exploración | Top-down | rover, paneles solares, selección de roca, mapa parcial |
-| `03_01_nave_sala_comun.png` | Comando/comunicaciones en rutina | Top-down | área de interacción, consola, zonas contiguas |
-| `03_02_nave_alerta_radiacion.png` | Estado de emergencia | Top-down | pasillo, puerta segura, señalización y luces rojas |
-| `03_03_base_hidroponia.png` | Producción de alimentos | Top-down | vegetación, tanques, luces violetas, equipos diferenciados |
-| `03_04_marte_rocas.png` | Muestreo EVA | Top-down | roca resaltada, terreno rocoso, rover, minimapa |
-| `04_01_nave_radio.png` | Comunicaciones cotidianas | Top-down | consola, astronauta con radio, ventanas |
-| `04_02_nave_tormenta.png` | Respuesta urgente a tormenta | Top-down | ruta hacia refugio, iconografía de advertencia, sistema activo |
-| `04_03_base_sistemas.png` | Reparación y cultivo | Top-down | generador, invernadero, maquinaria, salida a Marte |
-| `04_04_marte_paneles.png` | Gestión de energía y muestras | Top-down | paneles solares, rover, terreno desplazable |
+| `01_01_nave_puente.png` | Bridge during the trip | Top-down | window to Earth, monitors, consoles, interaction, HUD |
+| `01_02_nave_emergencia.png` | Environmental incident | Top-down | red lights, alert, shelter/tanks, clear hazard indication |
+| `01_03_base_invernadero.png` | Crops and life support | Top-down | rows of plants, grow lights, adjacent machine |
+| `01_04_marte_muestras.png` | Sample collection | Top-down | target rocks, rover, tracks, terrain continuing off-screen |
+| `02_01_nave_comunicaciones.png` | Radio and console work | Top-down | screens, path to other rooms, command post |
+| `02_02_nave_escudo_agua.png` | Radiation alert and shelter | Top-down | blue tanks, alarm signs, route to protection |
+| `02_03_base_moxie.png` | Base life and oxygen | Top-down | greenhouse, MOXIE, door/airlock, several stations |
+| `02_04_marte_rover.png` | Exploration outing | Top-down | rover, solar panels, rock selection, partial map |
+| `03_01_nave_sala_comun.png` | Routine command/communications | Top-down | interaction area, console, adjoining zones |
+| `03_02_nave_alerta_radiacion.png` | Emergency state | Top-down | corridor, safe door, signage and red lights |
+| `03_03_base_hidroponia.png` | Food production | Top-down | vegetation, tanks, violet lights, distinct equipment |
+| `03_04_marte_rocas.png` | EVA sampling | Top-down | highlighted rock, rocky terrain, rover, minimap |
+| `04_01_nave_radio.png` | Everyday communications | Top-down | console, astronaut with radio, windows |
+| `04_02_nave_tormenta.png` | Urgent storm response | Top-down | route to the shelter, warning icons, active system |
+| `04_03_base_sistemas.png` | Repair and farming | Top-down | generator, greenhouse, machinery, exit to Mars |
+| `04_04_marte_paneles.png` | Energy and sample management | Top-down | solar panels, rover, scrolling terrain |
 
-### Láminas de conjunto
+### Overview sheets
 
-- `05_catalogo_de_escenas`: esquema de localizaciones y mecánicas, incluyendo mantenimiento orbital lateral, distintos módulos de nave y recursos visuales.
-- `06_biblia_visual_ilustrada`: organización de las familias de escenarios, interfaz y paleta; útil para conversaciones de arte y revisión de coherencia.
+- `05_catalogo_de_escenas`: outline of locations and mechanics, including side-view orbital maintenance, different ship
+  modules and visual resources.
+- `06_biblia_visual_ilustrada`: organization of the scenery families, interface and palette; useful for art
+  discussions and consistency reviews.
 
-## 4. Mapa de traducción a sistemas del juego
+## 4. Mapping to game systems
 
-| Familia visual | Escenas de la biblia | Implementación recomendada |
+| Visual family | Bible scenes | Recommended implementation |
 |---|---|---|
-| Puente / comunicaciones / pasillos | `Voyage`, `MissionControl` | tilemap navegable, zonas de interacción, cámara de seguimiento, UI de radio superpuesta |
-| Enfermería / despensa / ejercicio | `Voyage` | props interactivos, estados del personaje y tareas con progreso |
-| Agua / CO₂ / emergencia solar | `Voyage`, `Hud` | sprites de máquinas, variaciones de alerta, camino hasta refugio, estado de sistema |
-| Invernadero / MOXIE | `Mars` | sala accesible, estación interactiva, estados operacional/avería y luces cambiantes |
-| Esclusa / Marte exterior | `Mars` | transición sin ruptura de escala, cámara que sigue al jugador, límites de EVA |
-| Rover / muestreo / paneles | `Mars` | objetos de recogida, puntos de interés, barreras de colisión y efectos de polvo |
-| Maniobras de vuelo | `Maneuver` | pantallas específicas de timing y control: no confundir con cinemáticas |
-| Mantenimiento lateral | propuesta especial / EVA | nivel side-scroller jugable solo cuando la verticalidad aporte una mecánica real |
-| Planificación / datos / registro | `Planning`, `DataPanel`, `DataCard`, `Report` | UI independiente del mapa, generada por código; datos tomados de fuentes reales |
+| Bridge / communications / corridors | `Voyage`, `MissionControl` | walkable tilemap, interaction zones, follow camera, radio UI overlay |
+| Infirmary / pantry / exercise | `Voyage` | interactive props, character states and tasks with progress |
+| Water / CO₂ / solar emergency | `Voyage`, `Hud` | machine sprites, alert variants, path to the shelter, system state |
+| Greenhouse / MOXIE | `Mars` | accessible room, interactive station, working/broken states and changing lights |
+| Airlock / outside Mars | `Mars` | transition without a scale break, camera following the player, EVA limits |
+| Rover / sampling / panels | `Mars` | pickup objects, points of interest, collision barriers and dust effects |
+| Flight maneuvers | `Maneuver` | dedicated timing and control screens: not to be confused with cinematics |
+| Side-view maintenance | special proposal / EVA | playable side-scroller level only when verticality adds a real mechanic |
+| Planning / data / log | `Planning`, `DataPanel`, `DataCard`, `Report` | UI independent of the map, generated in code; data from real sources |
 
-## 5. Producción de assets: orden de trabajo sugerido
+## 5. Asset production: suggested order
 
-1. **Bloquear escala y cámara:** prototipo con tile 48 px, personaje de ~82 px alto, panel lateral y desplazamiento fluido; probar a tamaño real en monitor HD.
-2. **Tilesets modulares:** suelo, muros, puertas, ventanas, pasillos, esquinas y juntas, con bordes que permitan continuidad al desplazarse.
-3. **Props por sala:** consola, bici, depurador, reciclador, camas, despensa, refugio, radio, MOXIE, cultivos y esclusa. Crear sprites opacos/transparencias según corresponda y puntos de interacción.
-4. **Terreno de Marte:** arena tileable, piedras, acantilados, huellas, rover, paneles y rocas de muestras. Versiones de día/noche/tormenta; no pegar el escenario completo como una sola imagen.
-5. **Personajes y animaciones:** definir reparto y escalas; caminar en cuatro direcciones, tarea, reposo, EVA y refugio. Preparar hitbox separada del arte.
-6. **UI kit:** medidores, cuadros, tabs, retratos, alertas, minimapa, diálogos y botones, todo con texto programático.
-7. **Estados de daño y ambiente:** red de luces, máquinas averiadas, parpadeo, polvo, baja energía y retorno con nave gastada.
-8. **Escenas lateralizadas concretas:** prototipar primero la necesidad de salto/escalera/travesía antes de producir un tileset side-scroller.
+1. **Lock scale and camera:** prototype with 48 px tiles, a ~82 px tall character, side panel and smooth scrolling;
+   test at real size on an HD monitor.
+2. **Modular tilesets:** floor, walls, doors, windows, corridors, corners and joints, with edges that allow continuity
+   while scrolling.
+3. **Props per room:** console, bike, scrubber, recycler, beds, pantry, shelter, radio, MOXIE, crops and airlock. Create
+   opaque/transparent sprites as needed, and interaction points.
+4. **Mars terrain:** tileable sand, stones, cliffs, tracks, rover, panels and sample rocks. Day/night/storm versions; do
+   not paste the whole scene as a single image.
+5. **Characters and animations:** settle cast and scales; walking in four directions, task, idle, EVA and shelter.
+   Prepare a hitbox separate from the art.
+6. **UI kit:** meters, boxes, tabs, portraits, alerts, minimap, dialogs and buttons, all with programmatic text.
+7. **Damage and ambience states:** light grid, broken machines, flicker, dust, low power and the worn ship on the way
+   back.
+8. **Specific side-view scenes:** first prototype the need for jumping/ladders/traversal before producing a
+   side-scroller tileset.
 
-## 6. Reglas de integración técnica
+## 6. Technical integration rules
 
-- Destino previsto según biblia: `public/assets/ship/`, `public/assets/mars/`, `public/assets/ui/`, `public/assets/characters/`.
-- Mantener por separado: `background`, `world_tiles`, `props`, `characters`, `interaction_markers`, `world_fx` y `screen_ui`.
-- Cada prop interactivo debería tener: `id`, posición de tile, zona de colisión, punto de interacción, estados y etiqueta traducible.
-- En los interiores, emplear capas altas transparentadas cuando oculten al jugador.
-- El minimapa representa el mundo completo o lo explorado, independientemente del área visible por la cámara.
-- Escalar al monitor mediante FIT y probar lectura de UI a 100% y 125%; evitar que la pantalla conceptual determine las dimensiones de colisión.
-- Los colores y números dibujados en las láminas no son muestras exactas de datos ni resultados validables.
+- Intended destination per the bible: `public/assets/ship/`, `public/assets/mars/`, `public/assets/ui/`,
+  `public/assets/characters/` (in the final game, characters are in `public/assets/crew/`).
+- Keep separate: `background`, `world_tiles`, `props`, `characters`, `interaction_markers`, `world_fx` and `screen_ui`.
+- Each interactive prop should have: `id`, tile position, collision area, interaction point, states and a translatable
+  label.
+- Indoors, make upper layers transparent when they hide the player.
+- The minimap shows the whole world or the explored part, regardless of the area visible to the camera.
+- Scale to the monitor with FIT and test UI legibility at 100% and 125%; do not let the concept screen dictate
+  collision sizes.
+- Colors and numbers drawn on the sheets are not exact data samples or verifiable results.
 
-## 7. Qué NO hacer
+## 7. What NOT to do
 
-- No utilizar los cuatro cuadrantes de una lámina como un único fondo jugable.
-- No estirar una captura a 1280 × 720 para convertirla en escena real; son referencias, no renders de tiles.
-- No comprimir el mapa entero en una única pantalla ni cambiar la escala de personaje de una zona a otra.
-- No generar una cinemática para una acción que requiere control del jugador.
-- No convertir todo Marte en un side-scroller por estética: el recorrido principal es top-down.
-- No extraer automáticamente texto de los mockups: traducir los contenidos desde UI real.
-- No implementar métricas inventadas que aparecen en las imágenes.
+- Do not use the four quadrants of a sheet as a single playable background.
+- Do not stretch a screenshot to 1280 × 720 to turn it into a real scene; these are references, not tile renders.
+- Do not squeeze the whole map into a single screen or change the character scale between areas.
+- Do not make a cinematic for an action that requires player control.
+- Do not turn all of Mars into a side-scroller for looks: the main route is top-down.
+- Do not automatically extract text from the mockups: write the content from the real UI.
+- Do not implement made-up metrics that appear in the images.
 
-## 8. Cobertura y límites
+## 8. Coverage and limits
 
-Estas **seis** láminas representan las últimas referencias generadas. Las cuatro primeras generan 16 recortes y las otras dos son paneles de síntesis. **No cubren todos los estados de producción** de la biblia: falta diseñar por separado el menú, carga, loadout, etapas de maniobra, planificación, datos científicos, pausa, resultados y varios incidentes. Eso no significa que no existan en el documento: significa que el material gráfico de este paquete no los especifica a nivel de pantalla final.
+These **six** sheets are the latest generated references. The first four yield 16 crops and the other two are summary
+boards. **They do not cover every production state** of the bible: the menu, loading, loadout, maneuver stages,
+planning, science data, pause, results and several incidents had to be designed separately. That does not mean they
+are missing from the document: it means this package's artwork does not specify them at final-screen level.
 
-Las composiciones visuales contienen textos o elementos de HUD generados automáticamente y algunas inconsistencias de personajes. Para el juego final se aplican **las reglas de la biblia y las decisiones de diseño acordadas**, no los detalles accidentales de estas ilustraciones.
+The visual compositions contain automatically generated text or HUD elements and some character inconsistencies. For
+the final game, **the bible's rules and the agreed design decisions** apply, not the accidental details of these
+illustrations.

@@ -1,79 +1,80 @@
-# Prototipos — escenas de despegue
+# Prototypes — launch scenes
 
-Mockups para rehacer la pantalla de `Maneuver` en los dos despegues (`ascent` desde la Tierra y `marsAscent` desde
-Gale). Son **concept art**, no recursos del juego: no se recortan piezas de acá ni se copian textos o cifras (los
-paneles llevan sólo formas a propósito).
+Mockups used to rework the `Maneuver` screen for both launches (`ascent` from Earth and `marsAscent` from Gale). They
+are **concept art**, not game assets: no pieces are cut from here and no text or figures are copied (the panels
+deliberately contain only shapes).
 
-- Generados con codex-cli (`scripts/art/gen.sh`), prompts en `art/prompts/proto-despegue-*.txt`, crudos en `art/raw/`.
-- Referencias adjuntas: láminas 05 y 06 de [`mision_a_marte_referencias_topdown/`](../mision_a_marte_referencias_topdown/README.md)
-  (paneles side-scroller: «Marte – Exploración», «Mantenimiento exterior», «Vista del cráter Gale») y la captura
-  actual de cada paso en `art/capturas/despegue/`.
-- Las mascotas de los mockups son genéricas; en el juego siguen Vega, Miga, Brote y Senda con sus sprites.
+- Generated with codex-cli (`scripts/art/gen.sh`), prompts in `art/prompts/proto-despegue-*.txt`, raw output in
+  `art/raw/`.
+- Attached references: sheets 05 and 06 from [`topdown/`](../topdown/README.md) (side-scroller panels: "Mars –
+  Exploration", "Exterior maintenance", "Gale Crater view") and a screenshot of each step of the game at the time
+  (development screenshots were removed from the repo; they remain in the git history under `art/capturas/despegue/`).
+- The mascots in the mockups are generic; in the game the crew is still Vega, Miga, Brote and Senda with their sprites.
 
-## Escenas
+## Scenes
 
-| Archivo | Momento | Qué tomar |
+| File | Moment | What to take |
 |---|---|---|
-| `01-amanecer.png` | Tierra · amanecer, checklist Go/No-Go | complejo costero, mar y sol bajo, torre roja con brazo de acceso, vapor, tribuna, tripulación caminando a la torre, combi |
-| `02-abordaje.png` | Tierra · abordaje | plano cercano: ascensor que sube por la torre, pasarela a la escotilla abierta, flechas grandes como botones |
-| `03-combustible.png` | Tierra · carga de combustible | tanques esféricos, caños con escarcha, cascada de vapor criogénico, foso de llamas, medidor de tanque con franja verde |
-| `04-cuenta.png` | Tierra · cuenta regresiva al atardecer | brazo retirado, balizas rojas, chispas de ignitores, público con banderitas, anillo de cuenta regresiva arriba |
-| `05-ignicion.png` | Tierra · despegue | columna de fuego, humo que cubre todo el suelo, brillo en el agua, tripulación saludando desde el edificio, temblor |
-| `06-separacion.png` | Tierra · alta atmósfera | horizonte curvo, separación de propulsores, aguja de pilotaje con franjas rojo/amarillo/verde, retratos de la tripulación |
-| `07-marte-base.png` | Marte · mañana en Gale, checklist | monte Sharp, domos y paneles de la base, rover, nave de ascenso con patas sobre la plataforma, manguera de combustible, manga de viento |
-| `08-marte-ignicion.png` | Marte · despegue | anillo de polvo rojo con piedras que vuelan, base iluminada por el fuego, tripulación en el mirador |
-| `09-marte-orbita.png` | Marte · entrada en órbita | Marte curvo con atmósfera fina, Fobos, la nave nodriza esperando con la compuerta abierta |
+| `01-amanecer.png` | Earth · dawn, Go/No-Go checklist | coastal complex, sea and low sun, red tower with access arm, steam, grandstand, crew walking to the tower, van |
+| `02-abordaje.png` | Earth · boarding | close shot: elevator going up the tower, walkway to the open hatch, big arrows as buttons |
+| `03-combustible.png` | Earth · fuelling | spherical tanks, frosted pipes, cascade of cryogenic vapor, flame trench, tank gauge with a green band |
+| `04-cuenta.png` | Earth · countdown at sunset | retracted arm, red beacons, igniter sparks, crowd with little flags, countdown ring at the top |
+| `05-ignicion.png` | Earth · liftoff | column of fire, smoke covering the whole ground, glow on the water, crew waving from the building, shaking |
+| `06-separacion.png` | Earth · upper atmosphere | curved horizon, booster separation, steering needle with red/yellow/green bands, crew portraits |
+| `07-marte-base.png` | Mars · morning at Gale, checklist | Mount Sharp, base domes and panels, rover, legged ascent vehicle on the pad, fuel hose, windsock |
+| `08-marte-ignicion.png` | Mars · liftoff | ring of red dust with flying stones, base lit by the fire, crew at the lookout |
+| `09-marte-orbita.png` | Mars · orbit insertion | curved Mars with a thin atmosphere, Phobos, the mothership waiting with its hatch open |
 
-## Lo que se lleva al juego
+## What goes into the game
 
-- **Vista lateral detallada** (pixel art a escala 4, como hoy), con escenografía por capas: cielo por momento del día,
-  fondo lejano (mar/costa o monte Sharp), plataforma media (torre, tanques, base) y primer plano (barandas, plantas,
-  rocas). Los fondos lejanos pueden seguir dibujados con código; torre, tanques, plataforma, nave y base pasan a ser
-  imágenes generadas (pipeline de `AGENTS.md`).
-- **Panel del minijuego** abajo a la derecha, más grande y con marco (bordes con remaches y luces como en las
-  láminas), íconos en lugar de texto donde se pueda y el texto real desde `t()`.
-- **Barra superior** con el nombre, el progreso de etapas como puntos y el combustible.
+- **Detailed side view** (pixel art at scale 4, as before), with layered scenery: sky by time of day, far background
+  (sea/coast or Mount Sharp), middle platform (tower, tanks, base) and foreground (railings, plants, rocks). Far
+  backgrounds can stay code-drawn; tower, tanks, platform, spacecraft and base become generated images (pipeline in
+  `AGENTS.md`).
+- **Minigame panel** at the bottom right, larger and framed (riveted edges and lights as in the sheets), icons instead
+  of text where possible and real text from `t()`.
+- **Top bar** with the name, stage progress as dots and the fuel.
 
-## Secuencia más larga (propuesta)
+## Longer sequence (proposal)
 
-Pedido: más etapas jugables, momentos cinemáticos y una cuenta regresiva larga, para que el despegue dé anticipación.
+Request: more playable stages, cinematic moments and a long countdown, so the launch builds anticipation.
 
-**Tierra (`ascent`)**
+**Earth (`ascent`)**
 
-1. *Cinemático* — amanecer: la cámara recorre el complejo de izquierda a derecha y la tripulación camina hasta la
-   torre (se saltea con Espacio).
-2. Checklist Go/No-Go.
-3. Cargar combustible (vapor que crece mientras se llena).
-4. Abordaje (ascensor subiendo y tripulantes cruzando la pasarela).
-5. **Nueva:** cerrar la escotilla y presurizar la cabina (mantener la presión en la franja verde).
-6. **Nueva:** prueba de radio con el control de la misión (repetir la secuencia de luces).
-7. **Cuenta regresiva larga** desde T-60, acelerada a unos 20 s, con hitos narrados y visibles: T-45 se retira el
-   brazo de acceso, T-30 balizas y público de pie, T-15 agua del sistema antiruido, T-10 jugable como hoy, T-6
-   encendido de motores (chispas), T-0 ignición.
-8. *Cinemático* — despegue: humo que cubre el suelo, temblor, el público festeja, la cámara sigue al cohete.
-9. Giro hacia la órbita, separación de propulsores y separación de etapa (como hoy).
+1. *Cinematic* — dawn: the camera pans across the complex from left to right and the crew walks to the tower (skip
+   with Space).
+2. Go/No-Go checklist.
+3. Load the fuel (vapor grows as it fills).
+4. Boarding (elevator going up and crew crossing the walkway).
+5. **New:** close the hatch and pressurize the cabin (keep the pressure in the green band).
+6. **New:** radio check with mission control (repeat the light sequence).
+7. **Long countdown** from T-60, sped up to about 20 s, with narrated and visible milestones: T-45 the access arm
+   retracts, T-30 beacons and crowd standing, T-15 sound suppression water, T-10 playable as before, T-6 engine start
+   (sparks), T-0 ignition.
+8. *Cinematic* — liftoff: smoke covering the ground, shaking, the crowd cheers, the camera follows the rocket.
+9. Turn toward orbit, booster separation and stage separation (as before).
 
-**Marte (`marsAscent`)**: mismo arco, más corto. Cinemático de la mañana en Gale → checklist → combustible →
-abordaje → presurizar → cuenta regresiva desde T-30 → cinemático del despegue con anillo de polvo → entrada en
-órbita con la nave nodriza a la vista.
+**Mars (`marsAscent`)**: same arc, shorter. Morning cinematic at Gale → checklist → fuel → boarding → pressurize →
+countdown from T-30 → liftoff cinematic with a dust ring → orbit insertion with the mothership in view.
 
-## Lo que quedó en el juego (punto medio)
+## What ended up in the game (middle ground)
 
-La interfaz casi no cambió (barra de arriba, checklist y panel del minijuego en el mismo lugar); lo que mejoró es la
-ilustración y la secuencia:
+The interface barely changed (top bar, checklist and minigame panel in the same place); what improved is the
+illustration and the sequence:
 
-- **Escenografía generada** a partir de estos mockups: costa y plataforma con gradas, torre roja con ascensor y brazo,
-  tanques con escarcha, cohete más grande con propulsores; en Gale, monte Sharp, base con domos, torre de servicio
-  y nave de ascenso. Cielo en franjas de pixel art (amanecer en la Tierra, mañana polvorienta en Marte). Detalle de
-  los recursos en [`pixel-art.md`](../pixel-art.md).
-- **Escena de entrada** (se saltea con Espacio): primer plano de la llegada (combi en la Tierra, puerta de la base
-  en Marte) y la cámara se abre a toda la plataforma.
-- **Etapas nuevas:** presurizar la cabina (Tierra y Marte) y prueba de radio con ondas desde el edificio de control
-  (Tierra). La de Marte que se llamaba «Sellar la escotilla» ahora es el abordaje.
-- **Cuenta regresiva larga:** T-60 en la Tierra y T-30 en Marte, con los preparativos a la vista y anunciados: brazo
-  que se retira, balizas y público que festeja, agua bajo la plataforma, chispas y motores que arrancan (en Marte,
-  la torre de servicio que se inclina y el polvo).
-- **Despegue más largo:** humo que cubre todo el suelo, temblor, llamas en los propulsores, el cohete arranca despacio
-  y se achica al alejarse; en Marte aparece la nave nodriza en la entrada en órbita.
+- **Generated scenery** based on these mockups: coast and platform with grandstands, red tower with elevator and arm,
+  frosted tanks, a bigger rocket with boosters; at Gale, Mount Sharp, a domed base, a service tower and the ascent
+  vehicle. Sky in pixel art bands (dawn on Earth, dusty morning on Mars). Asset details in
+  [`pixel-art.md`](../../produccion/pixel-art.md).
+- **Intro scene** (skip with Space): close-up of the arrival (van on Earth, base door on Mars), then the camera opens
+  up to the whole platform.
+- **New stages:** pressurize the cabin (Earth and Mars) and radio check with waves from the control building (Earth).
+  The Mars stage formerly called "Seal the hatch" is now boarding.
+- **Long countdown:** T-60 on Earth and T-30 on Mars, with the preparations visible and announced: retracting arm,
+  beacons and cheering crowd, water under the platform, sparks and engines starting (on Mars, the service tower
+  tilting away and the dust).
+- **Longer liftoff:** smoke covering the whole ground, shaking, flames in the boosters, the rocket starts slowly and
+  shrinks as it moves away; on Mars the mothership appears at orbit insertion.
 
-Capturas del resultado: `art/capturas/despegue-v2/` (antes: `art/capturas/despegue/`).
+Screenshots of the result were in `art/capturas/despegue-v2/` (before: `art/capturas/despegue/`); they remain in the
+git history.

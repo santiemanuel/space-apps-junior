@@ -13,6 +13,7 @@
     "datasets:download": "node scripts/download/download.mjs"
   },
   "type": "module",
+  "license": "MIT",
   "dependencies": {
     "phaser": "4.2.1"
   },

@@ -40,7 +40,7 @@ const OVERLAY_KEYS: readonly [string, SceneKey][] = [
   ['G', SceneKeys.DataPanel],
 ];
 const PLAYER_SPEED = 210;
-/** Zoom de la cámara del mapa: cada píxel de arte (2 px de mundo) ocupa 3 px de pantalla (docs/plan-visual.md §3). */
+/** Zoom de la cámara del mapa: cada píxel de arte (2 px de mundo) ocupa 3 px de pantalla (docs/historial/plan-visual.md §3). */
 const MAP_ZOOM = 1.5;
 /** Qué tan rápido la velocidad que se muestra de los automáticos sigue a la real (1/s): suaviza las esquinas. */
 const AUTO_VELOCITY_SMOOTHING = 14;

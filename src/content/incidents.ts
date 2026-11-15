@@ -18,7 +18,7 @@ const ALL = ['cruiseOut', 'mars', 'cruiseBack'] as const;
 
 /**
  * Los 10 incidentes del diseño (§4.2, §4.4), más las averías de la base nueva de Gale (tubos, cables y fusibles,
- * docs/mision_a_marte_referencias_topdown/plano-base-marte.png), en el formato único de §3.4. Textos en `src/i18n/*\/incidents.json`
+ * docs/referencias/topdown/plano-base-marte.png), en el formato único de §3.4. Textos en `src/i18n/*\/incidents.json`
  * bajo `textKey` (`.title`, `.alert`, `.impact`, `.explanation`) y `textKey.response.<id>.title/.cost`.
  */
 export const INCIDENTS: readonly IncidentDefinition[] = [

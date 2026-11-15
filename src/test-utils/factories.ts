@@ -7,7 +7,7 @@ import type { MeterState } from '../core/meters/types';
 import { GAME_STATE_VERSION, type GameState } from '../core/state/types';
 import { SYSTEM_IDS, type SystemId, type SystemStatus } from '../core/systems/types';
 
-// --- Contratos de la Etapa 0 (docs/plan-de-trabajo.md §3.5). Sólo agregar, no modificar. ---
+// --- Contratos de la Etapa 0 (docs/historial/plan-de-trabajo.md §3.5). Sólo agregar, no modificar. ---
 
 export function makeCrewMember(over: Partial<CrewMemberState> = {}): CrewMemberState {
   return {

@@ -1,141 +1,144 @@
 # Datasets
 
-Datos reales de la NASA que sirven de base para modelar las situaciones críticas del juego.
-Están fuera de `src/` porque son **datos de referencia, no código**: se versionan, se citan y se pueden
-regenerar o revisar sin tocar la lógica. Sólo `src/data/` los lee y los convierte en modelos de dominio
-(lo comprueba `src/architecture.test.ts`).
+Real NASA data that the game's critical situations are modelled on. They live outside `src/` because they are
+**reference data, not code**: they are versioned, cited, and can be regenerated or reviewed without touching the logic.
+Only `src/data/` reads them and turns them into domain models (checked by `src/architecture.test.ts`).
 
-Elegidos según el desafío [Junior Astronaut Mission Trainer (Space Apps 2026)](https://www.spaceappschallenge.org/2026/challenges/junior-astronaut-mission-trainer/),
-que pide decisiones sobre soporte vital, blindaje contra radiación, energía y comunicaciones, basadas en datos reales.
+Chosen for the [Junior Astronaut Mission Trainer (Space Apps 2026)](https://www.spaceappschallenge.org/2026/challenges/junior-astronaut-mission-trainer/)
+challenge, which asks for decisions about life support, radiation shielding, power and communications based on real
+data. Credits and licenses for every source: [`CREDITS.md`](../CREDITS.md).
 
-> **Datos crudos**: `datasets/raw/` contiene descargas completas (DONKI desde 2024, RadLab, clima de Marte,
-> OSDR, documentos NASA-STD-3001 y BVAD) pendientes de procesar. Ver [`raw/README.md`](raw/README.md).
+> **Raw data**: `datasets/raw/` holds full downloads (DONKI since 2024, RadLab, Mars weather, OSDR, the NASA-STD-3001
+> and BVAD documents) used as source material. See [`raw/README.md`](raw/README.md).
 
-## Catálogo (datos que ya usa el juego)
+## Catalogue (data the game uses)
 
-| Archivo | Fuente | Tipo | Situación crítica que modela |
+| File | Source | Type | Critical situation it models |
 |---|---|---|---|
-| `donki/flr.json` | [NASA CCMC DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/): llamaradas solares (FLR) | Descargado | Riesgo de radiación y **apagón de radio** (escala NOAA R1–R5 según la clase GOES) |
-| `donki/sep.json` | NASA CCMC DONKI: eventos de partículas solares energéticas (SEP) | Descargado | **Tormenta de radiación**: la crisis que obliga a refugiarse o blindarse |
-| `curated/radiation-dose.json` | Curiosity RAD (NASA/JPL), Chang'e-4 LND, NASA-STD-3001 | Curado | Dosis de fondo por día en la Luna y en Marte; límites de dosis de la NASA |
-| `curated/life-support-bvad.json` | [NASA BVAD](https://ntrs.nasa.gov/citations/20210024855) | Curado | Consumo de O2, agua y comida por tripulante y día |
-| `curated/osdr-facts.json` | [NASA OSDR](https://osdr.nasa.gov/bio/repo/) | Curado | Datos científicos reales que se muestran al resolver misiones (OSD-992, OSD-615, OSD-177) |
-| `storms/biosentinel-storms.json` | [RadLab](https://visualization.osdr.nasa.gov/radlab/) (BioSentinel, medias diarias) + DONKI (FLR, SEP) de `raw/` | Derivado | **Tormentas de radiación en espacio profundo**: cuándo avisa DONKI, cuándo sube la dosis y cuánto dura. Frena el reloj de misión (game-design §3.1) |
-| `storms/radiation-peaks.json` | RadLab: series de evento a resolución completa (BioSentinel, mayo de 2024; Curiosity RAD, 20/05/2024) | Derivado | **Pico real** de la tormenta en la tarjeta (653 y 304 μGy/h) e inicio real de la subida en Marte |
-| `series/van-allen-artemis.json` | RadLab: Artemis I (HERA, EAD, M-42), estadísticas diarias del 16/11 al 11/12/2022 | Derivado | **Cruce de Van Allen** en la maniobra de ascenso (§4.1) |
-| `notices/donki-notices.json` | DONKI `notifications` de `raw/` (2024 → nov. 2026) | Derivado | **Mensajes de Control de Misión**: llamaradas M/X, SEP detectados y CME con llegada estimada a Marte, con su enlace |
-| `series/deep-space-dose.json` | RadLab: BioSentinel BPD, medias diarias (nov. 2022 → nov. 2025) | Derivado | **Dosis en los viajes** (μGy/h por día) con el tope de 650 μGy/h de game-design §3.2.1; `capped` marca los días recortados |
-| `series/mars-cruise-dose.json` | RadLab: ExoMars TGO Liulin-MO en crucero (2016) | Derivado | Dosis en crucero para el modo libre |
-| `series/mars-surface-dose.json` | RadLab: Curiosity RAD, medias diarias (2015 → 03/06/2024) | Derivado | **Dosis en Marte** (μGy/h por día) |
-| `series/gale-weather.json` | [REMS de Curiosity](https://mars.nasa.gov/msl/mission/weather/) por fecha terrestre, recortado al rango de RAD | Derivado | **Polvo** (índice UV → f_polvo) y **frío** (mínima → calefacción) en la base de Gale |
-| `curated/mars-conjunctions.json` | NASA JPL (anuncios de cada moratoria de comandos) | Curado | **Conjunción solar**: días sin Control de Misión en Marte (2015, 2017, 2019, 2021, 2023) |
-| `curated/nasa-std-3001.json` | NASA-STD-3001 (OCHMO Technical Briefs), BVAD, NASA (ISS) | Curado | Límite de CO2, agua potable y por hora de EVA, kcal diarias, reciclaje de agua y ejercicio diario de los medidores |
-| `curated/planet-elements.json` | [NASA JPL SSD: Approximate Positions of the Planets](https://ssd.jpl.nasa.gov/planets/approx_pos.html) (Tabla 1, 1800–2050) | Curado | **Demora de la señal** de Control de Misión: distancia Tierra–nave y Tierra–Marte por fecha (de segundos al salir a ~16–20 min en Marte en 2024) |
+| `donki/flr.json` | [NASA CCMC DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/): solar flares (FLR) | Downloaded | Archive of the live DONKI client (radiation risk and NOAA R1–R5 **radio blackout** by GOES class). The current game takes flares from the raw DONKI series via `storms/` and `notices/` (see "Legacy" below) |
+| `donki/sep.json` | NASA CCMC DONKI: solar energetic particle events (SEP) | Downloaded | Same as above for SEP events (**radiation storm**) |
+| `curated/radiation-dose.json` | Curiosity RAD (NASA/JPL), Chang'e-4 LND, NASA-STD-3001 | Curated | Quality factors on Mars and in transit, background dose and NASA dose limits |
+| `curated/life-support-bvad.json` | [NASA BVAD](https://ntrs.nasa.gov/citations/20210024855) | Curated | O2, water and food use per crew member per day |
+| `curated/osdr-facts.json` | [NASA OSDR](https://osdr.nasa.gov/bio/repo/) | Curated | Real science facts shown when completing missions (OSD-992, OSD-615, OSD-177) |
+| `storms/biosentinel-storms.json` | [RadLab](https://visualization.osdr.nasa.gov/radlab/) (BioSentinel, daily means) + DONKI (FLR, SEP) from `raw/` | Derived | **Deep-space radiation storms**: when DONKI warns, when the dose rises and how long it lasts. Slows the mission clock (game-design §3.1) |
+| `storms/radiation-peaks.json` | RadLab: full-resolution event series (BioSentinel, May 2024; Curiosity RAD, 05/20/2024) | Derived | **Real peak** of the storm on the card (653 and 304 μGy/h) and the real start of the rise on Mars |
+| `series/van-allen-artemis.json` | RadLab: Artemis I (HERA, EAD, M-42), daily statistics from 11/16 to 12/11/2022 | Derived | **Van Allen crossing** in the ascent maneuver (§4.1) |
+| `notices/donki-notices.json` | DONKI `notifications` from `raw/` (2024 → Nov 2026) | Derived | **Mission Control messages**: M/X flares, detected SEPs and CMEs with an estimated arrival at Mars, with their link |
+| `series/deep-space-dose.json` | RadLab: BioSentinel BPD, daily means (Nov 2022 → Nov 2025) | Derived | **Dose during the trips** (μGy/h per day) with the 650 μGy/h cap from game-design §3.2.1; `capped` marks clipped days |
+| `series/mars-cruise-dose.json` | RadLab: ExoMars TGO Liulin-MO in cruise (2016) | Derived | Cruise dose for free mode |
+| `series/mars-surface-dose.json` | RadLab: Curiosity RAD, daily means (2015 → 06/03/2024) | Derived | **Dose on Mars** (μGy/h per day) |
+| `series/gale-weather.json` | [Curiosity REMS](https://mars.nasa.gov/msl/mission/weather/) by Earth date, trimmed to the RAD range | Derived | **Dust** (UV index → f_dust) and **cold** (minimum → heating) at the Gale base |
+| `curated/mars-conjunctions.json` | NASA JPL (announcements of each command moratorium) | Curated | **Solar conjunction**: days without Mission Control on Mars (2015, 2017, 2019, 2021, 2023) |
+| `curated/nasa-std-3001.json` | NASA-STD-3001 (OCHMO Technical Briefs), BVAD, NASA (ISS) | Curated | CO2 limit, drinking water and water per EVA hour, daily kcal, water recycling and daily exercise for the meters |
+| `curated/planet-elements.json` | [NASA JPL SSD: Approximate Positions of the Planets](https://ssd.jpl.nasa.gov/planets/approx_pos.html) (Table 1, 1800–2050) | Curated | **Signal delay** to Mission Control: Earth–spacecraft and Earth–Mars distance by date (from seconds at departure to ~16–20 min at Mars in 2024) |
 
-**Descargado**: lo genera `npm run datasets:fetch` (año completo, en tramos de 60 días, que es el máximo de DONKI).
-**Derivado**: lo generan `node scripts/build-storms.mjs`, `node scripts/build-series.mjs` y `node scripts/build-events.mjs` a partir de `datasets/raw/` (sin red).
-**Curado**: valores extraídos a mano de publicaciones, cada uno con su referencia y URL dentro del JSON.
+**Downloaded**: generated by `npm run datasets:fetch` (a full year, in 60-day chunks, the DONKI maximum).
+**Derived**: generated by `node scripts/build-storms.mjs`, `node scripts/build-series.mjs` and
+`node scripts/build-events.mjs` from `datasets/raw/` (no network).
+**Curated**: values extracted by hand from publications, each with its reference and URL inside the JSON.
 
-Archivo actual: 13/11/2025 → 13/11/2026, descargado el 14/11/2026. Contiene 407 llamaradas
-(16 de clase X y 285 de clase M) y 42 eventos SEP repartidos en 13 días.
+Current `donki/` archive: 11/13/2025 → 11/13/2026, downloaded on 11/14/2026. It contains 407 flares (16 X-class and
+285 M-class) and 42 SEP events spread over 13 days.
 
-## Cómo los usa el juego
+## How the game uses them
 
-- **Medidores** (`series/`, `curated/radiation-dose.json`, `curated/nasa-std-3001.json`): la dosis de cada
-  tripulante es `tasa del día × f_blindaje × Q × horas`. Q = 3,05 en Marte (Hassler 2014), 3,8 en crucero
-  (Zeitlin 2013) y 1,5 durante un SEP (regla). Si una serie no tiene dato ese día, se usa el último día con dato.
-- **Mínimas de REMS bajo −90 °C** (40 soles en todo el archivo, 15 dentro del rango de RAD): todas son caídas
-  aisladas de ~30 °C respecto a los soles vecinos (p. ej. 16/05/2024: −98 °C entre dos días de −68 °C), con
-  valores cerca de −100 °C. Se tratan como artefacto del sensor: el juego usa la mediana de los 3 soles a cada
-  lado y guarda el valor crudo (`rawMinTempC`).
-- **Fondo de radiación real en 2024**: BioSentinel da ~7,2 μGy/h fuera de tormentas (≈ 0,65 mSv/día con Q 3,8 y
-  sin blindaje), menos que los 1,84 mSv/día de MSL en 2012 (Zeitlin 2013) que usa game-design §2.1. 2024 fue un
-  máximo solar, que reduce los rayos cósmicos; además son instrumentos y blindajes distintos.
+- **Meters** (`series/`, `curated/radiation-dose.json`, `curated/nasa-std-3001.json`): each crew member's dose is
+  `daily rate × f_shielding × Q × hours`. Q = 3.05 on Mars (Hassler 2014), 3.8 in cruise (Zeitlin 2013) and 1.5 during
+  an SEP (rule). If a series has no data for a day, the last day with data is used.
+- **REMS minimums below −90 °C** (40 sols in the whole archive, 15 inside the RAD range): all are isolated drops of
+  ~30 °C relative to neighbouring sols (e.g. 05/16/2024: −98 °C between two −68 °C days), with values near −100 °C.
+  They are treated as sensor artifacts: the game uses the median of the 3 sols on each side and keeps the raw value
+  (`rawMinTempC`).
+- **Real radiation background in 2024**: BioSentinel gives ~7.2 μGy/h outside storms (≈ 0.65 mSv/day with Q 3.8 and no
+  shielding), less than the 1.84 mSv/day from MSL in 2012 (Zeitlin 2013) used in game-design §2.1. 2024 was a solar
+  maximum, which reduces cosmic rays; they are also different instruments and shielding.
 
-- **Tormentas y reloj** (`storms/biosentinel-storms.json`):
-  - Días de tormenta: media diaria de BioSentinel por encima de 5 × la mediana de los 27 días previos.
-  - Impacto: primer evento SEP de DONKI del día en que empieza la subida (en mayo de 2024 coincide con la
-    serie por minuto de RadLab: la dosis sube el 11/05 entre las 02 y las 03 UTC; el SEP de GOES >100 MeV es de las 02:10).
-  - Aviso: primera llamarada M5+ o X de la región activa del SEP en las 72 h previas. Sin detección previa
-    (o antes de 2024, donde no hay DONKI crudo) se usan 48 h simuladas, como pide el diseño.
-  - `capped: true` cuando la media diaria supera el tope de 650 μGy/h (§3.2.1).
-  - Antelación real de la campaña 2024: 29/01 0,6 h · 09/02 59,6 h · 23/03 4,4 h · **11/05 69 h** (X1.0 de la
-    región 13664 el 08/05) · 08/06 35,3 h · 23/07 48 h (regla) · 15/09 48 h (regla) · **09/10 1,9 h** (X1.8 del 09/10).
-    Los SEP "inmediatos" avisan con minutos u horas: el reloj garantiza al menos 10 s reales de Alerta.
+- **Storms and clock** (`storms/biosentinel-storms.json`):
+  - Storm days: BioSentinel daily mean above 5 × the median of the previous 27 days.
+  - Impact: first DONKI SEP event on the day the rise begins (in May 2024 it matches RadLab's per-minute series: the
+    dose rises on 05/11 between 02 and 03 UTC; the GOES >100 MeV SEP is at 02:10).
+  - Warning: first M5+ or X flare from the SEP's active region in the previous 72 h. With no prior detection (or
+    before 2024, where there is no raw DONKI) 48 simulated hours are used, as the design asks.
+  - `capped: true` when the daily mean exceeds the 650 μGy/h cap (§3.2.1).
+  - Real lead time in the 2024 campaign: 01/29 0.6 h · 02/09 59.6 h · 03/23 4.4 h · **05/11 69 h** (X1.0 from region
+    13664 on 05/08) · 06/08 35.3 h · 07/23 48 h (rule) · 09/15 48 h (rule) · **10/09 1.9 h** (X1.8 on 10/09). "Immediate"
+    SEPs warn minutes or hours ahead: the clock guarantees at least 10 real seconds of Alert.
 
-- **Incidentes de la línea de tiempo** (`src/data/incidentTimeline.ts`, reglas en `src/content/incidents.ts`):
-  - Viajes: las tormentas de `storms/` con su antelación real; la tarjeta muestra la media diaria con el tope de 650 μGy/h
-    y "N veces lo normal" respecto de `baselineUGyH`.
-  - Tormenta en Marte: días de RAD por encima de 5 × la mediana de los 27 días previos (la misma regla que BioSentinel).
-    Sin DONKI que la preceda, aviso de 48 h. En la campaña: 20/05/2024.
-  - Donde hay serie de evento (`storms/radiation-peaks.json`), la tarjeta muestra el pico real y "N veces lo normal"
-    respecto de la mediana de los días previos del archivo: 304 μGy/h en Marte (78 veces; el impacto pasa al inicio
-    real, 05:39 UTC) y 653 μGy/h en BioSentinel (88 veces). El tope de 650 μGy/h es para las medias diarias, así que
-    el pico de mayo se muestra sin recortar.
-  - Polvo: soles seguidos con UV "Low" en REMS (aviso de 24 h). En la campaña: 28/05/2024.
-  - Noche extrema: mínima 4 °C por debajo de la mediana de los 7 soles previos, o por debajo de −85 °C (aviso de 12 h).
-    Marca ~5 % de los soles de Gale; en la campaña, el 24/05/2024 (−73 °C contra −69 °C).
-  - Conjunción solar: la moratoria completa de `curated/mars-conjunctions.json` (aviso de 72 h).
-- **Van Allen** (`series/van-allen-artemis.json`): la tarjeta usa el máximo de HERA-HSU1 el día del lanzamiento
-  (8013 μGy/h) contra la mediana de su media diaria después del cruce. Los otros sensores marcaron entre 4122 y
-  17 251 μGy/h según dónde estaban en la cápsula; la serie los guarda a los cuatro. Sólo hay datos diarios, no el perfil
-  minuto a minuto del cruce.
-- **Demora de la señal** (`curated/planet-elements.json`): posición heliocéntrica de la Tierra y Marte con las fórmulas
-  keplerianas de JPL (error de miles de km, despreciable para minutos de luz; el test reproduce los 0,415 UA del
-  acercamiento del 06/10/2020). En el viaje, la nave va en línea recta entre el planeta de salida y el de llegada
-  [regla]. Control de Misión responde tras la ida y vuelta de la señal, en tiempo simulado.
-- **Control de Misión** (`notices/donki-notices.json`): se extraen la clase de la llamarada, el satélite que detectó
-  el SEP y la velocidad y la llegada a Marte de cada CME. En español se muestra una plantilla
-  (`hud.missionControl.notice.*`); en inglés, además, el primer párrafo del texto original. Los avisos se refieren
-  al entorno de la Tierra (salvo las CME hacia Marte): se presentan como pronóstico (§3.1).
-- **Clima espacial**: en modo `live` se consultan los últimos 30 días de DONKI. Si no hay conexión
-  (o en modo `archive`), cada partida toma **una ventana real de 30 días al azar** de este archivo,
-  lo que hace que cada partida sea distinta. La interfaz siempre indica si los datos son *en vivo* o
-  *real archivado*, con sus fechas.
-- **Riesgo de radiación**: llamarada más intensa en escala logarítmica (C1≈10 %, M1≈40 %, X1≈70 %).
-  Si hay un evento SEP, el riesgo sube al menos al 70 % (*regla de juego*).
-- **Apagón de radio**: nivel NOAA R a partir del flujo de la llamarada más intensa (escala oficial).
-- **Dosis de la tripulación**: se acumula a la tasa medida en la superficie lunar (1,37 mSv/día) y se
-  compara con el límite de carrera de la NASA (600 mSv) y con radiografías de tórax (0,1 mSv).
+- **Timeline incidents** (`src/data/incidentTimeline.ts`, rules in `src/content/incidents.ts`):
+  - Trips: the storms from `storms/` with their real lead time; the card shows the daily mean with the 650 μGy/h cap
+    and "N times normal" relative to `baselineUGyH`.
+  - Storm on Mars: RAD days above 5 × the median of the previous 27 days (the same rule as BioSentinel). With no DONKI
+    event before it, a 48 h warning. In the campaign: 05/20/2024.
+  - Where there is an event series (`storms/radiation-peaks.json`), the card shows the real peak and "N times normal"
+    relative to the median of the previous archive days: 304 μGy/h on Mars (78 times; the impact moves to the real
+    start, 05:39 UTC) and 653 μGy/h for BioSentinel (88 times). The 650 μGy/h cap applies to daily means, so the May
+    peak is shown unclipped.
+  - Dust: consecutive sols with "Low" UV in REMS (24 h warning). In the campaign: 05/28/2024.
+  - Extreme night: minimum 4 °C below the median of the previous 7 sols, or below −85 °C (12 h warning). Flags ~5 % of
+    Gale sols; in the campaign, 05/24/2024 (−73 °C against −69 °C).
+  - Solar conjunction: the full moratorium from `curated/mars-conjunctions.json` (72 h warning).
+- **Van Allen** (`series/van-allen-artemis.json`): the card uses the HERA-HSU1 maximum on launch day (8013 μGy/h)
+  against the median of its daily mean after the crossing. The other sensors read between 4122 and 17 251 μGy/h
+  depending on where they were in the capsule; the series keeps all four. There is only daily data, not the
+  minute-by-minute profile of the crossing.
+- **Signal delay** (`curated/planet-elements.json`): heliocentric position of Earth and Mars with JPL's Keplerian
+  formulas (an error of thousands of km, negligible for light-minutes; the test reproduces the 0.415 AU of the
+  10/06/2020 close approach). During the trip, the spacecraft moves in a straight line between the departure and
+  arrival planets [rule]. Mission Control answers after the signal's round trip, in simulated time.
+- **Mission Control** (`notices/donki-notices.json`): the flare class, the satellite that detected the SEP and each
+  CME's speed and arrival at Mars are extracted. In Spanish a template is shown (`hud.missionControl.notice.*`); in
+  English, the first paragraph of the original text as well. The notices refer to Earth's environment (except CMEs
+  toward Mars): they are presented as a forecast (§3.1).
 
-## Fuentes del terreno de Gale (no es un dataset)
+### Legacy (lunar prototype, not wired into the current game)
 
-El exterior de `Mars` es un corte comprimido y **no a escala** del camino real de Curiosity (docs/plan-visual.md,
-Fase 4). No hay archivo en `datasets/`: las cifras y las fotos de referencia viven en `src/content/galeTerrain.ts`
-(con la cita textual y la URL de cada una) y las fotos en `docs/gale/`. Verificado el 15/11/2026:
+The first prototype was a lunar base that read DONKI live. Its code is still in `src/data/donki/`,
+`src/data/archive.ts`, `src/data/EnvironmentService.ts` and `src/core/environment/risk.ts`, but no scene uses it:
 
-| Dato | Valor | Fuente |
+- **Space weather**: in `live` mode it queried the last 30 days of DONKI; offline (or in `archive` mode) each game took
+  **a random real 30-day window** from `donki/`, always labelled *live* or *real archived*.
+- **Radiation risk**: strongest flare on a logarithmic scale (C1≈10 %, M1≈40 %, X1≈70 %); with an SEP, at least 70 %.
+- **Radio blackout**: NOAA R level from the flux of the strongest flare (official scale).
+- **Crew dose**: accumulated at the rate measured on the lunar surface (1.37 mSv/day) and compared with NASA's career
+  limit (600 mSv) and with chest X-rays (0.1 mSv).
+
+## Gale terrain sources (not a dataset)
+
+The outside of `Mars` is a compressed, **not to scale** cut of Curiosity's real route (docs/historial/plan-visual.md,
+Phase 4). There is no file in `datasets/`: the figures and reference photos live in `src/content/galeTerrain.ts` (with
+the exact quote and URL of each) and the photos in `docs/referencias/gale/`. Verified on 11/15/2026:
+
+| Fact | Value | Source |
 |---|---|---|
-| Diámetro del cráter Gale | 154 km | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
-| Altura del monte Sharp | 5,5 km sobre el piso del cráter (la NASA también lo redondea a 5 km) | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
-| Edad del cráter | más de 3000 millones de años | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
-| Curiosity en Gediz Vallis | desde febrero de 2024 (toda la estancia del juego, 15/05 → 04/06/2024); canal de ~91 m de ancho | [NASA, PIA26241](https://science.nasa.gov/photojournal/curiositys-route-to-gediz-vallis-channel-rendering/) |
-| Azufre puro | 30/05/2024, sol 4200: Curiosity pisa la piedra "Convict Lake"; APXS confirma azufre elemental, el primero en Marte | [JPL, PIA26307](https://www.jpl.nasa.gov/images/pia26307-curiosity-captures-close-up-of-sulfur-crystals/) (foto de MAHLI, no de Mastcam) · [NASA, 18/07/2024](https://www.nasa.gov/missions/mars-science-laboratory/curiosity-rover/nasas-curiosity-rover-discovers-a-surprise-in-a-martian-rock/) |
-| Dunas Bagnold | avanzan hasta ~1 m por año terrestre | [JPL, PIA20283](https://www.jpl.nasa.gov/images/pia20283-mastcam-telephoto-of-a-martian-dunes-downwind-face/) |
-| Cerros Murray | mesetas de 8 y 10 m de alto, restos de arenisca de dunas antiguas | [JPL, PIA20841](https://www.jpl.nasa.gov/images/pia20841-martian-mesas-in-murray-buttes-area-sol-1434/) |
-| Arena de las dunas Bagnold | basáltica (tipo de roca de las muestras de esa franja) | [NASA, Recap of the Bagnold Dune Investigation](https://science.nasa.gov/blog/recap-of-the-bagnold-dune-investigation/) |
-| Coordenadas del mapa del cráter | centro de Gale 5,37° S 137,81° E; monte Sharp 5,08° S 137,85° E; Gediz Vallis (extremo norte) 4,775° S 137,403° E; Bradbury Landing 4,5895° S 137,4417° E | [USGS: Gale](https://planetarynames.wr.usgs.gov/Feature/2071), [Aeolis Mons](https://planetarynames.wr.usgs.gov/Feature/15000), [Gediz Vallis](https://planetarynames.wr.usgs.gov/Feature/15571); [Malin et al. 2017](https://doi.org/10.1002/2016ea000252) |
-| Imagen del mapa del cráter | PIA15687, vista desde arriba; la elipse de aterrizaje dibujada (20 × 7 km) da la escala | [NASA, PIA15687](https://science.nasa.gov/photojournal/destination-gale-crater-in-august-2012/) |
-| Piedras redondeadas de la llanura | las arrastró una corriente de agua (no el viento) | [JPL, PIA16156](https://www.jpl.nasa.gov/images/pia16156-remnants-of-ancient-streambed-on-mars/) |
-| Yellowknife Bay | depósitos de un lago y arroyos antiguos | [NASA, PIA17595](https://science.nasa.gov/photojournal/view-of-yellowknife-bay-formation-with-drilling-sites/) |
+| Gale Crater diameter | 154 km | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Mount Sharp height | 5.5 km above the crater floor (NASA also rounds it to 5 km) | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Crater age | more than 3 billion years | [NASA, PIA15292](https://science.nasa.gov/photojournal/mount-sharp-inside-gale-crater-mars/) |
+| Curiosity at Gediz Vallis | since February 2024 (the whole stay in the game, 05/15 → 06/04/2024); channel ~91 m wide | [NASA, PIA26241](https://science.nasa.gov/photojournal/curiositys-route-to-gediz-vallis-channel-rendering/) |
+| Pure sulfur | 05/30/2024, sol 4200: Curiosity drives over the "Convict Lake" rock; APXS confirms elemental sulfur, the first on Mars | [JPL, PIA26307](https://www.jpl.nasa.gov/images/pia26307-curiosity-captures-close-up-of-sulfur-crystals/) (MAHLI photo, not Mastcam) · [NASA, 07/18/2024](https://www.nasa.gov/missions/mars-science-laboratory/curiosity-rover/nasas-curiosity-rover-discovers-a-surprise-in-a-martian-rock/) |
+| Bagnold Dunes | move up to ~1 m per Earth year | [JPL, PIA20283](https://www.jpl.nasa.gov/images/pia20283-mastcam-telephoto-of-a-martian-dunes-downwind-face/) |
+| Murray Buttes | mesas 8 and 10 m high, remains of ancient dune sandstone | [JPL, PIA20841](https://www.jpl.nasa.gov/images/pia20841-martian-mesas-in-murray-buttes-area-sol-1434/) |
+| Bagnold Dunes sand | basaltic (rock type of the samples from that strip) | [NASA, Recap of the Bagnold Dune Investigation](https://science.nasa.gov/blog/recap-of-the-bagnold-dune-investigation/) |
+| Crater map coordinates | Gale center 5.37° S 137.81° E; Mount Sharp 5.08° S 137.85° E; Gediz Vallis (north end) 4.775° S 137.403° E; Bradbury Landing 4.5895° S 137.4417° E | [USGS: Gale](https://planetarynames.wr.usgs.gov/Feature/2071), [Aeolis Mons](https://planetarynames.wr.usgs.gov/Feature/15000), [Gediz Vallis](https://planetarynames.wr.usgs.gov/Feature/15571); [Malin et al. 2017](https://doi.org/10.1002/2016ea000252) |
+| Crater map image | PIA15687, top view; the drawn landing ellipse (20 × 7 km) gives the scale | [NASA, PIA15687](https://science.nasa.gov/photojournal/destination-gale-crater-in-august-2012/) |
+| Rounded pebbles on the plain | carried by a stream of water (not wind) | [JPL, PIA16156](https://www.jpl.nasa.gov/images/pia16156-remnants-of-ancient-streambed-on-mars/) |
+| Yellowknife Bay | deposits of an ancient lake and streams | [NASA, PIA17595](https://science.nasa.gov/photojournal/view-of-yellowknife-bay-formation-with-drilling-sites/) |
 
-## Datasets descartados
+## Discarded datasets
 
-| Dataset | Motivo |
+| Dataset | Reason |
 |---|---|
-| NeoWs (asteroides cercanos) | No aparece en el desafío y no modela ningún problema de una base lunar o marciana |
-| RadLab (telemetría de radiación) | Relevante y su API de datos está operativa. Se verificó que una consulta a `https://visualization.osdr.nasa.gov/radlab/api/?spacecraft=ISS&instrument=DosTel&...&format=json` devuelve HTTP 200 y 164 lecturas de 2022. No está integrada aún; el API no expuso `Access-Control-Allow-Origin` en esta prueba, así que habría que descargarlo con Node al archivo en vez de llamarlo desde el navegador. |
-| DONKI CME / GST | Las CME y las tormentas geomagnéticas afectan sobre todo a la Tierra; para una base sin magnetosfera, FLR y SEP son los datos que importan. Las CME son candidatas para un sistema de *alerta temprana* |
-| Mars Trek | Imágenes y terreno: útil si la base se traslada a Marte (cambiar `MISSION_SITE` a `marsSurface`) |
+| NeoWs (near-Earth asteroids) | Not part of the challenge and does not model any problem of a lunar or Mars base |
+| RadLab (radiation telemetry), live API | Relevant and its data API works. A query to `https://visualization.osdr.nasa.gov/radlab/api/?spacecraft=ISS&instrument=DosTel&...&format=json` was verified to return HTTP 200 and 164 readings from 2022. It is not called live: the API did not expose `Access-Control-Allow-Origin` in that test, so it is downloaded with Node into the archive (`raw/`) instead of being called from the browser. |
+| DONKI CME / GST | CMEs and geomagnetic storms mostly affect Earth; for a base without a magnetosphere, FLR and SEP are the data that matter. CMEs toward Mars do appear in the Mission Control messages |
+| Mars Trek | Imagery and terrain: useful for a larger-scale Mars map |
 
-## Notas técnicas
+## Technical notes
 
-- DONKI se consulta directamente en `https://ccmc.gsfc.nasa.gov/DONKI-API/get/<TIPO>` **sin barra final**:
-  el proxy de `api.nasa.gov/DONKI` añade una y puede responder 404. No requiere API key y permite CORS.
-- Las respuestas se recortan a los campos que usa el juego. El campo `link` de cada evento enlaza a su ficha en DONKI.
-- RadLab usa otra convención: el endpoint de datos es `https://visualization.osdr.nasa.gov/radlab/api/`
-  **con barra final**, seguido de filtros como `spacecraft=ISS`, `instrument=DosTel`,
-  `timestamp%3E=...` y `format=json`. `/radlab/api/environments` no es una ruta válida y devuelve
-  error; el endpoint correcto respondió 200 el 14/11/2026.
-- El aviso de APOD / Earth API / Mars Rover no afecta a este proyecto: no utiliza ninguno de esos tres servicios.
-  La nueva APOD URL no corrige DONKI ni RadLab.
+- DONKI is queried directly at `https://ccmc.gsfc.nasa.gov/DONKI-API/get/<TYPE>` **without a trailing slash**: the
+  `api.nasa.gov/DONKI` proxy adds one and can return 404. It needs no API key and allows CORS.
+- Responses are trimmed to the fields the game uses. Each event's `link` field points to its DONKI page.
+- RadLab uses a different convention: the data endpoint is `https://visualization.osdr.nasa.gov/radlab/api/` **with a
+  trailing slash**, followed by filters such as `spacecraft=ISS`, `instrument=DosTel`, `timestamp%3E=...` and
+  `format=json`. `/radlab/api/environments` is not a valid route and returns an error; the correct endpoint answered
+  200 on 11/14/2026.
+- The APOD / Earth API / Mars Rover notice does not affect this project: it does not use any of those three services.

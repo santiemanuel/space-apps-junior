@@ -1,57 +1,55 @@
-# datasets/raw — Descargas crudas de la NASA
+# datasets/raw — Raw NASA downloads
 
-Material de partida para el **procesamiento posterior**, que decidirá qué variables usa el juego y cómo
-mostrarlas a niños de ~10 años sin perder el vínculo con el dato real. Nada de esta carpeta lo lee
-el juego directamente: cuando una variable se adopte, se procesará a `datasets/curated/` o a
-`datasets/donki/` y se documentará en `datasets/README.md`.
+Starting material for **later processing**, which decides which variables the game uses and how to show them to kids
+around 10 without losing the link to the real data. The game does not read anything in this folder directly: when a
+variable is adopted, it is processed into `datasets/curated/` or `datasets/donki/` (or the other processed folders) and
+documented in `datasets/README.md`.
 
 ```bash
-npm run datasets:download                 # todo
-npm run datasets:download -- donki radlab # sólo algunas fuentes
+npm run datasets:download                 # everything
+npm run datasets:download -- donki radlab # only some sources
 ```
 
-`manifest.json` registra cada archivo: URL y consulta exactas, fecha de descarga, número de registros,
-tamaño, SHA-256 y si se versiona. Los archivos de más de 5 MB no se suben a git (los lista `.gitignore`);
-se regeneran con el comando anterior.
+`manifest.json` records every file: exact URL and query, download date, number of records, size, SHA-256 and whether it
+is versioned. Files over 5 MB are not pushed to git (listed in `.gitignore`); they are regenerated with the command
+above.
 
-## Fuentes y variables candidatas
+## Sources and candidate variables
 
-| Carpeta | Fuente | Qué contiene | Variables candidatas para el juego |
+| Folder | Source | What it contains | Candidate variables for the game |
 |---|---|---|---|
-| `donki/` | NASA CCMC DONKI, 2024 → hoy | Respuesta original de la API para FLR, SEP, CME, GST, IPS, HSS, MPC, RBE y `notifications` | Llamaradas (clase GOES → apagón de radio R1–R5), tormentas de partículas (SEP) como crisis de radiación, CME como **alerta temprana** (velocidad, hora estimada de llegada), Kp de tormentas geomagnéticas, **textos reales de alertas** escritos por analistas de la NASA |
-| `radlab/daily/` | NASA OSDR RadLab | Estadísticas diarias (n, mín., media, máx.) de dosis absorbida en μGy/h, por instrumento | Dosis de fondo **real** según el lugar: órbita lunar (LRO/CRaTER), superficie de Marte (Curiosity/RAD), espacio profundo (BioSentinel), crucero y órbita de Marte (TGO/Liulin-MO), ISS (DosTel). Sirve para comparar lugares y escalar el blindaje |
-| `radlab/events/` | NASA OSDR RadLab | Series a **resolución completa** de dos tormentas reales (mayo de 2024) | Gráfica del **pico real** de radiación durante una tormenta: la crisis que se puede revivir en el juego |
-| `mars-weather/` | NASA Mars Exploration Program | Clima diario de Curiosity/REMS (~4700 soles) y Perseverance/MEDA | Temperatura mín./máx., presión, índice UV, opacidad, salida y puesta del sol: el «parte meteorológico» de una base en Marte |
-| `osdr/` | NASA OSDR | Metadatos completos de hasta 25 estudios por tema (radiación, hueso, músculo, plantas, comida, sueño, sistema inmune, aislamiento) | «¿Sabías que…?» y consecuencias de salud basadas en estudios reales, con enlace a cada estudio |
-| `references/` | NASA BVAD y NASA-STD-3001 (OCHMO) | PDFs, más el texto completo del BVAD | Valores de diseño por tripulante: O2 consumido, CO2 producido y su límite (≤ 3 mmHg), agua (2,5 L/día, 240 mL por hora de EVA), comida (3035 kcal/día), límites de radiación (600 mSv de carrera, 250 mSv por SPE) |
+| `donki/` | NASA CCMC DONKI, 2024 → today | Original API responses for FLR, SEP, CME, GST, IPS, HSS, MPC, RBE and `notifications` | Flares (GOES class → R1–R5 radio blackout), particle storms (SEP) as radiation crises, CMEs as an **early warning** (speed, estimated arrival time), Kp of geomagnetic storms, **real alert texts** written by NASA analysts |
+| `radlab/daily/` | NASA OSDR RadLab | Daily statistics (n, min, mean, max) of absorbed dose in μGy/h, per instrument | **Real** background dose by place: lunar orbit (LRO/CRaTER), Mars surface (Curiosity/RAD), deep space (BioSentinel), Mars cruise and orbit (TGO/Liulin-MO), ISS (DosTel). Useful to compare places and scale shielding |
+| `radlab/events/` | NASA OSDR RadLab | **Full-resolution** series of two real storms (May 2024) | Chart of the **real radiation peak** during a storm: a crisis that can be relived in the game |
+| `mars-weather/` | NASA Mars Exploration Program | Daily weather from Curiosity/REMS (~4700 sols) and Perseverance/MEDA | Min/max temperature, pressure, UV index, opacity, sunrise and sunset: the "weather report" of a Mars base |
+| `osdr/` | NASA OSDR | Full metadata of up to 25 studies per topic (radiation, bone, muscle, plants, food, sleep, immune system, isolation) | "Did you know…?" facts and health consequences based on real studies, with a link to each study |
+| `references/` | NASA BVAD and NASA-STD-3001 (OCHMO) | PDFs, plus the full BVAD text | Design values per crew member: O2 consumed, CO2 produced and its limit (≤ 3 mmHg), water (2.5 L/day, 240 mL per EVA hour), food (3035 kcal/day), radiation limits (600 mSv career, 250 mSv per SPE) |
 
-## Notas para el procesamiento
+## Processing notes
 
-- **Unidades**: RadLab da dosis absorbida en **μGy/h** (gray). Las referencias curadas usan dosis
-  equivalente en **mSv/día** (sievert). No son intercambiables sin un factor de calidad: hay que documentar
-  cualquier conversión.
-- **RadLab**: las series completas pesan cientos de MB (TGO ~270 MB, BioSentinel ~100 MB), por eso se
-  guardan agregadas por día. La serie de la ISS se pide año a año porque la consulta completa da 504.
-  La API no envía cabeceras CORS: hay que descargarla con Node, no desde el navegador.
-- **DONKI**: cada evento lleva `link` a su ficha pública, útil para enlazar desde el juego a la fuente.
-  Los textos de `notifications` están en inglés y usan jerga técnica: si se muestran, conviene acompañarlos
-  de una explicación sencilla.
-- **Mars weather**: los valores vienen como texto (`"-71"`, `"--"` cuando no hay dato).
-- **OSDR**: la búsqueda devuelve estudios muy técnicos (genómica, cultivos celulares). Hay que filtrar a mano
-  los que tengan un mensaje comprensible para niños.
+- **Units**: RadLab gives absorbed dose in **μGy/h** (gray). The curated references use dose equivalent in
+  **mSv/day** (sievert). They are not interchangeable without a quality factor: any conversion must be documented.
+- **RadLab**: the full series weigh hundreds of MB (TGO ~270 MB, BioSentinel ~100 MB), so they are stored aggregated by
+  day. The ISS series is requested year by year because the full query returns 504. The API sends no CORS headers: it
+  must be downloaded with Node, not from the browser.
+- **DONKI**: each event has a `link` to its public page, useful for linking from the game to the source. The
+  `notifications` texts are in English and use technical jargon: if shown, they should come with a simple explanation.
+- **Mars weather**: values come as text (`"-71"`, `"--"` when there is no data).
+- **OSDR**: the search returns very technical studies (genomics, cell cultures). The ones with a message kids can
+  understand must be picked by hand.
 
-## Primera revisión de la descarga (14/11/2026)
+## First review of the download (11/14/2026)
 
-| Serie diaria | Rango | Mediana diaria | Observaciones |
+| Daily series | Range | Daily median | Notes |
 |---|---|---|---|
-| Superficie de Marte (Curiosity/RAD) | 2015 → jun. 2024 | 8,3 μGy/h (≈ 0,2 mGy/día, coincide con Hassler et al. 2014) | Evento SEP del 20/05/2024: pico de 304 μGy/h, unas 64 veces el valor habitual |
-| Órbita lunar (`celestial_body=Moon`) | 2009 → jun. 2024 | 11,1 μGy/h | Incluye CRaTER **y los instrumentos de Artemis I** (EAD, HERA). El máximo extremo corresponde al paso de Artemis I por los cinturones de Van Allen: separar por `instrument_id` |
-| ISS (DosTel1/2) | 2009 → nov. 2024 | 24,8 μGy/h | La media diaria incluye los pasos por la Anomalía del Atlántico Sur |
-| Espacio profundo (BioSentinel) | nov. 2022 → nov. 2025 | 6,8 μGy/h | Hay máximos diarios muy altos que hay que revisar antes de usarlos |
-| Crucero y órbita de Marte (TGO) | 2016 → 2023 | 15,7 μGy/h | `instrument_id` distingue crucero (`-Cruise`) de órbita (`-Orbit`) |
+| Mars surface (Curiosity/RAD) | 2015 → Jun 2024 | 8.3 μGy/h (≈ 0.2 mGy/day, matches Hassler et al. 2014) | SEP event of 05/20/2024: 304 μGy/h peak, about 64 times the usual value |
+| Lunar orbit (`celestial_body=Moon`) | 2009 → Jun 2024 | 11.1 μGy/h | Includes CRaTER **and the Artemis I instruments** (EAD, HERA). The extreme maximum is Artemis I crossing the Van Allen belts: split by `instrument_id` |
+| ISS (DosTel1/2) | 2009 → Nov 2024 | 24.8 μGy/h | The daily mean includes passes through the South Atlantic Anomaly |
+| Deep space (BioSentinel) | Nov 2022 → Nov 2025 | 6.8 μGy/h | Some very high daily maxima need checking before use |
+| Mars cruise and orbit (TGO) | 2016 → 2023 | 15.7 μGy/h | `instrument_id` tells cruise (`-Cruise`) from orbit (`-Orbit`) |
 
-Tormenta de mayo de 2024 a resolución completa: ISS, pico de 527 μGy/h (mediana de 4,5); espacio profundo,
-653 μGy/h; órbita lunar (resolución horaria), 3152 μGy/h.
+May 2024 storm at full resolution: ISS, 527 μGy/h peak (median 4.5); deep space, 653 μGy/h; lunar orbit (hourly
+resolution), 3152 μGy/h.
 
-DONKI 2024 → nov. 2026: 1941 llamaradas (85 de clase X; la mayor, X9.0 del 03/10/2024), 214 eventos SEP,
-62 tormentas geomagnéticas (Kp máximo 9) y 2572 notificaciones (alertas e informes semanales).
+DONKI 2024 → Nov 2026: 1941 flares (85 X-class; the largest, X9.0 on 10/03/2024), 214 SEP events, 62 geomagnetic storms
+(max Kp 9) and 2572 notifications (alerts and weekly reports).

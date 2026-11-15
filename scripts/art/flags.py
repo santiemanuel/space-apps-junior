@@ -2,7 +2,7 @@
 
 Uso: python scripts/art/flags.py   (lee art/snapped/ui-banderas.png; prompt en art/prompts/ui-banderas.txt)
 La hoja trae cada bandera dos veces (2 × 2): se usa la fila de arriba. Escribe en public/assets/ui/flags/ a
-resolución de arte (1 píxel = 1 píxel de arte); el juego las muestra ×2. Registro en docs/pixel-art.md.
+resolución de arte (1 píxel = 1 píxel de arte); el juego las muestra ×2. Registro en docs/produccion/pixel-art.md.
 """
 import sys
 from pathlib import Path

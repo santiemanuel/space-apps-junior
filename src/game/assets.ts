@@ -4,7 +4,7 @@ import type { CrewId } from '../core/crew/types';
 
 /**
  * Recursos externos que `Boot` carga antes de arrancar el juego. Viven en `public/assets/<dominio>/`
- * (docs/plan-de-trabajo.md §3.8). Las rutas son relativas para que funcione también bajo un subdirectorio.
+ * (docs/historial/plan-de-trabajo.md §3.8). Las rutas son relativas para que funcione también bajo un subdirectorio.
  */
 export type AssetEntry =
   | { kind: 'spritesheet'; key: string; url: string; frame: { frameWidth: number; frameHeight: number }; normalMap?: string }
@@ -13,7 +13,7 @@ export type AssetEntry =
 
 /**
  * Geometría de las hojas de tripulantes (`public/assets/crew/`, pixel art regenerado a partir de
- * `docs/*-sprites.png`): 9 × 4 cuadros de 80×96 (40×48 px de arte ×2) con los pies en y = 94.
+ * `docs/referencias/tripulacion/*-sprites.png`): 9 × 4 cuadros de 80×96 (40×48 px de arte ×2) con los pies en y = 94.
  * Filas: frente, espalda, perfil izquierdo, perfil derecho.
  */
 export const CREW_SHEET = {
@@ -35,7 +35,7 @@ export const CREW_ASSETS: readonly AssetEntry[] = CREW_ROSTER.map(({ id }) => ({
   frame: { frameWidth: CREW_SHEET.frameWidth, frameHeight: CREW_SHEET.frameHeight },
 }));
 
-/** Pixel art del menú principal (`scripts/art/title-sky.py`; registro en docs/pixel-art.md). */
+/** Pixel art del menú principal (`scripts/art/title-sky.py`; registro en docs/produccion/pixel-art.md). */
 export const TitleTextures = {
   earthMap: 'title-earth-map',
   earthClouds: 'title-earth-clouds',
@@ -71,7 +71,7 @@ export const TITLE_ASSETS: readonly AssetEntry[] = [
   titleSheet(TitleTextures.opsis, 'opsis.png', 13, 9),
 ];
 
-/** Pixel art de las escenas de vuelo (`scripts/art/flight.py`; registro en docs/pixel-art.md). */
+/** Pixel art de las escenas de vuelo (`scripts/art/flight.py`; registro en docs/produccion/pixel-art.md). */
 export const FlightTextures = {
   rocket: 'flight-rocket',
   booster: 'flight-booster',
@@ -146,7 +146,7 @@ export const FLIGHT_ASSETS: readonly AssetEntry[] = [
   ),
 ];
 
-/** Pixel art de la carga de vuelta, la bodega de casilleros (`scripts/art/cargo.py`; registro en docs/pixel-art.md). */
+/** Pixel art de la carga de vuelta, la bodega de casilleros (`scripts/art/cargo.py`; registro en docs/produccion/pixel-art.md). */
 export const CargoTextures = {
   food: 'cargo-food',
   water: 'cargo-water',
@@ -161,7 +161,7 @@ export const CARGO_ASSETS: readonly AssetEntry[] = ['food', 'water', 'shield', '
   (name): AssetEntry => ({ kind: 'image', key: `cargo-${name}`, url: `assets/ui/cargo/${name}.png` }),
 );
 
-/** Banderas del idioma en las opciones (`scripts/art/flags.py`; registro en docs/pixel-art.md), a resolución de arte. */
+/** Banderas del idioma en las opciones (`scripts/art/flags.py`; registro en docs/produccion/pixel-art.md), a resolución de arte. */
 export const flagTextureKey = (locale: string): string => `flag-${locale}`;
 
 export const FLAG_ASSETS: readonly AssetEntry[] = ['es', 'en'].map((locale): AssetEntry => ({ kind: 'image', key: flagTextureKey(locale), url: `assets/ui/flags/${locale}.png` }));

@@ -1,6 +1,6 @@
 /**
  * Todas las escenas del juego, declaradas desde la Etapa 0 para que nadie tenga que editar este archivo
- * en paralelo. Dueños en docs/plan-de-trabajo.md §4.
+ * en paralelo. Dueños en docs/historial/plan-de-trabajo.md §4.
  */
 export const SceneKeys = {
   // Flujo de misión (Facundo)

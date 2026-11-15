@@ -1,11 +1,11 @@
-# Recursos de las escenas de vuelo
+# Flight scene assets
 
-Pixel art de la ilustración animada de `Maneuver`: cohete, propulsor, torre, llama, humo, cápsula, escudo térmico,
-paracaídas y nave de ascenso de Marte.
+Pixel art for the animated illustration in `Maneuver`: rocket, booster, tower, flame, smoke, capsule, heat shield,
+parachutes and the Mars ascent vehicle.
 
-- Las piezas dibujadas a mano se rehacen con `python scripts/art/flight.py`.
-- La escenografía de los despegues (`earth-*`, `mars-*`, `core`, `side-booster`, `launch-tower`, `ascent-vehicle`,
-  `service-mast`, `fuel-tanks`, `mothership`, `van`) es generada: `python scripts/art/flight-scenery.py` desde
+- The hand-drawn pieces are rebuilt with `python scripts/art/flight.py`.
+- The launch scenery (`earth-*`, `mars-*`, `core`, `side-booster`, `launch-tower`, `ascent-vehicle`, `service-mast`,
+  `fuel-tanks`, `mothership`, `van`) is generated: `python scripts/art/flight-scenery.py` from
   `art/snapped/vuelo-*.png`.
-- Registro completo (tamaños, cuadros y escala): [`docs/pixel-art.md`](../../../../docs/pixel-art.md).
-- Los carga `Boot` con las claves de `FlightTextures` (`src/game/assets.ts`).
+- Full record (sizes, frames and scale): [`docs/produccion/pixel-art.md`](../../../../docs/produccion/pixel-art.md).
+- Loaded by `Boot` with the `FlightTextures` keys (`src/game/assets.ts`).

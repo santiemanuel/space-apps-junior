@@ -1,8 +1,8 @@
-# Recursos del menú principal
+# Main menu assets
 
-Pixel art del cielo animado de `Title`: mapas de la Tierra y de Marte para los planetas que giran, nubes, ISS, CubeSat OPSIS,
-meteorito y estela, asteroide, nave de la misión y estrellas.
+Pixel art for the animated sky in `Title`: Earth and Mars maps for the spinning planets, clouds, ISS, OPSIS CubeSat,
+meteor and trail, asteroid, mission spacecraft and stars.
 
-- Se rehacen con `python scripts/art/title-sky.py` (fuentes en `art/raw/title/`).
-- Registro completo (tamaños, cuadros, escala, origen y licencias): [`docs/pixel-art.md`](../../../../docs/pixel-art.md).
-- Los carga `Boot` con las claves de `TitleTextures` (`src/game/assets.ts`).
+- Rebuilt with `python scripts/art/title-sky.py` (sources in `art/raw/title/`).
+- Full record (sizes, frames, scale, origin and licenses): [`docs/produccion/pixel-art.md`](../../../../docs/produccion/pixel-art.md).
+- Loaded by `Boot` with the `TitleTextures` keys (`src/game/assets.ts`).

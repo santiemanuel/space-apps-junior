@@ -2,12 +2,12 @@
 // Es el punto de partida: después se puede editar a mano en Tiled (https://www.mapeditor.org). OJO: volver a
 // correr este script pisa esos cambios.
 //
-// La base sigue el plano de docs/mision_a_marte_referencias_topdown/plano-base-marte.png: módulos con forma propia
+// La base sigue el plano de docs/referencias/topdown/plano-base-marte.png: módulos con forma propia
 // (invernadero en cúpula, escudo de radiación, energía con MOXIE, central con el depurador, reservas, comunicaciones,
 // hospital y gimnasio, taller con la esclusa) unidos por tubos aislados con plástico que se pueden romper. Afuera,
 // sueltos, el depósito, la batería y la nave estacionada abajo a la izquierda, a los que se llega con traje. Los
 // cables (verdes en el plano) van por el suelo de los paneles a la base, a la batería y a la nave, con dos cajas de
-// empalme. Más al sur, un corte comprimido y NO a escala del camino real de Curiosity (docs/plan-visual.md, Fase 4;
+// empalme. Más al sur, un corte comprimido y NO a escala del camino real de Curiosity (docs/historial/plan-visual.md, Fase 4;
 // fuentes en src/content/galeTerrain.ts): llanura de Aeolis (con la base), lecho de lago de Yellowknife Bay, dunas
 // Bagnold, cerros Murray y el canal Gediz Vallis al pie del monte Sharp, donde está Curiosity.
 // Uso: node scripts/maps/build-gale.mjs

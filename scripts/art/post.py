@@ -2,7 +2,7 @@
 
 Alfa binario, recorte al contenido, relleno hasta múltiplos de la grilla de arte (anclado abajo y al centro) y
 exportación ampliada con vecino más cercano. Con 24 px de arte por tile y escala 2, el archivo final mide
-múltiplos de 48 px (docs/plan-visual.md §3).
+múltiplos de 48 px (docs/historial/plan-visual.md §3).
 
 Uso: python scripts/art/post.py <snapped.png> <destino.png> [--grid 24] [--scale 2] [--cell x,y,w,h]
   --cell recorta antes una celda de una hoja (en píxeles de la imagen ya pasada por el snapper).

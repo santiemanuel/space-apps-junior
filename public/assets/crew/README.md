@@ -1,22 +1,23 @@
-# Hojas de sprites de la tripulación
+# Crew sprite sheets
 
-Pixel art regenerado con codex (imagegen) a partir de `docs/<id>-sprites.png`, que quedan como referencia de
-diseño, y pasado por el pixel-snapper. Las carga la escena `Boot` (`src/game/assets.ts`) con la clave `crew-<id>`.
+Pixel art regenerated with Codex (image generation) from `docs/referencias/tripulacion/<id>-sprites.png`, which remain
+as design references, and cleaned with the Pixel Snapper. Loaded by the `Boot` scene (`src/game/assets.ts`) under the
+key `crew-<id>`.
 
-Cómo se rehacen (docs/plan-visual.md §4): una imagen de 3 × 3 cuadros por dirección (`art/prompts/crew-<id>-
-{frente,espalda,izquierda}.txt`, con la tira original de esa dirección como referencia) →
-`python scripts/art/regrid.py art/raw/crew-<id>-<dirección>.png --height <alto>` (remuestreo con grilla pareja; alto
-de arte: vega 36, miga 39, brote 41, senda 42) → `snap_pixels` con `pixel_size: 8` → `python scripts/art/crew.py <id>`.
-El perfil derecho es el izquierdo espejado; el casco del primer cuadro se repite en toda la fila y el reposo es un
-solo cuadro con parpadeo (ver `scripts/art/crew.py`).
+How to rebuild them (docs/historial/plan-visual.md §4): one 3 × 3 frame image per direction
+(`art/prompts/crew-<id>-{frente,espalda,izquierda}.txt`, with the original strip for that direction as reference) →
+`python scripts/art/regrid.py art/raw/crew-<id>-<direction>.png --height <height>` (resampling on an even grid; art
+height: vega 36, miga 39, brote 41, senda 42) → `snap_pixels` with `pixel_size: 8` → `python scripts/art/crew.py <id>`.
+The right profile is the mirrored left one; the helmet from the first frame is repeated across the row, and idle is a
+single frame with a blink (see `scripts/art/crew.py`).
 
-- PNG con transparencia, 720×384 = 9 × 4 cuadros de 80×96 (40×48 px de arte ampliados ×2).
-- Filas: frente, espalda, perfil izquierdo, perfil derecho (idle y caminata).
-- Pies en y = 94, centrados en x = 40: origen (0,5; 94/96).
+- PNG with transparency, 720×384 = 9 × 4 frames of 80×96 (40×48 art pixels scaled ×2).
+- Rows: front, back, left profile, right profile (idle and walk).
+- Feet at y = 94, centered at x = 40: origin (0.5; 94/96).
 
-| Archivo | Tripulante | Rol |
+| File | Crew member | Role |
 |---|---|---|
-| `vega.png` | Vega | Comandante |
-| `miga.png` | Miga | Ingeniera |
-| `brote.png` | Brote | Botánico |
-| `senda.png` | Senda | Geóloga y médica |
+| `vega.png` | Vega | Commander |
+| `miga.png` | Miga | Engineer |
+| `brote.png` | Brote | Botanist |
+| `senda.png` | Senda | Geologist and doctor |

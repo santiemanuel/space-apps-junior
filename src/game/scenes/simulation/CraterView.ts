@@ -21,7 +21,7 @@ const STRIP_COLOR: Record<string, number> = { plain: 0xd27a3c, lakebed: 0xe8cfa8
 const TEXT = { fontFamily: 'monospace', color: '#e2e8f0' } as const;
 
 /**
- * Mapa del cráter Gale (docs/plan-visual.md, Fase 4): la foto real pixelada, el borde de 154 km, el monte Sharp, el
+ * Mapa del cráter Gale (docs/historial/plan-visual.md, Fase 4): la foto real pixelada, el borde de 154 km, el monte Sharp, el
  * aterrizaje de Curiosity y su lugar de hoy en Gediz Vallis, con una lupa sobre el camino que muestra las franjas del
  * mapa del juego y un "estás acá" que sigue al jugador. Aclara que el mapa jugable está comprimido.
  */

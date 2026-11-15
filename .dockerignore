@@ -7,3 +7,7 @@ dist
 art
 docs
 datasets/raw
+scripts
+__pycache__
+*.md
+!README.md

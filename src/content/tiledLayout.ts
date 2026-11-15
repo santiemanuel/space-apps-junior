@@ -1,7 +1,7 @@
 import { EXTERIOR, zoneAt, type Cell, type ExteriorLayout, type Passage, type Point, type ShipLayout, type ShipZone, type TileRect } from '../core/habitat/layout';
 
 /**
- * Lo que se lee de un mapa de Tiled (JSON) para las reglas y para el render (docs/plan-visual.md §7). Capas:
+ * Lo que se lee de un mapa de Tiled (JSON) para las reglas y para el render (docs/historial/plan-visual.md §7). Capas:
  * `piso` y `paredes` (tiles), `zonas` (rectángulos o polígonos `zone`, `corridor` y `tube`; rectángulos `door`,
  * `exterior` y `terrain`; líneas `cable`; puntos `spot`, `spawn` y `landmark`; el nombre de `zone`, `door` y `spot` es
  * el id de la zona o del tubo, el de `terrain` el de la franja, el de `cable` el del tramo y el de `landmark` el del

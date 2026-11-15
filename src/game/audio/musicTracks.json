@@ -1,0 +1,74 @@
+{
+  "loadout": {
+    "duration": 167.5,
+    "loopAt": 165,
+    "loopFade": 1.5,
+    "lufs": -16.51
+  },
+  "main-menu": {
+    "duration": 57.5,
+    "loopAt": 53.5,
+    "loopFade": 2,
+    "lufs": -16.46
+  },
+  "maneuver-ascent-earth": {
+    "duration": 150,
+    "loopAt": 145,
+    "loopFade": 1.5,
+    "lufs": -16.46
+  },
+  "maneuver-ascent-mars": {
+    "duration": 62.5,
+    "loopAt": 58.5,
+    "loopFade": 1.5,
+    "lufs": -16.48
+  },
+  "maneuver-landing-earth": {
+    "duration": 61,
+    "loopAt": 59.5,
+    "loopFade": 1.5,
+    "lufs": -16.46
+  },
+  "maneuver-landing-mars": {
+    "duration": 43.5,
+    "loopAt": 41,
+    "loopFade": 1.5,
+    "lufs": -16.79
+  },
+  "mars-base": {
+    "duration": 113,
+    "loopAt": 106,
+    "loopFade": 3,
+    "lufs": -16.49
+  },
+  "mars-loadout": {
+    "duration": 43,
+    "loopAt": 40.5,
+    "loopFade": 1.5,
+    "lufs": -16.51
+  },
+  "mission-complete": {
+    "duration": 61,
+    "loopAt": 58,
+    "loopFade": 1.5,
+    "lufs": -16.44
+  },
+  "mission-suspended": {
+    "duration": 170.5,
+    "loopAt": 166,
+    "loopFade": 2,
+    "lufs": -16.48
+  },
+  "voyage-earth": {
+    "duration": 142.5,
+    "loopAt": 138,
+    "loopFade": 1.5,
+    "lufs": -16.48
+  },
+  "voyage-mars": {
+    "duration": 174.5,
+    "loopAt": 170.5,
+    "loopFade": 1.5,
+    "lufs": -16.49
+  }
+}

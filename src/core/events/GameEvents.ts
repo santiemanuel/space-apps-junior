@@ -7,7 +7,7 @@ import type { RealEvent } from './RealEvent';
 
 /**
  * Catálogo de eventos del bus. Contrato compartido entre los dos frentes de trabajo:
- * no renombrar ni cambiar payloads sin acordarlo (ver docs/plan-de-trabajo.md §3.2).
+ * no renombrar ni cambiar payloads sin acordarlo (ver docs/historial/plan-de-trabajo.md §3.2).
  */
 export interface GameEvents {
   // Flujo de misión (Facundo emite phase:started; ambos emiten phase:completed).

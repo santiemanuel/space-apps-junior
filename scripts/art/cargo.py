@@ -2,7 +2,7 @@
 del escudo, caja de repuestos, rocas de tres tamaños y la muestra de plantas.
 
 Reproducible y sin red: python scripts/art/cargo.py
-Escribe en public/assets/ui/cargo/ (registro en docs/pixel-art.md). Cada casillero mide 16 px de arte (×3 en
+Escribe en public/assets/ui/cargo/ (registro en docs/produccion/pixel-art.md). Cada casillero mide 16 px de arte (×3 en
 pantalla = 48 px): una pieza de 2 × 2 casilleros mide 32 × 32 px.
 """
 from pathlib import Path

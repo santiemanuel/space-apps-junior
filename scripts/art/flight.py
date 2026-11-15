@@ -2,7 +2,7 @@
 lanzamiento, llama, humo, cápsula con escudo térmico, escudo suelto, paracaídas y nave de ascenso de Marte.
 
 Reproducible y sin red: python scripts/art/flight.py
-Escribe en public/assets/ui/flight/ (registro en docs/pixel-art.md). Todo se dibuja acá, píxel por píxel, con la
+Escribe en public/assets/ui/flight/ (registro en docs/produccion/pixel-art.md). Todo se dibuja acá, píxel por píxel, con la
 paleta de la interfaz (biblia-visual.md §2).
 """
 from pathlib import Path

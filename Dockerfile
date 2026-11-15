@@ -3,8 +3,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-ARG VITE_NASA_DATA_MODE=live
-ENV VITE_NASA_DATA_MODE=$VITE_NASA_DATA_MODE
 RUN npm run build
 
 FROM nginx:1.27-alpine

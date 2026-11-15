@@ -1,26 +1,27 @@
-# Fotos de referencia del cráter Gale
+# Gale Crater reference photos
 
-Fotos reales para dibujar el exterior de `Mars` (docs/plan-visual.md, Fase 4). Bajadas el 15/11/2026 del
-Photojournal de la NASA a 1600 px de ancho (`https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/<piaNN>/<pia>/<PIA>.jpg?w=1600`).
-Son de dominio público (crédito NASA/JPL-Caltech/MSSS para Mastcam y MAHLI; NASA/JPL-Caltech/University of Arizona
-para HiRISE; NASA/JPL-Caltech/UC Berkeley para el render de Gediz Vallis). Las citas y lo que enseña cada franja
-están en `src/content/galeTerrain.ts`.
+Real photos used to draw the outside of `Mars` (docs/historial/plan-visual.md, Phase 4). Downloaded on 11/15/2026
+from the NASA Photojournal at 1600 px wide
+(`https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/<piaNN>/<pia>/<PIA>.jpg?w=1600`).
+They are in the public domain (credit NASA/JPL-Caltech/MSSS for Mastcam and MAHLI; NASA/JPL-Caltech/University of
+Arizona for HiRISE; NASA/JPL-Caltech/UC Berkeley for the Gediz Vallis rendering). The quotes and what each strip
+teaches are in `src/content/galeTerrain.ts`.
 
-| Franja | Archivo | Instrumento | Qué muestra |
+| Strip | File | Instrument | What it shows |
 |---|---|---|---|
-| Llanura (Aeolis Palus) | `PIA16156.jpg` | Mastcam | Afloramiento Hottah: conglomerado con grava redondeada por un río (sol 39, 14/09/2012) |
-| | `PIA16056.jpg` | HiRISE | El terreno alrededor del lugar de aterrizaje (color realzado) |
-| Lecho de lago (Yellowknife Bay) | `PIA17595.jpg` | Mastcam | Formación Yellowknife Bay y los pozos John Klein y Cumberland (24/12/2012) |
-| | `PIA16705.jpg` | Mastcam | Vetas blancas de sulfato de calcio en la lutita Sheepbed (13/12/2012) |
-| | `PIA17080.jpg` | HiRISE | Curiosity en Shaler (zona Glenelg) junto a la roca clara de Yellowknife Bay (27/06/2013) |
-| Dunas Bagnold | `PIA20755.jpg` | Mastcam | Ondas de dos tamaños sobre la duna Namib (13/12/2015) |
-| | `PIA20283.jpg` | Mastcam | Cara de avalancha de la duna Namib (21/12/2015) |
-| | `PIA19930.jpg` | HiRISE | La "Duna 1" vista desde órbita, en falso color |
-| Cerros testigo (Murray Buttes) | `PIA20841.jpg` | Mastcam | Dos mesetas de 8 y 10 m de alto, con el monte Sharp detrás (18/08/2016) |
-| | `PIA17587.jpg` | HiRISE | Los cerros Murray en el hueco de la franja de dunas (1,3 km de ancho) |
-| Canal Gediz Vallis | `PIA26410.jpg` | Mastcam | Panorámica dentro del canal (21–22/09/2024) |
-| | `PIA26309.jpg` | Mastcam | Cristales de azufre de la piedra "Convict Lake" (sol 4208, 07/06/2024) |
-| | `PIA26307.jpg` | MAHLI | Primer plano de los cristales de azufre (sol 4205, 04/06/2024) |
-| | `PIA26245.jpg` | HiRISE | Curiosity subiendo hacia Gediz Vallis (sol 4051, 29/12/2023) |
-| | `PIA26241.jpg` | Render (HiRISE) | Camino de Curiosity hasta el canal, de unos 91 m de ancho |
-| Vista general | `PIA15292.jpg` | Render | El monte Sharp dentro del cráter Gale (154 km), mirando al sudeste |
+| Plain (Aeolis Palus) | `PIA16156.jpg` | Mastcam | Hottah outcrop: conglomerate with gravel rounded by a river (sol 39, 09/14/2012) |
+| | `PIA16056.jpg` | HiRISE | The terrain around the landing site (enhanced color) |
+| Lakebed (Yellowknife Bay) | `PIA17595.jpg` | Mastcam | Yellowknife Bay formation and the John Klein and Cumberland drill holes (12/24/2012) |
+| | `PIA16705.jpg` | Mastcam | White calcium sulfate veins in the Sheepbed mudstone (12/13/2012) |
+| | `PIA17080.jpg` | HiRISE | Curiosity at Shaler (Glenelg area) next to the light-toned Yellowknife Bay rock (06/27/2013) |
+| Bagnold Dunes | `PIA20755.jpg` | Mastcam | Ripples of two sizes on Namib Dune (12/13/2015) |
+| | `PIA20283.jpg` | Mastcam | Avalanche face of Namib Dune (12/21/2015) |
+| | `PIA19930.jpg` | HiRISE | "Dune 1" seen from orbit, in false color |
+| Buttes (Murray Buttes) | `PIA20841.jpg` | Mastcam | Two mesas 8 and 10 m high, with Mount Sharp behind (08/18/2016) |
+| | `PIA17587.jpg` | HiRISE | The Murray Buttes in the gap of the dune field (1.3 km wide) |
+| Gediz Vallis channel | `PIA26410.jpg` | Mastcam | Panorama inside the channel (09/21–22/2024) |
+| | `PIA26309.jpg` | Mastcam | Sulfur crystals in the "Convict Lake" rock (sol 4208, 06/07/2024) |
+| | `PIA26307.jpg` | MAHLI | Close-up of the sulfur crystals (sol 4205, 06/04/2024) |
+| | `PIA26245.jpg` | HiRISE | Curiosity driving up toward Gediz Vallis (sol 4051, 12/29/2023) |
+| | `PIA26241.jpg` | Rendering (HiRISE) | Curiosity's route to the channel, about 91 m wide |
+| Overview | `PIA15292.jpg` | Rendering | Mount Sharp inside Gale Crater (154 km), looking southeast |

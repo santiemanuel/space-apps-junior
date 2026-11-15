@@ -6,7 +6,7 @@ import type { GameState } from '../../core/state/types';
 
 /**
  * Datos que recibe cada escena nueva en `scene.start(key, data)`. Las escenas se comunican por `bus`,
- * nunca llamándose entre sí. Contrato de la Etapa 0 (docs/plan-de-trabajo.md §3.3).
+ * nunca llamándose entre sí. Contrato de la Etapa 0 (docs/historial/plan-de-trabajo.md §3.3).
  */
 export interface PhaseSceneData {
   state: GameState;

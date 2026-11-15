@@ -4,7 +4,7 @@ import { EventBus } from '../../../core/events/EventBus';
 import type { GameEvents } from '../../../core/events/GameEvents';
 import type { RealEvent } from '../../../core/events/RealEvent';
 import { MissionFlow, type FlowStep } from '../../../core/flow/MissionFlow';
-import type { PhaseResult } from '../../../core/flow/types';
+import type { ManeuverId, PhaseResult } from '../../../core/flow/types';
 import { recordMissionEnd } from '../../../core/progression/progression';
 import { buildReport, earnedAchievements, type MissionOutcome } from '../../../core/report/report';
 import { clearGame, loadProgression, saveGame, saveProgression } from '../../../core/save/save';
@@ -22,13 +22,22 @@ import type { MusicId } from '../../audio/themes';
 /** Fundidos entre pantallas (ms) y su color: el fondo general del juego (#05070d). */
 const FADE = { out: 260, in: 380, color: [5, 7, 13] as [number, number, number] } as const;
 
-/** Música de cada paso del flujo (menú, despegues y aterrizajes, viaje, Marte y el final). */
+/** Música de cada paso del flujo: menú, bodegas, cada maniobra, los dos viajes, Marte y los finales. */
+const MANEUVER_MUSIC = { ascent: 'ascent', landing: 'landing', marsAscent: 'marsAscent', reentry: 'reentry' } as const satisfies Record<ManeuverId, MusicId>;
+
 function musicFor(step: FlowStep): MusicId {
-  if (step.kind === 'report') return step.outcome === 'completed' ? 'victory' : 'failure';
-  if (step.kind === 'maneuver') return 'launch';
-  if (step.kind === 'voyage') return 'voyage';
-  if (step.kind === 'mars') return 'mars';
-  return 'menu';
+  switch (step.kind) {
+    case 'report':
+      return step.outcome === 'completed' ? 'victory' : 'failure';
+    case 'loadout':
+      return step.mode === 'outbound' ? 'loadout' : 'marsLoadout';
+    case 'maneuver':
+      return MANEUVER_MUSIC[step.maneuverId];
+    case 'voyage':
+      return step.leg === 'out' ? 'voyageOut' : 'voyageBack';
+    case 'mars':
+      return 'mars';
+  }
 }
 
 interface Overlay {
@@ -211,6 +220,7 @@ export class FlowDirector {
 
   private openOverlay(key: SceneKey, data: object): void {
     audio.sfx(key === SceneKeys.Pause ? 'open' : 'card');
+    audio.muffle(true);
     const paused = this.runningScenes().filter((k) => k !== key);
     paused.forEach((k) => this.scenes.pause(k));
     this.overlay = { key, paused };
@@ -224,6 +234,7 @@ export class FlowDirector {
     if (!overlay) return;
     this.overlay = null;
     this.overlayClosedAt = performance.now();
+    audio.muffle(false);
     overlay.paused.forEach((k) => this.scenes.resume(k));
     if (this.cards.length) return this.openNextCard();
     const step = this.pendingStep;
@@ -241,6 +252,7 @@ export class FlowDirector {
       if (sys.isActive() || sys.isPaused() || sys.isSleeping()) this.scenes.stop(scene.scene.key);
     }
     this.overlay = null;
+    audio.muffle(false);
   }
 
   private endMission(): void {

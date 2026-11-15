@@ -1,12 +1,11 @@
-# Recursos del tablero y de la interfaz del mapa
+# Dashboard and map interface assets
 
-Pixel art generado con codex (imagegen), limpiado con el pixel-snapper y armado con los scripts de `scripts/art/`
-(docs/plan-visual.md §4). Los prompts están en `art/prompts/` y los originales en `art/raw/`.
+Pixel art generated with Codex (image generation), cleaned with the Pixel Snapper and assembled with the scripts in
+`scripts/art/` (docs/historial/plan-visual.md §4). Prompts are in `art/prompts/` and the originals in `art/raw/`.
 
-| Archivo | Qué es | Cómo se arma |
+| File | What it is | How it is built |
 |---|---|---|
-| `icons.png` + `icons.json` | Atlas de 24 íconos en celdas de 24 × 24 px de arte, **a resolución de arte** (el tablero los muestra ×1 y el mapa ×2). Medidores: `energy`, `air`, `water`, `food`, `co2`, `spares`, `radiation`, `samples`. Salud y globos: `condition`, `fatigue`, `morale`, `warning`. Cuartos (mismo nombre que la zona): `command`, `exercise`, `scrubber`, `recycler`, `infirmary`, `pantry`, `shelter`, `radio`, `greenhouse`, `moxie`, `airlock`; y `dustStorm`. Sistemas del checklist de las maniobras (mismo nombre que el `SystemId`): `engines`, `heatShield`, `parachutes`, `solarPanels` | `python scripts/art/icons.py` (grupo `hud-icons` de `art/manifest.json`); prompts `hud-iconos-medidores`, `hud-iconos-recursos`, `hud-iconos-salud`, `hud-iconos-cuartos1`, `hud-iconos-cuartos2`, `hud-iconos-cuartos3`, `hud-iconos-sistemas`. Cada hoja pasó por `snap_pixels` con `pixel_size: 19.6` fijo (con detección automática salían tamaños de píxel distintos por hoja) |
+| `icons.png` + `icons.json` | Atlas of 24 icons in 24 × 24 art-pixel cells, **at art resolution** (the dashboard shows them ×1 and the map ×2). Meters: `energy`, `air`, `water`, `food`, `co2`, `spares`, `radiation`, `samples`. Health and speech bubbles: `condition`, `fatigue`, `morale`, `warning`. Rooms (same name as the zone): `command`, `exercise`, `scrubber`, `recycler`, `infirmary`, `pantry`, `shelter`, `radio`, `greenhouse`, `moxie`, `airlock`; plus `dustStorm`. Maneuver checklist systems (same name as the `SystemId`): `engines`, `heatShield`, `parachutes`, `solarPanels` | `python scripts/art/icons.py` (group `hud-icons` in `art/manifest.json`); prompts `hud-iconos-medidores`, `hud-iconos-recursos`, `hud-iconos-salud`, `hud-iconos-cuartos1`, `hud-iconos-cuartos2`, `hud-iconos-cuartos3`, `hud-iconos-sistemas`. Each sheet went through `snap_pixels` with a fixed `pixel_size: 19.6` (automatic detection gave a different pixel size per sheet) |
 
-El marco del tablero, las barras, el minimapa, el globo de los tripulantes y las flechas al refugio se dibujan por
-código en píxeles de arte (2 px), con la paleta de la nave. Los retratos son el cuadro de frente de las hojas de
-`public/assets/crew/`, recortado.
+The dashboard frame, bars, minimap, crew speech bubble and arrows to the shelter are drawn in code in art pixels
+(2 px) with the ship's palette. Portraits are the front frame of the sheets in `public/assets/crew/`, cropped.

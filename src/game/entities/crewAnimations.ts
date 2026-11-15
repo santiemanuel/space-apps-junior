@@ -1,7 +1,7 @@
 import type { CrewId } from '../../core/crew/types';
 import { CREW_SHEET } from '../assets';
 
-/** Filas de las hojas (`docs/*-sprites.png`): frente, espalda, perfil izquierdo y perfil derecho. */
+/** Filas de las hojas (`docs/referencias/tripulacion/*-sprites.png`): frente, espalda, perfil izquierdo y perfil derecho. */
 export const CREW_DIRECTIONS = ['down', 'up', 'left', 'right'] as const;
 export type CrewDirection = (typeof CREW_DIRECTIONS)[number];
 export type CrewAnimKind = 'idle' | 'walk';

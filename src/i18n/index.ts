@@ -22,7 +22,7 @@ const FALLBACK: Locale = 'es';
 type Messages = Record<string, string>;
 
 /**
- * Un archivo por dominio para que los dos frentes no se pisen (docs/plan-de-trabajo.md §3.4):
+ * Un archivo por dominio para que los dos frentes no se pisen (docs/historial/plan-de-trabajo.md §3.4):
  * common, menu, maneuvers, report → flujo · voyage, mars, hud, incidents → simulación.
  */
 export const DICTIONARIES = {

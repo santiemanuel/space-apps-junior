@@ -98,7 +98,7 @@ class SpinningPlanet {
 /**
  * Cielo animado del menú principal: estrellas que titilan con paralaje, la Tierra y Marte girando con sus mapas
  * reales (NASA Blue Marble y Viking), la ISS y el CubeSat OPSIS en órbita, estrellas fugaces, asteroides lejanos y la
- * nave de la misión yendo de la Tierra a Marte. Todo va detrás de la interfaz. Pixel art: docs/pixel-art.md.
+ * nave de la misión yendo de la Tierra a Marte. Todo va detrás de la interfaz. Pixel art: docs/produccion/pixel-art.md.
  */
 export class TitleSky {
   private readonly rng = new Rng(Date.now());

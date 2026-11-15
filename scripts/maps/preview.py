@@ -1,6 +1,6 @@
 """Vista general de un mapa de Tiled sin abrir el juego: piso, paredes y objetos, reducida (por defecto a 1/4).
 
-Uso: python scripts/maps/preview.py src/content/maps/gale.json art/capturas/gale-mapa.png [escala]
+Uso: python scripts/maps/preview.py src/content/maps/gale.json /tmp/gale-mapa.png [escala]
 El tileset sale del propio mapa; los objetos, del atlas `<carpeta del tileset>/props.json` o del que se pase con
 PROPS=<ruta del .json>.
 """
