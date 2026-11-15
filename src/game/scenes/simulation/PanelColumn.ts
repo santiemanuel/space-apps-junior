@@ -33,6 +33,11 @@ export interface PanelRow {
   cells?: readonly { icon: string; text: string; color: string }[];
   /** Cara del tripulante antes del texto. */
   portrait?: CrewId;
+  /**
+   * Media columna: dos filas seguidas con `half` van lado a lado (la tripulación en 2 × 2). Los íconos van debajo del
+   * texto, de izquierda a derecha.
+   */
+  half?: boolean;
 }
 
 const FONT = 'monospace';
@@ -42,6 +47,8 @@ const CELL_SLOTS = 4;
 const BAR = { x: 150, height: 8, segments: 12 } as const;
 /** Recorte de la cara en el cuadro de frente de las hojas de la tripulación (px de mundo; se muestra a la mitad). */
 const PORTRAIT = { x: 4, y: 8, w: 72, h: 52, scale: 0.5 } as const;
+/** Separación entre las dos medias columnas (px). */
+const HALF_GAP = 8;
 
 /** Objetos de una fila (se crean al hacer falta y se reutilizan). */
 interface Slot {
@@ -87,9 +94,20 @@ export class PanelColumn {
     this.signature = signature;
     const icons = this.scene.textures.exists(HUD_ICONS);
     let y = this.y;
+    /** Alto de la media fila de la izquierda, mientras espera a su pareja. */
+    let pending: number | null = null;
     rows.forEach((row, i) => {
       const slot = this.slots[i] ?? this.createSlot();
-      y += row.gap ?? 0;
+      const half = !!row.half;
+      if (pending !== null && !half) {
+        y += pending + 2;
+        pending = null;
+      }
+      const right = half && pending !== null;
+      const width = half ? Math.floor((this.width - HALF_GAP) / 2) : this.width;
+      const x = right ? this.x + width + HALF_GAP : this.x;
+      if (!right) y += row.gap ?? 0;
+      const below = half && !!row.icons?.length;
       const size = row.size ?? 13;
       const portrait = row.portrait && this.scene.textures.exists(crewTextureKey(row.portrait));
       const lead = row.icon && icons;
@@ -97,50 +115,59 @@ export class PanelColumn {
       const { text } = slot;
       text.setText(row.cells ? '' : row.text).setColor(row.color ?? '#e2e8f0').setFontSize(size).setVisible(!row.cells);
       const textHeight = row.cells ? size + 4 : text.height;
-      const height = Math.max(textHeight, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0, lead || row.icons?.some((c) => c.frame) || row.cells ? 22 : 0);
-      const textY = y + Math.round((height - textHeight) / 2);
-      text.setPosition(this.x + indent, textY);
+      const height = below
+        ? Math.max(textHeight + 22, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0)
+        : Math.max(textHeight, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0, lead || row.icons?.some((c) => c.frame) || row.cells ? 22 : 0);
+      const textY = below ? y : y + Math.round((height - textHeight) / 2);
+      text.setPosition(x + indent, textY).setWordWrapWidth(half ? width - indent : this.width);
       this.handlers.set(text, row.onClick);
       if (row.onClick) text.setInteractive({ useHandCursor: true });
       else text.disableInteractive();
       slot.lead.setVisible(!!lead);
-      if (lead) slot.lead.setFrame(row.icon!).setPosition(this.x + ICON_CELL / 2 - 2, y + height / 2);
+      if (lead) slot.lead.setFrame(row.icon!).setPosition(x + ICON_CELL / 2 - 2, y + height / 2);
       slot.portrait.setVisible(!!portrait);
       if (portrait) {
         slot.portrait.setTexture(crewTextureKey(row.portrait!), 0).setCrop(PORTRAIT.x, PORTRAIT.y, PORTRAIT.w, PORTRAIT.h);
-        slot.portrait.setPosition(this.x - PORTRAIT.x * PORTRAIT.scale, y + 1 - PORTRAIT.y * PORTRAIT.scale).setAlpha(row.color === '#a0aec0' ? 0.6 : 1);
+        slot.portrait.setPosition(x - PORTRAIT.x * PORTRAIT.scale, y + 1 - PORTRAIT.y * PORTRAIT.scale).setAlpha(row.color === '#a0aec0' ? 0.6 : 1);
       }
       slot.bar.clear().setVisible(!!row.bar);
-      if (row.bar) this.drawBar(slot.bar, row.bar.from ?? BAR.x, row.bar.to ?? this.width, y + Math.round((height - BAR.height) / 2), row.bar.fraction, hex(row.bar.color), row.bar.segments);
+      if (row.bar) this.drawBar(slot.bar, row.bar.from ?? BAR.x, row.bar.to ?? width, y + Math.round((height - BAR.height) / 2), row.bar.fraction, hex(row.bar.color), row.bar.segments);
       slot.value.setVisible(!!row.value);
-      if (row.value) slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(size).setPosition(this.x + this.width, textY);
+      if (row.value) slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(size).setPosition(x + width, textY);
       slot.icons.forEach((icon, n) => {
-        const spec = row.icons?.[row.icons.length - 1 - n];
-        const right = this.x + this.width - n * 22;
+        // Abajo del texto se leen de izquierda a derecha; al final de la fila, desde la derecha.
+        const spec = below ? row.icons?.[n] : row.icons?.[row.icons.length - 1 - n];
+        const edge = below ? x + indent + ICON_CELL - 6 + n * 22 : x + width - n * 22;
+        const iconY = below ? textY + textHeight + 11 : y + height / 2 - 1;
         const frame = spec?.frame && icons;
         icon.image.setVisible(!!frame);
         icon.pip.setVisible(!!frame);
         icon.glyph.setVisible(!!spec && !frame);
         if (!spec) return;
         if (frame) {
-          icon.image.setFrame(spec.frame!).setPosition(right - ICON_CELL / 2 + 3, y + height / 2 - 1);
-          icon.pip.setFillStyle(hex(spec.color)).setPosition(right - ICON_CELL / 2 + 3, y + height - 1);
+          icon.image.setFrame(spec.frame!).setPosition(edge - ICON_CELL / 2 + 3, iconY);
+          icon.pip.setFillStyle(hex(spec.color)).setPosition(edge - ICON_CELL / 2 + 3, below ? iconY + 10 : y + height - 1);
         } else {
-          icon.glyph.setText(spec.glyph ?? '').setColor(spec.color).setFontSize(size).setPosition(right, textY);
+          icon.glyph.setText(spec.glyph ?? '').setColor(spec.color).setFontSize(size).setPosition(edge, below ? iconY - size / 2 : textY);
         }
       });
-      const cellWidth = row.cells ? this.width / row.cells.length : 0;
+      const cellWidth = row.cells ? width / row.cells.length : 0;
       slot.cells.forEach((cell, n) => {
         const spec = row.cells?.[n];
         cell.image.setVisible(!!spec && icons);
         cell.text.setVisible(!!spec);
         if (!spec) return;
-        const cx = this.x + n * cellWidth;
+        const cx = x + n * cellWidth;
         cell.image.setFrame(spec.icon).setPosition(cx + ICON_CELL / 2 - 2, y + height / 2);
         cell.text.setText(spec.text).setColor(spec.color).setFontSize(size).setPosition(cx + ICON_CELL - 2, textY);
       });
-      y += height + 2;
+      if (!half) y += height + 2;
+      else if (right) {
+        y += Math.max(pending!, height) + 2;
+        pending = null;
+      } else pending = height;
     });
+    if (pending !== null) y += pending + 2;
     this.bottom = y;
     for (const [i, slot] of this.slots.entries()) {
       if (i < rows.length) continue;

@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Quadrants:
+Finished meals served on round lavender-gray metal space trays, each one clearly recognizable for children.
+- Top-left: two folded tacos made with tan flour tortillas, filled with brown beans, chicken pieces, green lettuce and yellow cheese
+- Top-right: deep bowl of thick stew with potato cubes, orange carrot slices, onion and red tomato sauce
+- Bottom-left: bowl of yellow noodles covered with red tomato sauce and grated yellow cheese
+- Bottom-right: bowl of fried rice with yellow egg bits, orange carrot cubes and small onion pieces

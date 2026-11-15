@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INCIDENT_RULES } from '../../content/incidents';
-import { SHIP_LAYOUT, VOYAGE_CONTENT } from '../../content/ship';
-import { makeCrew, makeGameState, makeMeters } from '../../test-utils/factories';
+import { CARE_TASKS, SHIP_LAYOUT, VOYAGE_CONTENT } from '../../content/ship';
+import { makeCrew, makeGameState, makeIncident, makeMeters } from '../../test-utils/factories';
 import type { PhaseCalendar } from '../clock/schedule';
 import { DEFAULT_ROUTINE } from '../crew/routines';
 import type { CrewId } from '../crew/types';
@@ -308,5 +308,128 @@ describe('Voyage: guardado a mitad de fase y logros', () => {
     };
     expect(achievements('goToShelter', 'shelter')).toEqual(expect.arrayContaining(['shelterInTime', 'zeroExtraXrays']));
     expect(achievements('keepWorking', 'command')).toEqual([]);
+  });
+});
+
+describe('minijuegos de las salas (E)', () => {
+  const yellowScrubber = () => ({ length: 'long' as const, systems: { ...makeGameState().systems, scrubber: 'yellow' as const } });
+
+  it('cada sala de la nave abre su minijuego', () => {
+    const { session } = voyage(yellowScrubber());
+    const games = Object.fromEntries(SHIP_LAYOUT.zones.map((z) => [z.id, session.minigameAt(z.id)?.id ?? null]));
+    expect(games).toEqual({
+      command: 'stars',
+      exercise: 'bike',
+      shelter: 'shield',
+      radio: 'radio',
+      infirmary: 'pulse',
+      pantry: 'meal',
+      scrubber: 'scrubber',
+      recycler: null,
+    });
+    // El reciclador está al día: no hay nada que hacer ahí hasta que se gaste.
+    expect(session.taskAt('recycler')).toMatchObject({ upToDate: true });
+  });
+
+  it('ganar el minijuego del depurador lo deja en verde de una vez y cansa como el trabajo a mano', () => {
+    const { session } = voyage(yellowScrubber());
+    expect(session.finishTask('scrubber')).toBe(true);
+    expect(session.state.systems.scrubber).toBe('green');
+    expect(member(session, 'vega').fatigue).toBeCloseTo(VOYAGE_CONTENT.wear.maintenanceHours * 0.05, 5);
+    expect(session.minigameAt('scrubber')).toBeNull();
+  });
+
+  it('el especialista y el modo ayuda juegan más fácil; la reparación improvisada, más difícil', () => {
+    const miga = voyage({ ...yellowScrubber(), activeCrewId: 'miga' }).session;
+    expect(miga.minigameAt('scrubber')?.setup).toMatchObject({ easy: true });
+    expect(voyage(yellowScrubber()).session.minigameAt('scrubber')?.setup.easy).toBe(false);
+    expect(voyage({ ...yellowScrubber(), helpMode: true }).session.minigameAt('scrubber')?.setup.easy).toBe(true);
+    const improvise = makeIncident({ id: 'f1', definitionId: 'scrubberFailure', status: 'active', responseId: 'improvise', progress: 0 });
+    const hard = voyage({ length: 'long', systems: { ...makeGameState().systems, scrubber: 'red' }, activeIncidents: [improvise] }).session;
+    expect(hard.minigameAt('scrubber')).toMatchObject({ id: 'scrubber', setup: { hard: true } });
+  });
+
+  it('la reparación de un incidente se termina con el minijuego', () => {
+    const repair = makeIncident({ id: 'f1', definitionId: 'scrubberFailure', status: 'active', responseId: 'repair', progress: 0.5 });
+    const { session, bus } = voyage({ length: 'long', systems: { ...makeGameState().systems, scrubber: 'red' }, activeIncidents: [repair] });
+    const resolved: string[] = [];
+    bus.on('incident:resolved', (i) => resolved.push(i.id));
+    expect(session.taskAt('scrubber')).toMatchObject({ kind: 'incident' });
+    expect(session.finishTask('scrubber')).toBe(true);
+    expect(resolved).toEqual(['f1']);
+    expect(session.state.systems.scrubber).not.toBe('red');
+  });
+
+  it('la fuga de un micrometeorito se parcha con su minijuego, en el cuarto de la fuga', () => {
+    const leak = makeIncident({ id: 'm1', definitionId: 'micrometeoroid', status: 'active', responseId: 'patchLeak', progress: 0 });
+    const { session } = voyage({ length: 'long', activeIncidents: [leak] });
+    expect(session.minigameAt(session.leakZone('m1'))?.id).toBe('patch');
+  });
+
+  it('los cuidados del día suben el ánimo o la salud de todos y se hacen una vez por día', () => {
+    const crew = makeCrew().map((m) => ({ ...m, morale: 0.5, condition: 0.5 }));
+    const { session } = voyage({ length: 'long', crew });
+    expect(session.finishTask('pantry')).toBe(true);
+    expect(session.state.crew.every((m) => m.morale > 0.5)).toBe(true);
+    expect(session.taskAt('pantry')).toMatchObject({ upToDate: true });
+    expect(session.minigameAt('pantry')).toBeNull();
+    expect(session.finishTask('pantry')).toBe(false);
+    session.finishTask('infirmary');
+    expect(session.state.crew.every((m) => m.condition > 0.5)).toBe(true);
+  });
+
+  it('en la cocina: el menú en la mesada, la receta en el recetario y de vuelta en la mesada, cocinar', () => {
+    const { session } = voyage({ length: 'long' });
+    const stove = zoneSpot(zoneById(SHIP_LAYOUT, 'pantry'));
+    const book = CARE_TASKS.cook.recipeAt;
+    const middle = { x: (stove.x + book.x) / 2, y: stove.y - 1.2 };
+    const open = (at: { x: number; y: number }) => {
+      const m = session.minigameAt('pantry', at);
+      if (m) session.minigameStarted(m);
+      return m?.setup.meal ?? null;
+    };
+    expect(zoneAt(SHIP_LAYOUT, book)).toBe('pantry');
+    expect(session.kitchenAt('pantry', middle)).toMatchObject({ action: null, next: 'menu' });
+    const menu = open(stove);
+    expect(menu).toMatchObject({ stage: 'menu' });
+    expect(session.kitchenAt('pantry', middle)).toMatchObject({ action: null, next: 'recipe' });
+    expect(open(book)).toEqual({ dish: menu!.dish, stage: 'recipe' });
+    expect(session.kitchenAt('pantry', book)).toMatchObject({ next: 'cook' });
+    expect(open(stove)).toEqual({ dish: menu!.dish, stage: 'cook' });
+    // Salir sin terminar no borra la receta leída: se puede volver a probar.
+    expect(open(stove)).toMatchObject({ stage: 'cook' });
+    session.finishTask('pantry');
+    expect(session.kitchenAt('pantry', stove)).toBeNull();
+  });
+
+  it('la comida del día sale de la semilla de la partida', () => {
+    const dishOf = (seed: number) => voyage({ length: 'long', seed }).session.kitchenAt('pantry')!.dish;
+    expect(dishOf(5)).toBe(dishOf(5));
+    expect(new Set(Array.from({ length: 12 }, (_, seed) => dishOf(seed))).size).toBeGreaterThan(1);
+  });
+
+  it('el ejercicio con la bici es el del día de quien juega', () => {
+    const crew = makeCrew().map((m) => ({ ...m, condition: 0.5 }));
+    const { session } = voyage({ length: 'long', crew });
+    session.finishTask('exercise');
+    expect(member(session, 'vega').condition).toBeGreaterThan(0.5);
+    expect(member(session, 'senda').condition).toBe(0.5);
+    expect(session.minigameAt('exercise')).toBeNull();
+  });
+
+  it('la llamada del minijuego levanta el ánimo de toda la tripulación al seguir el reloj', () => {
+    const crew = makeCrew().map((m) => ({ ...m, morale: 0.5 }));
+    const { session } = voyage({ length: 'long', crew });
+    expect(session.finishTask('radio')).toBe(true);
+    session.update(0.25, STILL);
+    expect(member(session, 'senda').morale).toBeGreaterThan(0.6);
+    expect(session.taskAt('radio')).toMatchObject({ upToDate: true });
+  });
+
+  it('con la radio apagada no se puede llamar', () => {
+    const { session } = voyage({ length: 'long' });
+    session.setLoadsOff(['radio']);
+    expect(session.taskAt('radio')).toMatchObject({ blockedKey: 'hud.task.radioOff' });
+    expect(session.minigameAt('radio')).toBeNull();
   });
 });

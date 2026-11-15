@@ -5,21 +5,39 @@ import type { CrewId } from '../crew/types';
 import type { RoutinePlan } from '../crew/routines';
 import type { ActivityCounter, IncidentDefinition, IncidentRules } from '../incidents/definitions';
 import type { MeterRules } from '../meters/rules';
+import type { MinigameId } from '../minigames/Minigame';
 import type { SystemId } from '../systems/types';
-import type { ShipLayout } from './layout';
+import type { Point, ShipLayout } from './layout';
 
 /**
- * Tarea de un cuarto (§4.2, §4.4): ejercicio, llamada a casa o mantenimiento de un sistema. El mantenimiento
- * vuelve el sistema de amarillo a verde y, si corresponde, reinicia un contador del planificador de incidentes.
+ * Tarea de un cuarto (§4.2, §4.4): ejercicio, llamada a casa, mantenimiento de un sistema o un cuidado del día. El
+ * mantenimiento vuelve el sistema de amarillo a verde y, si corresponde, reinicia un contador del planificador de
+ * incidentes. El jugador la hace con un minijuego (E); los automáticos, con su rutina.
  */
 export interface HabitatTask {
   id: string;
   zone: string;
-  kind: 'exercise' | 'callHome' | 'maintenance';
+  /** `care`: algo que el jugador hace una vez por día en un cuarto sin máquina (cocinar, el chequeo médico…). */
+  kind: 'exercise' | 'callHome' | 'maintenance' | 'care';
   /** Categoría para la especialidad ×1,5 (§3.3). */
   category: TaskCategory;
   system?: SystemId;
   resets?: ActivityCounter;
+  /** Minijuego que abre E en este cuarto. */
+  minigame?: MinigameId;
+  /** Lo que suma a toda la tripulación un cuidado del día [regla]. */
+  care?: CareReward;
+  /**
+   * Cocina (minijuego `meal`): dónde se lee el recetario (tiles). El menú del día y la mesada están junto al lugar
+   * de trabajo del cuarto (`spot`).
+   */
+  recipeAt?: Point;
+}
+
+/** Cuánto sube el ánimo o la condición física de cada tripulante (0..1). */
+export interface CareReward {
+  morale?: number;
+  condition?: number;
 }
 
 /** Desgaste de los sistemas y ritmo de las tareas [regla]. */

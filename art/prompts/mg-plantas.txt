@@ -1,0 +1,10 @@
+Create ONE square PNG sprite sheet with real alpha transparency.
+Use case: stylized-concept. Asset type: four small props for a children's top-down 2D space game.
+STYLE: retro pixel art, very low resolution, as if drawn on a 128 x 128 pixel canvas then enlarged with nearest-neighbor. Big chunky square pixels of exactly the same size throughout. Clean single logical-pixel dark outlines. Flat limited palette with soft cel shading using discrete color blocks, lavender-gray metal, white trays, restrained blue tech accents. The attached space-station image is ONLY a style reference for palette and outlines; do not reproduce its layout or objects.
+COMPOSITION: precisely four props in a 2 by 2 arrangement, centered at logical coordinates (32,32), (96,32), (32,96), (96,96). Each prop about 40–48 logical pixels wide. Wide transparent empty margins between and around the props. High three-quarter overhead view, showing top and front faces. No drawn grid.
+SUBJECT INVARIANTS: all four are THE SAME small lettuce plant in THE SAME square white hydroponic tray with a lavender rim. The four trays have identical geometry, size, orientation, shading and relative position in their quadrants. Only the plant state and indicated soil condition change.
+TOP LEFT: healthy lettuce with bright fresh green leaves standing upright.
+TOP RIGHT: thirsty lettuce with visibly droopy wilted leaves hanging down, and exposed cracked dry brown soil.
+BOTTOM LEFT: lettuce needing light, washed-out pale yellowish leaves.
+BOTTOM RIGHT: green lettuce with several tiny distinct lime-green aphid bugs on the leaves. Bugs are small pixel insects, clearly contrasting with darker green leaves.
+ABSOLUTELY NO text, letters, numbers, logos, floor, ground shadows, backdrop, frames, grid lines, gradients, anti-aliasing, blur, glow halos, smooth or subpixel edges. Background must be genuinely transparent alpha, not a checkerboard painted into the image. Exactly one sheet, four props total.

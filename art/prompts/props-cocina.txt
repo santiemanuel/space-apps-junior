@@ -1,0 +1,10 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Quadrants:
+Kitchen props for the pantry room of a spacecraft.
+- Top-left: compact galley counter with a small food warmer oven: lavender-gray metal cabinet, a dark oven window with a warm orange glow, a flat cooking top with one small pot, blue buttons on the front
+- Top-right: recipe stand: a slim lavender-gray lectern holding a big OPEN recipe book, the pages show only simple colored food pictures (a red tomato, an orange carrot, a yellow cheese) with no writing at all, a small blue reading lamp clipped on top
+- Bottom-left: small space fridge: white and lavender-gray box with a blue handle and a tiny green light
+- Bottom-right: small round metal dining table with a magnetic tray holding two food pouches

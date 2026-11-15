@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import type { SimulationEvents } from '../../../core/habitat/events';
+import type { MinigameId } from '../../../core/minigames/Minigame';
 import type { EventBus } from '../../../core/events/EventBus';
 import type { SceneKey } from '../../sceneKeys';
 import type { PhaseSceneData } from '../sceneData';
@@ -27,6 +28,8 @@ export interface MapViewOptions {
   at?: string;
   /** Fuerza los efectos del mapa para verlos: nivel de alerta, corte de energía y, en `Mars`, tormenta de polvo (`&fx=impact,powerOut,storm`). */
   fx?: { level?: 'alert' | 'impact'; powerOut?: boolean; storm?: boolean };
+  /** Abre este minijuego al arrancar (`&minigame=patch`), en la zona donde esté el jugador. */
+  minigame?: MinigameId;
 }
 
 /** Datos de escena con las opciones de vista: los agrega `simulationDev.ts`. */

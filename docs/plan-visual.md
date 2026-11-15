@@ -581,3 +581,38 @@ Pendientes de esta fase:
   (antes `floor-fix.py`) también junta los colores casi iguales de las hojas de puerta y les redibuja ranura y zócalo,
   dibuja la línea guía de borde a borde y redibuja la franja de peligro a 45° con período de 8 píxeles para que siga
   sin corte entre los dos tiles de cada puerta. La línea guía ahora recorre toda la fila del medio del pasillo.
+
+## Minijuegos de las salas
+
+Hecho el 15/11/2026. Capturas en `art/capturas/minijuegos/` (`antes-scrubber.png` es el estado anterior).
+
+- **Antes:** E había que mantenerla apretada 10–40 s mirando una barrita, sólo en 4 cuartos de la nave (6 en Gale); en
+  mando, enfermería, despensa y refugio no pasaba nada.
+- **Ahora:** E abre un minijuego en cada sala (vista `MinigameView` de `HudScene`, reloj en pausa). No se pierde: los
+  errores sólo bajan las estrellas. Ganarlo termina la tarea de una vez (cansa lo mismo que el trabajo a mano) y el
+  cartel final dice qué se logró y da un dato real para chicos.
+
+| Sala | Minijuego | Qué se aprende |
+|---|---|---|
+| Ejercicio | Bici: ← → alternando, aguja en la franja verde | Sin gravedad se debilitan músculos y huesos (2 h de ejercicio por día en la ISS) |
+| Depurador | Atrapar el CO2 y dejar pasar el oxígeno | Qué hace el depurador con lo que exhalamos |
+| Reciclador | Girar caños hasta el tanque limpio, pasando por el filtro | En la ISS se recicla el 98 % del agua |
+| Radio | Sintonizar la onda y seguirla | La demora real de la señal ese día |
+| Mando | Rastreador de estrellas: girar el cielo hasta que coincida | Cómo sabe una nave hacia dónde apunta |
+| Enfermería | Tomar el pulso al ritmo | El corazón en microgravedad |
+| Despensa | Armar la bandeja con lo que sirve en el espacio | Migas, burbujas, sal líquida, tortillas |
+| Refugio | Tapar huecos con bolsas de agua antes de que lleguen las partículas | El agua frena la radiación |
+| Invernadero | Agua, luz o mariquitas según lo que pida cada planta | Luces violetas y control de plagas sin veneno |
+| MOXIE | Mantener la temperatura cerca de 800 °C | MOXIE (Perseverance) hizo 122 g de oxígeno |
+| Esclusa | Cepillar el polvo del sello | El polvo marciano y las fugas |
+| Fuga (micrometeorito) | Buscar el agujero con el detector y parcharlo | Qué son los micrometeoritos |
+
+- **Reglas** (`HabitatSession.minigameAt` y `finishTask`): el incidente con trabajo en curso tiene prioridad (por la
+  categoría de su trabajo; el micrometeorito, siempre la fuga). Más fácil en modo ayuda o con el especialista; más
+  difícil con la reparación improvisada. Ejercicio, llamada a casa y los **cuidados del día** (`kind: 'care'`: mando y
+  refugio +0,05 / +0,03 de ánimo, despensa +0,05 de ánimo, enfermería +0,03 de condición para todos) se hacen una vez
+  por día; la llamada se puede repetir si un aislamiento la espera.
+- **Recursos:** 8 hojas de 2 × 2 (`art/prompts/mg-*.txt`), todas buenas en la primera tanda; snapper automático con
+  32 colores; atlas `public/assets/minigames/items` (`atlas.py minigames`) con normal map, iluminado por una luz que
+  sigue lo que se está tocando.
+- **Tablero:** la tripulación pasó a 2 × 2 (filas `half` de `PanelColumn`; los íconos de salud van debajo del nombre).

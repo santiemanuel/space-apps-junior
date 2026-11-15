@@ -9,7 +9,7 @@ import { GALE_POWER, METER_RULES, MOXIE_OXYGEN_KG_PER_DAY } from './meters';
 import type { RealEvent } from '../core/events/RealEvent';
 import { GALE_FACTS, GALE_ROCKS, type GaleStripId } from './galeTerrain';
 import galeMap from './maps/gale.json';
-import { ROUTINE_OFFSET_HOURS } from './ship';
+import { CARE_TASKS, ROUTINE_OFFSET_HOURS } from './ship';
 import { landmarksFromTiled, layoutFromTiled, terrainFromTiled, type TerrainStrip, type TiledMap } from './tiledLayout';
 
 /**
@@ -44,14 +44,17 @@ export const SULFUR_EVENT: RealEvent = {
   sourceUrl: GALE_FACTS.sulfur.source.url,
 };
 
-/** Tareas de la base (§4.4). Textos en `mars.task.<id>` y `mars.station.<id>`. */
+/** Tareas de la base (§4.4), cada una con el minijuego que abre E. Textos en `mars.task.<id>` y `mars.station.<id>`. */
 export const GALE_TASKS: readonly HabitatTask[] = [
-  { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise' },
-  { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber' },
-  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare' },
-  { id: 'moxie', zone: 'moxie', kind: 'maintenance', category: 'energy', system: 'moxie' },
-  { id: 'airlock', zone: 'airlock', kind: 'maintenance', category: 'leak', system: 'airlock', resets: 'evaHoursSinceMaintenance' },
-  { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms' },
+  { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise', minigame: 'bike' },
+  { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber', minigame: 'scrubber' },
+  { id: 'greenhouse', zone: 'greenhouse', kind: 'maintenance', category: 'greenhouse', system: 'greenhouse', resets: 'hoursSinceGreenhouseCare', minigame: 'plants' },
+  { id: 'moxie', zone: 'moxie', kind: 'maintenance', category: 'energy', system: 'moxie', minigame: 'moxie' },
+  { id: 'airlock', zone: 'airlock', kind: 'maintenance', category: 'leak', system: 'airlock', resets: 'evaHoursSinceMaintenance', minigame: 'seals' },
+  { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms', minigame: 'radio' },
+  CARE_TASKS.navigate,
+  CARE_TASKS.checkup,
+  CARE_TASKS.shield,
 ];
 
 /** La ingeniera cuida MOXIE y el botánico el invernadero; las salidas las decide el jugador [regla]. */

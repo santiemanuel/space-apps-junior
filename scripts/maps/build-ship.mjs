@@ -116,7 +116,8 @@ const PROPS = {
     ['headset', 8.1, 4.3], ['plant', 0.75, 5.9], ['crate', 7.9, 5.9],
   ],
   infirmary: [['bed', 1.3, 2.4], ['bed', 1.3, 5.2], ['medcabinet', 8, 2.2], ['pod', 7.8, 5.8], ['plant', 2.9, 5.9]],
-  pantry: [['shelf', 1.3, 2.4], ['shelf', 7.8, 2.4], ['crates', 1.5, 5.9], ['crate', 7.9, 5.8], ['crate', 4.5, 5.9]],
+  // Cocina: la mesada con el horno al fondo (donde se trabaja) y el recetario en la esquina, a unos pasos.
+  pantry: [['shelf', 1.3, 2.4], ['fridge', 8.0, 2.3], ['diningtable', 1.6, 5.9], ['galley', 4.5, 5.9], ['recipestand', 7.8, 5.9]],
   scrubber: [['scrubber', 4.5, 5.9], ['canisters', 1.5, 5.9], ['pump', 7.7, 5.9], ['crates', 1.4, 2.0], ['plant', 8.3, 1.8]],
   recycler: [['recycler', 4.5, 5.9], ['tank', 1, 5.9], ['tank', 2.1, 5.9], ['pump', 7.6, 5.9], ['crate', 8.1, 1.8]],
 };
@@ -133,6 +134,9 @@ const WALL_DECOR = {
   scrubber: [['alarm', 7.5], ['redlight', 1.5]],
   recycler: [['alarm', 1.5]],
 };
+// Puntos con nombre (`landmark`): [nombre, zona, columna, fila] en tiles desde la esquina del cuarto. `recipe`: donde
+// se lee el recetario de la cocina.
+const LANDMARKS = [['recipe', 'pantry', 7.8, 4.7]];
 // Donde se para quien trabaja en el cuarto (tiles desde la esquina).
 const SPOT = { top: [4.5, 3.4], bottom: [4.5, 3.6] };
 
@@ -166,6 +170,7 @@ for (const zone of zones) {
   const [sx, sy] = zone.top ? SPOT.top : SPOT.bottom;
   zoneObjects.push(object(zone.id, 'spot', x + sx * T, y + sy * T));
   if (zone.id === TOP[0]) zoneObjects.push(object('', 'spawn', x + sx * T, y + sy * T));
+  for (const [name, , col, row] of LANDMARKS.filter(([, id]) => id === zone.id)) zoneObjects.push(object(name, 'landmark', Math.round(x + col * T), Math.round(y + row * T)));
   for (const [key, col, row] of PROPS[zone.id] ?? []) {
     const { w, h } = sizeOf(key);
     // Lo que choca es la base del objeto: casi todo el ancho y menos de la mitad del alto.

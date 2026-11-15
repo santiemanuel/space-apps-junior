@@ -5,9 +5,9 @@ import { moveSpeedFactor } from '../../../core/crew/efficiency';
 import type { CrewId, CrewMemberState } from '../../../core/crew/types';
 import { EventBus } from '../../../core/events/EventBus';
 import type { SimulationEvents } from '../../../core/habitat/events';
-import type { HabitatSession } from '../../../core/habitat/HabitatSession';
+import type { HabitatSession, ZoneMinigame } from '../../../core/habitat/HabitatSession';
 import { doorPoint, EXTERIOR, zoneAt, zoneById, zoneSpot, type Point, type ShipLayout } from '../../../core/habitat/layout';
-import type { HabitatContent } from '../../../core/habitat/types';
+import type { HabitatContent, HabitatTask } from '../../../core/habitat/types';
 import { definitionOf } from '../../../core/incidents/planner';
 import type { SystemId, SystemStatus } from '../../../core/systems/types';
 import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
@@ -24,6 +24,7 @@ import { MapLife } from './MapLife';
 import { MINIMAP_FRAME, type MinimapFrame } from './Minimap';
 import { HUD_ICONS, preloadHudIcons } from '../../hudIcons';
 import type { SkyLight } from './marsSky';
+import { preloadMinigames } from './minigames/Painter';
 import { createMap, preloadMap, type MapAssets, type MapView, type Solid } from './TiledMapView';
 
 /** Escenas superpuestas que se abren con una tecla desde el mapa. */
@@ -93,6 +94,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private headings = new Map<CrewId, number>();
   /** Viaje de la cámara hacia el tripulante elegido (centro de partida y avance 0..1). */
   private cameraGlide: { x: number; y: number; t: number } | null = null;
+  /** Zona del minijuego abierto: mientras tanto el mapa no lee la entrada. */
+  private playing: string | null = null;
 
   protected constructor(key: SceneKey, private readonly namespace: 'voyage' | 'mars') {
     super(key);
@@ -113,6 +116,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.life = null;
     this.headings = new Map();
     this.cameraGlide = null;
+    this.playing = null;
   }
 
   /** Opciones de vista de prueba (zoom y mapa agrandado); vacío en la partida normal. */
@@ -170,6 +174,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   preload(): void {
     preloadMap(this, this.mapAssets());
     preloadHudIcons(this);
+    preloadMinigames(this);
   }
 
   create(): void {
@@ -225,7 +230,24 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const overlay: SimulationSceneData = { state: this.session.state, bus: this.sceneData.bus, sim: this.sim, namespace: this.namespace };
     this.scene.launch(SceneKeys.Hud, overlay);
     const keyboard = this.input.keyboard!;
-    for (const [key, scene] of OVERLAY_KEYS) keyboard.addKey(key).on('down', () => toggleOverlay(this.scene, scene, overlay, !this.ended));
+    for (const [key, scene] of OVERLAY_KEYS) keyboard.addKey(key).on('down', () => !this.playing && toggleOverlay(this.scene, scene, overlay, !this.ended));
+    const offMinigame = [
+      this.sim.on('sim:minigameWon', ({ zone }) => this.session.finishTask(zone)),
+      // La E que cierra el minijuego (el tablero se actualiza antes que el mapa) no tiene que volver a abrirlo.
+      this.sim.on('sim:minigameClosed', () => {
+        this.playing = null;
+        this.controls.interactJustPressed();
+      }),
+    ];
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offMinigame.forEach((off) => off()));
+    const forced = this.view.minigame;
+    if (forced) {
+      const zone = this.session.state.crew.find((m) => m.id === this.session.state.activeCrewId)!.location;
+      this.time.delayedCall(300, () => {
+        this.playing = zone;
+        this.sim.emit('sim:minigame', { zone, id: forced, setup: { seed: this.session.state.seed, delaySeconds: this.session.delaySeconds }, reward: t('hud.minigame.reward.morale'), badge: null });
+      });
+    }
     // Con cada aviso nuevo se abre la planificación en pausa, para preparar la respuesta (§3.1, §4.4).
     const offAlert = this.sceneData.bus.on('alert:level', ({ level }) => {
       if (level === 'alert' && !this.ended && !this.scene.isActive(SceneKeys.Planning)) this.scene.launch(SceneKeys.Planning, overlay);
@@ -235,7 +257,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       detach();
       for (const key of [SceneKeys.Hud, ...OVERLAY_KEYS.map(([, scene]) => scene)]) this.scene.stop(key);
     });
-    bindCrewSwitch(this, this.sceneData.bus, () => this.session.state);
+    // Con un minijuego abierto, Tab no cambia de tripulante.
+    bindCrewSwitch(this, this.sceneData.bus, () => (this.playing ? { crew: [], activeCrewId: this.session.state.activeCrewId } : this.session.state));
   }
 
   update(_time: number, deltaMs: number): void {
@@ -252,9 +275,13 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const activeZone = zoneAt(this.layout, activePosition);
     if (this.doorBody) this.doorBody.enable = this.outerDoorClosed() && activeZone !== EXTERIOR;
 
-    s.update(dt, { activeZone, activePosition, interacting: this.controls.interactHeld() });
+    // En las salas, E abre su minijuego; mantenerla apretada sólo sirve afuera (juntar muestras en Marte).
+    const minigame = this.playing ? null : s.minigameAt(activeZone, activePosition);
+    if (minigame && this.controls.interactJustPressed() && this.canPlay()) this.openMinigame(minigame);
+    const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone) === null;
+    s.update(dt, { activeZone, activePosition, interacting });
 
-    const choice = this.controls.choiceJustPressed();
+    const choice = this.playing ? null : this.controls.choiceJustPressed();
     const decision = s.pendingDecisions()[0];
     const option = choice && decision?.options[choice - 1];
     if (option && option.available) s.respond(decision.incident.id, option.response.id);
@@ -262,6 +289,31 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.moveAutoCrew(dt);
     if (this.toast.visible && this.time.now > this.toastUntil) this.toast.setVisible(false);
     if (s.outcome && !this.ended) this.showOutcome(s.outcome);
+  }
+
+  /** Se puede abrir un minijuego: tiempo normal, sin pausa ni otra pantalla encima. */
+  private canPlay(): boolean {
+    const s = this.session;
+    return !this.ended && s.manual && !s.paused && !OVERLAY_KEYS.some(([, scene]) => this.scene.isActive(scene));
+  }
+
+  /** Abre el minijuego en el tablero, con el cartel final (lo que se logra) ya traducido. */
+  private openMinigame(m: ZoneMinigame): void {
+    const s = this.session;
+    const task = s.taskAt(m.zone)!;
+    const name = NAMES[s.state.activeCrewId];
+    const reward = task.kind === 'incident' ? t('hud.minigame.reward.incident', { title: tr(`${task.textKey}.title`) }) : this.rewardText(task.task, name);
+    const badge = m.setup.hard ? t('hud.minigame.hard') : !m.setup.easy ? null : s.state.helpMode ? t('hud.minigame.easy.help') : t('hud.minigame.easy.specialist', { name });
+    this.playing = m.zone;
+    s.minigameStarted(m);
+    this.sim.emit('sim:minigame', { ...m, reward, badge });
+  }
+
+  private rewardText(task: HabitatTask, name: string): string {
+    if (task.kind === 'maintenance') return t('hud.minigame.reward.maintenance');
+    if (task.kind === 'exercise') return t('hud.minigame.reward.exercise', { name });
+    if (task.kind === 'callHome') return t('hud.minigame.reward.callHome');
+    return t(task.care?.condition ? 'hud.minigame.reward.condition' : 'hud.minigame.reward.morale');
   }
 
   protected member(id: CrewId): CrewMemberState {
@@ -620,8 +672,11 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     if (place !== null) return place;
     const task = s.taskAt(zone);
     if (!task) return '';
-    if (task.kind === 'task' && task.upToDate) return t('hud.task.upToDate');
+    if (task.kind === 'task' && task.upToDate) return t(task.task.kind === 'maintenance' ? 'hud.task.upToDate' : 'hud.task.doneToday');
+    if (task.kind === 'task' && task.blockedKey) return tr(task.blockedKey);
     if (!s.manual) return t('hud.task.fastForward');
+    const kitchen = s.kitchenAt(zone, position);
+    if (kitchen) return tr(kitchen.action ? `hud.minigame.meal.prompt.${kitchen.action}` : `hud.minigame.meal.prompt.go.${kitchen.next}`, { dish: tr(`hud.minigame.meal.dish.${kitchen.dish}`) });
     return task.kind === 'incident' ? t('hud.task.incident', { title: tr(`${task.textKey}.title`) }) : tr(`${this.namespace}.task.${task.task.id}`);
   }
 

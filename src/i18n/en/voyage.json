@@ -18,5 +18,13 @@
   "task.callHome": "E: call home",
   "outcome.out": "You made it to Mars! Next comes the landing.",
   "outcome.back": "You made it back to Earth! Next comes reentry.",
-  "outcome.suspended": "Mission suspended: the crew is safe in the shelter waiting for rescue."
+  "outcome.suspended": "Mission suspended: the crew is safe in the shelter waiting for rescue.",
+  "task.navigate": "E: navigate by the stars",
+  "station.navigate": "Course",
+  "task.checkup": "E: medical check",
+  "station.checkup": "Health",
+  "task.cook": "E: make a meal",
+  "station.cook": "Food",
+  "task.shield": "E: check the shelter",
+  "station.shield": "Shield"
 }

@@ -75,5 +75,11 @@
   "crater.hint": "V: mapa del cráter",
   "realEvent.sulfur.kidValue": "En su día marciano número 4200, Curiosity pisó una piedra, la rompió y adentro había cristales amarillos de azufre puro.",
   "realEvent.sulfur.explanation": "Nunca se había encontrado azufre puro en Marte. Se forma sólo en condiciones muy especiales: los científicos todavía investigan cómo llegó a este canal.",
-  "panel.samplesShort": "Muestras: {count} de {total}"
+  "panel.samplesShort": "Muestras: {count} de {total}",
+  "task.navigate": "E: navegar con las estrellas",
+  "station.navigate": "Rumbo",
+  "task.checkup": "E: chequeo médico",
+  "station.checkup": "Salud",
+  "task.shield": "E: revisar el refugio",
+  "station.shield": "Escudo"
 }

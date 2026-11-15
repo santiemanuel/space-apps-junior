@@ -223,3 +223,24 @@ describe('Mars: tormenta de radiación', () => {
     expect(done).toEqual(['mars:completed:0']);
   });
 });
+
+describe('minijuegos de la base (E)', () => {
+  it('cada sala de la base abre su minijuego, y la esclusa limpia sus sellos con el suyo', () => {
+    const worn = { ...makeGameState().systems, moxie: 'yellow' as const, greenhouse: 'yellow' as const, airlock: 'yellow' as const, scrubber: 'yellow' as const };
+    const { session } = mars({ length: 'long', systems: worn });
+    const games = Object.fromEntries(GALE_LAYOUT.zones.map((z) => [z.id, session.minigameAt(z.id)?.id ?? null]));
+    expect(games).toEqual({
+      command: 'stars',
+      exercise: 'bike',
+      shelter: 'shield',
+      greenhouse: 'plants',
+      infirmary: 'pulse',
+      scrubber: 'scrubber',
+      radio: 'radio',
+      moxie: 'moxie',
+      airlock: 'seals',
+    });
+    expect(session.finishTask('airlock')).toBe(true);
+    expect(session.state.systems.airlock).toBe('green');
+  });
+});

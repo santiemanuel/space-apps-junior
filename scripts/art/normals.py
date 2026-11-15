@@ -21,6 +21,7 @@ RECURSOS = {
     'public/assets/ship/props.png': ['--shape-radius', '6'],
     'public/assets/mars/tiles.png': ['--frame-size', '24x24', '--shape-strength', '0', '--detail-strength', '2', '--normal-strength', '1'],
     'public/assets/mars/props.png': ['--shape-radius', '6'],
+    'public/assets/minigames/items.png': ['--shape-radius', '6'],
     'public/assets/crew/vega.png': ['--frame-size', '40x48'],
     'public/assets/crew/miga.png': ['--frame-size', '40x48'],
     'public/assets/crew/brote.png': ['--frame-size', '40x48'],

@@ -8,7 +8,7 @@ import { CASCADE_RULES } from './cascade';
 import { INCIDENT_RULES, INCIDENTS } from './incidents';
 import shipMap from './maps/ship.json';
 import { METER_RULES, SHIP_POWER } from './meters';
-import { layoutFromTiled, type TiledMap } from './tiledLayout';
+import { landmarksFromTiled, layoutFromTiled, type TiledMap } from './tiledLayout';
 
 /**
  * Plano de la nave (game-design §4.2): sale del mapa de Tiled `maps/ship.json` (41 × 20 tiles de 48 px, cuartos de
@@ -17,13 +17,30 @@ import { layoutFromTiled, type TiledMap } from './tiledLayout';
  */
 export const SHIP_MAP: TiledMap = shipMap;
 export const SHIP_LAYOUT: ShipLayout = layoutFromTiled(SHIP_MAP);
+/** Puntos con nombre del mapa: `recipe`, donde se lee el recetario de la cocina. */
+const SHIP_LANDMARKS = landmarksFromTiled(SHIP_MAP);
 
-/** Tareas del viaje (§4.2). Textos en `voyage.task.<id>`. */
+/**
+ * Cuidados del día en los cuartos sin máquina [regla]: una vez por día, con su minijuego, suben un poco el ánimo o la
+ * condición física de toda la tripulación (navegar con las estrellas, el chequeo médico, cocinar, revisar el refugio).
+ */
+export const CARE_TASKS = {
+  navigate: { id: 'navigate', zone: 'command', kind: 'care', category: 'general', minigame: 'stars', care: { morale: 0.05 } },
+  checkup: { id: 'checkup', zone: 'infirmary', kind: 'care', category: 'infirmary', minigame: 'pulse', care: { condition: 0.03 } },
+  cook: { id: 'cook', zone: 'pantry', kind: 'care', category: 'food', minigame: 'meal', care: { morale: 0.05 }, recipeAt: SHIP_LANDMARKS.recipe! },
+  shield: { id: 'shield', zone: 'shelter', kind: 'care', category: 'general', minigame: 'shield', care: { morale: 0.03 } },
+} as const satisfies Record<string, HabitatTask>;
+
+/** Tareas del viaje (§4.2), cada una con el minijuego que abre E. Textos en `voyage.task.<id>`. */
 export const VOYAGE_TASKS: readonly HabitatTask[] = [
-  { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise' },
-  { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber' },
-  { id: 'recycler', zone: 'recycler', kind: 'maintenance', category: 'water', system: 'waterRecycler' },
-  { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms' },
+  { id: 'exercise', zone: 'exercise', kind: 'exercise', category: 'exercise', minigame: 'bike' },
+  { id: 'scrubber', zone: 'scrubber', kind: 'maintenance', category: 'scrubber', system: 'scrubber', minigame: 'scrubber' },
+  { id: 'recycler', zone: 'recycler', kind: 'maintenance', category: 'water', system: 'waterRecycler', minigame: 'water' },
+  { id: 'callHome', zone: 'radio', kind: 'callHome', category: 'comms', minigame: 'radio' },
+  CARE_TASKS.navigate,
+  CARE_TASKS.checkup,
+  CARE_TASKS.cook,
+  CARE_TASKS.shield,
 ];
 
 /**

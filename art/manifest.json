@@ -156,6 +156,19 @@
             44
           ]
         }
+      },
+      {
+        "file": "art/snapped/props-cocina.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "galley",
+          "recipestand",
+          "fridge",
+          "diningtable"
+        ]
       }
     ]
   },
@@ -502,6 +515,141 @@
           "check",
           "map",
           "earthSignal"
+        ]
+      }
+    ]
+  },
+  "minigames": {
+    "atlas": "public/assets/minigames/items",
+    "sheets": [
+      {
+        "file": "art/snapped/mg-aire.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "co2",
+          "o2",
+          "cartridge",
+          "drop"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-agua.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "dirtybag",
+          "filter",
+          "cleantank",
+          "waterbag"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-plantas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "plant-ok",
+          "plant-dry",
+          "plant-pale",
+          "plant-bugs"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-herramientas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "wateringcan",
+          "growlamp",
+          "ladybug",
+          "patch"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-varios.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "heart",
+          "dust",
+          "brush",
+          "star"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-maquinas.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "bike",
+          "dish",
+          "stethoscope",
+          "heater"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-ingredientes1.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "ing-tortilla",
+          "ing-beans",
+          "ing-chicken",
+          "ing-lettuce"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-ingredientes2.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "ing-cheese",
+          "ing-tomato",
+          "ing-potato",
+          "ing-onion"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-ingredientes3.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "ing-carrot",
+          "ing-noodles",
+          "ing-rice",
+          "ing-egg"
+        ]
+      },
+      {
+        "file": "art/snapped/mg-platos.png",
+        "grid": [
+          2,
+          2
+        ],
+        "names": [
+          "dish-tacos",
+          "dish-stew",
+          "dish-pasta",
+          "dish-friedRice"
         ]
       }
     ]

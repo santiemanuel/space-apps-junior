@@ -1,3 +1,4 @@
+import type { MinigameId } from '../../core/minigames/Minigame';
 import { CAMPAIGN_2024 } from '../../content/campaign';
 import { GALE_POWER, METER_RULES } from '../../content/meters';
 import type { TimedPhase } from '../../core/clock/schedule';
@@ -20,8 +21,11 @@ function phaseState(base: GameState, phase: TimedPhase, params: URLSearchParams)
   // Para ver los efectos: `broken=scrubber,waterRecycler:yellow` (sistemas averiados) y `battery=0` (sin energía).
   const broken = (params.get('broken') ?? '').split(',').filter(Boolean).map((b) => b.split(':') as [SystemId, SystemStatus?]);
   const battery = params.get('battery');
+  // `tired=1`: tripulación cansada, baja de forma y de ánimo (para ver la salud en el tablero y probar los cuidados).
+  const tired = params.get('tired') === '1';
   return {
     ...state,
+    ...(tired ? { crew: state.crew.map((m) => ({ ...m, fatigue: 0.75, condition: 0.55, morale: 0.5 })) } : {}),
     systems: { ...state.systems, ...Object.fromEntries(broken.map(([id, status]) => [id, status ?? 'red'])) },
     meters: battery === null ? state.meters : { ...state.meters, energy: { ...state.meters.energy, batteryKwh: Number(battery) } },
   };
@@ -54,6 +58,7 @@ function calendarState(base: GameState, phase: TimedPhase, params: URLSearchPara
  * forzados; `storm`, la tormenta de polvo de `Mars`) y, en `Mars`, `at=<franja>|curiosity` (el jugador arranca afuera,
  * en esa franja del exterior o junto a Curiosity).
  */
+/** `minigame=<id>` abre ese minijuego al arrancar (para verlo sin buscar la sala ni esperar un incidente). */
 const fxOf = (params: URLSearchParams): MapViewOptions['fx'] => {
   const fx = (params.get('fx') ?? '').split(',');
   const level = fx.includes('impact') ? 'impact' : fx.includes('alert') ? 'alert' : undefined;
@@ -61,7 +66,7 @@ const fxOf = (params: URLSearchParams): MapViewOptions['fx'] => {
 };
 
 const viewOf = (params: URLSearchParams): MapViewData => ({
-  view: { ...(params.get('zoom') ? { zoom: Math.min(3, Math.max(0.5, Number(params.get('zoom')) || 1)) } : {}), ...(params.get('at') ? { at: params.get('at')! } : {}), fx: fxOf(params) },
+  view: { ...(params.get('zoom') ? { zoom: Math.min(3, Math.max(0.5, Number(params.get('zoom')) || 1)) } : {}), ...(params.get('at') ? { at: params.get('at')! } : {}), ...(params.get('minigame') ? { minigame: params.get('minigame') as MinigameId } : {}), fx: fxOf(params) },
 });
 
 /**

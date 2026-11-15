@@ -18,6 +18,7 @@ import { CraterView, CRATER_TEXTURE } from './CraterView';
 import { HUD_ICONS, preloadHudIcons } from '../../hudIcons';
 import { Minimap, MINIMAP_FRAME, type MinimapFrame } from './Minimap';
 import { PanelColumn, type PanelRow } from './PanelColumn';
+import { MinigameView } from './minigames/MinigameView';
 import { formatDate, healthLights, LIGHT, lightFor, NAMES, StatusView, supplies } from './StatusView';
 import { toggleOverlay, type SimulationSceneData } from './simulationData';
 
@@ -44,7 +45,7 @@ const STRIP = { x: BADGE.x + BADGE.width + 10, width: 456, y: 10 } as const;
 /** Tarjeta de la decisión pendiente, abajo al centro del mapa. */
 const CARD = { width: 600, bottom: GAME_HEIGHT - 34 } as const;
 /** Recorte de la cara en el cuadro de frente de las hojas de la tripulación (px de mundo). */
-const FACE = { x: 4, y: 8, w: 72, h: 52, scale: 0.75 } as const;
+const FACE = { x: 4, y: 18, w: 72, h: 52, scale: 0.75 } as const;
 const HEAD = '#90cdf4';
 const SOFT = '#a0aec0';
 const DIM = '#718096';
@@ -144,10 +145,12 @@ export class HudScene extends Phaser.Scene {
   private crater: CraterView | null = null;
   /** Estado completo (tecla I). */
   private status!: StatusView;
+  private minigame!: MinigameView;
 
   /** Abre una de las vistas a pantalla entera del tablero (o las cierra con `null`); el reloj queda en pausa mientras se mira. */
   private show(view: 'status' | 'crater' | null): void {
     if (view === 'status' && !this.snapshot) return;
+    if (this.minigame?.visible) return;
     if (view && OVERLAYS.some((key) => this.scene.isActive(key))) return;
     const was = !!this.crater?.visible || this.status.visible;
     this.crater?.setVisible(view === 'crater');
@@ -192,6 +195,12 @@ export class HudScene extends Phaser.Scene {
     keyboard.addKey('M').on('down', () => (this.muted = !this.muted));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
     this.status = new StatusView(this, this.data_.namespace);
+    this.minigame = new MinigameView(this, sim);
+    const offMinigame = sim.on('sim:minigame', (request) => {
+      this.show(null);
+      this.minigame.open(request);
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offMinigame);
     keyboard.addKey('I').on('down', () => this.toggleStatus());
     keyboard.addKey('ENTER').on('down', () => this.show(null));
     if (mars) {
@@ -211,6 +220,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private toggleOverlay(key: SceneKey): void {
+    if (this.minigame.visible) return;
     this.show(null);
     toggleOverlay(this.scene, key, this.data_);
   }
@@ -223,12 +233,12 @@ export class HudScene extends Phaser.Scene {
     g.fillStyle(0x2a2440).fillRect(BADGE.x + 10, BADGE.y + 10, 54, 40);
     const face = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setScale(FACE.scale).setDepth(51).setVisible(false);
     const name = this.add.text(BADGE.x + 74, BADGE.y + 8, '', { fontFamily: 'monospace', fontSize: '15px', color: '#fbd38d' }).setDepth(51);
-    const place = this.add.text(BADGE.x + 74, BADGE.y + 26, '', { fontFamily: 'monospace', fontSize: '11px', color: SOFT }).setDepth(51);
+    const place = this.add.text(BADGE.x + 74, BADGE.y + 12, '', { fontFamily: 'monospace', fontSize: '11px', color: SOFT }).setDepth(51);
     const icons = Array.from({ length: 4 }, (_, i) => {
       const x = BADGE.x + 84 + i * 26;
       return {
-        image: (this.textures.exists(HUD_ICONS) ? this.add.image(x, BADGE.y + 46, HUD_ICONS) : this.add.image(x, BADGE.y + 46, '__WHITE')).setDepth(51),
-        pip: this.add.rectangle(x, BADGE.y + 56, 12, 2, 0x68d391).setDepth(51),
+        image: (this.textures.exists(HUD_ICONS) ? this.add.image(x, BADGE.y + 38, HUD_ICONS) : this.add.image(x, BADGE.y + 38, '__WHITE')).setDepth(51),
+        pip: this.add.rectangle(x, BADGE.y + 49, 12, 2, 0x68d391).setDepth(51),
       };
     });
     this.badge = { face, name, place, icons };
@@ -295,7 +305,8 @@ export class HudScene extends Phaser.Scene {
     for (let y = 40; y < h - 40; y += 120) g.fillStyle(0xf6ad55).fillRect(x + 4, y, 2, 20).fillStyle(0xffe0a0).fillRect(x + 4, y + 4, 2, 6);
   }
 
-  update(time: number): void {
+  update(time: number, deltaMs: number): void {
+    this.minigame.update(time, deltaMs);
     const s = this.snapshot;
     this.minimap.update(this.registry.get(MINIMAP_FRAME) as MinimapFrame | undefined, time);
     if (!s) return;
@@ -309,7 +320,7 @@ export class HudScene extends Phaser.Scene {
     const [color, alpha] = LEVEL_TINT[s.level];
     this.tint.setFillStyle(color, alpha);
     this.renderPanel(s);
-    this.cover(!!this.crater?.visible || this.status.visible || OVERLAYS.some((key) => this.scene.isActive(key)));
+    this.cover(!!this.crater?.visible || this.status.visible || this.minigame.visible || OVERLAYS.some((key) => this.scene.isActive(key)));
     if (!this.covered) {
       this.renderStrip(s);
       this.renderBadge(s);
@@ -438,6 +449,7 @@ export class HudScene extends Phaser.Scene {
     for (const m of st.crew) {
       rows.push({
         portrait: m.id,
+        half: true,
         text: `${m.id === st.activeCrewId ? '▶ ' : ''}${NAMES[m.id]}`,
         size: 12,
         color: m.resting ? SOFT : lightFor(efficiency(m, st.meters.lifeSupport.co2MmHg), 0.8, 0.6),
@@ -542,7 +554,7 @@ export class HudScene extends Phaser.Scene {
     }
     b.name.setText(NAMES[m.id]);
     const where = m.location === 'corridor' || m.location === 'exterior' ? `hud.zone.${m.location}` : `${this.data_.namespace}.zone.${m.location}`;
-    b.place.setText(m.resting ? t('hud.panel.resting') : tr(where));
+    b.place.setText(m.resting ? t('hud.panel.resting') : tr(where)).setX(b.name.x + b.name.width + 8);
     healthLights(m).forEach((light, i) => {
       const icon = b.icons[i]!;
       if (this.hasIcon(light.id)) icon.image.setFrame(light.id);

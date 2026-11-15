@@ -18,5 +18,13 @@
   "task.callHome": "E: llamar a casa",
   "outcome.out": "¡Llegaron a Marte! Ahora viene el aterrizaje.",
   "outcome.back": "¡Llegaron a la Tierra! Ahora viene la reentrada.",
-  "outcome.suspended": "Misión suspendida: la tripulación está a salvo en el refugio esperando el rescate."
+  "outcome.suspended": "Misión suspendida: la tripulación está a salvo en el refugio esperando el rescate.",
+  "task.navigate": "E: navegar con las estrellas",
+  "station.navigate": "Rumbo",
+  "task.checkup": "E: chequeo médico",
+  "station.checkup": "Salud",
+  "task.cook": "E: preparar la comida",
+  "station.cook": "Comida",
+  "task.shield": "E: revisar el refugio",
+  "station.shield": "Escudo"
 }

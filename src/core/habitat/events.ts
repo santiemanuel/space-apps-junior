@@ -7,7 +7,7 @@ import type { AlertLevel } from '../meters/types';
 import type { GameState } from '../state/types';
 import type { Point } from './layout';
 import type { HabitatTask } from './types';
-import type { PendingDecision } from './HabitatSession';
+import type { PendingDecision, ZoneMinigame } from './HabitatSession';
 
 /** Pedido a Control de Misión (§3.7): la respuesta llega tras la demora de ida y vuelta de la señal. */
 export interface MissionControlRequest {
@@ -92,4 +92,10 @@ export interface SimulationEvents {
   /** Tablero de energía: sistemas desenchufados. */
   'sim:loads': { off: string[] };
   'sim:ask': { kind: 'advice' | 'diagnosis'; incidentId: string };
+  /** El mapa abre el minijuego de una zona (E); `reward` y `badge` ya vienen traducidos para el cartel final. */
+  'sim:minigame': ZoneMinigame & { reward: string; badge: string | null };
+  /** Minijuego ganado: la sesión termina la tarea de la zona. */
+  'sim:minigameWon': { zone: string };
+  /** Se cerró el minijuego (ganado o con Esc). */
+  'sim:minigameClosed': { zone: string };
 }

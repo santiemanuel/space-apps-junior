@@ -1,0 +1,9 @@
+STYLE (applies to everything): retro pixel art for a kids' top-down 2D space game. The attached image is ONLY a style reference (dark outlines, soft cel shading, lavender-gray metal, blue tech accents, orange and yellow lights); do not copy its layout. Very low resolution with big chunky square pixels, every pixel block the same size across the whole image. Limited palette, no anti-aliasing, no gradients, no glow halos, no blur. Absolutely no text, letters, numbers or logos.
+
+IMAGE: a square sprite sheet with FOUR small game props arranged in a 2 x 2 grid, each prop centered in its own quadrant with wide empty margins (props never touch or overlap). Draw it as if on a 128 x 128 pixel canvas enlarged: each prop is only about 40 to 48 big pixels wide. Props for a top-down 2D game seen from a high three-quarter overhead angle (we see the top face and the front face of each object). Clean 1-pixel dark outline around each silhouette. Genuinely TRANSPARENT background (real alpha channel): no floor, no ground shadows, no backdrop, no grid lines, no frames.
+
+Quadrants:
+- Top-left: carbon dioxide molecule: a cute chunky ball-and-stick model, one dark charcoal-gray sphere in the center with one red sphere stuck on each side in a straight horizontal line, small white shine highlights
+- Top-right: oxygen molecule: a cute chunky ball-and-stick model of exactly two red spheres joined side by side, small white shine highlights
+- Bottom-left: air scrubber cartridge: short metal cylinder canister with blue end caps and a small window showing white granules inside
+- Bottom-right: a single big glossy light-blue water drop with a white shine highlight

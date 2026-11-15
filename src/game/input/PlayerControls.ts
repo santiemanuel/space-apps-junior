@@ -5,6 +5,8 @@ export interface PlayerControls {
   /** Vector de movimiento normalizado (-1..1 por eje). */
   movement(): { x: number; y: number };
   interactHeld(): boolean;
+  /** E (o espacio) recién apretada: abre el minijuego de la sala. */
+  interactJustPressed(): boolean;
   choiceJustPressed(): 1 | 2 | 3 | null;
   restartJustPressed(): boolean;
 }
@@ -25,6 +27,7 @@ export function createKeyboardControls(scene: Phaser.Scene): PlayerControls {
       return { x: x / length, y: y / length };
     },
     interactHeld: () => down(keys.E, cursors.space),
+    interactJustPressed: () => [keys.E, cursors.space].map(just).some(Boolean),
     choiceJustPressed: () => (just(keys.ONE) ? 1 : just(keys.TWO) ? 2 : just(keys.THREE) ? 3 : null),
     restartJustPressed: () => just(keys.R),
   };

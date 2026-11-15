@@ -10,7 +10,7 @@ import {
 import { initialCascade, type ActiveEmergency, type CascadeEvent, type CascadeState } from '../cascade/types';
 import type { ClockEvent, MissionClock } from '../clock/MissionClock';
 import { createPhaseClock, type PhaseWindow, type TimedPhase } from '../clock/schedule';
-import { efficiency, reactionSeconds, usesOptimalRoute, withSlowReasons, workSpeed } from '../crew/efficiency';
+import { efficiency, reactionSeconds, ROLE_SPECIALTIES, usesOptimalRoute, withSlowReasons, workSpeed, type TaskCategory } from '../crew/efficiency';
 import { DEFAULT_ROUTINE, isValidRoutine, routineActivities, type RoutinePlan } from '../crew/routines';
 import type { CrewId, CrewMemberState } from '../crew/types';
 import type { DailyDose } from '../environment/series';
@@ -41,6 +41,10 @@ import type { IncidentState } from '../incidents/types';
 import { doseMSv, qualityFactor, shieldingFactor } from '../meters/dose';
 import { stepMeters, type CrewActivity, type MeterEnvironment, type MeterPlan } from '../meters/step';
 import type { AlertLevel } from '../meters/types';
+import { clamp } from '../math';
+import { INCIDENT_MINIGAMES } from '../minigames/catalog';
+import type { MinigameId, MinigameSetup } from '../minigames/Minigame';
+import { DISH_IDS, type DishId, type MealStage } from '../minigames/rooms';
 import { Rng } from '../rng/Rng';
 import type { GameState, HabitatSave } from '../state/types';
 import type { SystemId } from '../systems/types';
@@ -81,8 +85,28 @@ export interface HabitatInput {
 /** Qué puede hacer el jugador en una zona: trabajar en un incidente o una tarea de la nave. */
 export type ZoneTask =
   | { kind: 'incident'; incident: IncidentState; textKey: string; progress: number }
-  /** `upToDate`: mantenimiento al día; hasta que haga falta, trabajar ahí no suma nada. */
-  | { kind: 'task'; task: HabitatTask; progress: number; upToDate?: boolean };
+  /**
+   * `upToDate`: mantenimiento al día (o ejercicio, llamada o cuidado ya hechos hoy); hasta que haga falta, trabajar
+   * ahí no suma nada. `blockedKey`: por qué no se puede ahora (clave de texto).
+   */
+  | { kind: 'task'; task: HabitatTask; progress: number; upToDate?: boolean; blockedKey?: string };
+
+/** Minijuego que abre E en una zona, con su preparación. */
+export interface ZoneMinigame {
+  zone: string;
+  id: MinigameId;
+  setup: MinigameSetup;
+}
+
+/** Cocina del día: qué abre E donde está el jugador (`action`, null si no está junto a nada) y qué le toca hacer. */
+export interface KitchenStep {
+  dish: DishId;
+  action: MealStage | null;
+  next: MealStage;
+}
+
+/** Hasta dónde llega la mano (tiles): al recetario y a la mesada de la cocina [regla]. */
+const KITCHEN_REACH = 1.6;
 
 /** Lo que el paso ya sabe antes de los medidores: ajustes de la cascada y de las respuestas a incidentes. */
 export interface StepContext {
@@ -144,6 +168,12 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private shelter: { incidentId: string; orderedAtS: number; reached: boolean } | null = null;
   private readonly maintenance: Partial<Record<SystemId, { hoursSince: number; progress: number }>> = {};
   private callProgress = 0;
+  /** Llamadas a casa hechas con el minijuego que todavía no pasaron por los medidores. */
+  private pendingCalls = 0;
+  /** Día (AAAA-MM-DD) en que se hizo por última vez cada tarea diaria (`exercise:<tripulante>` para el ejercicio). */
+  private readonly doneOn: Record<string, string> = {};
+  /** Cocina del día (AAAA-MM-DD): si ya se vio el menú y si ya se leyó la receta. */
+  private kitchen = { day: '', menu: false, read: false };
   private realSeconds = 0;
   protected routines: RoutinePlan;
   private readonly loadsOff = new Set<string>();
@@ -477,9 +507,154 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     }
     const task = this.content.tasks.find((t) => t.zone === zone);
     if (!task) return null;
-    if (task.kind === 'maintenance' && !this.needsMaintenance(this._state, task)) return { kind: 'task', task, progress: 1, upToDate: true };
+    const s = this._state;
+    if (task.kind === 'maintenance' && !this.needsMaintenance(s, task)) return { kind: 'task', task, progress: 1, upToDate: true };
+    if (this.doneOn[this.dailyKey(task)] === s.simDate.slice(0, 10) && !(task.kind === 'callHome' && this.callAnswersIncident(s)))
+      return { kind: 'task', task, progress: 1, upToDate: true };
     const progress = task.system ? (this.maintenance[task.system]?.progress ?? 0) : task.kind === 'callHome' ? this.callProgress : 0;
-    return { kind: 'task', task, progress };
+    const blockedKey =
+      task.system && s.systems[task.system] === 'red'
+        ? 'hud.task.broken'
+        : task.kind === 'callHome' && (this.loadsOff.has('radio') || s.systems.radio === 'red')
+          ? 'hud.task.radioOff'
+          : undefined;
+    return { kind: 'task', task, progress, ...(blockedKey ? { blockedKey } : {}) };
+  }
+
+  private dailyKey(task: HabitatTask): string {
+    return task.kind === 'exercise' ? `exercise:${this._state.activeCrewId}` : task.id;
+  }
+
+  /** Hay un aislamiento esperando una llamada a casa: se puede volver a llamar aunque ya se haya llamado hoy. */
+  private callAnswersIncident(s: GameState): boolean {
+    return s.activeIncidents.some((incident) =>
+      definitionOf(this.content.incidents, incident.definitionId).responses.some((r) => r.resets === 'hoursSinceCallHome' && canRespond(this.ctx, s, incident.id, r.id)),
+    );
+  }
+
+  /**
+   * Minijuego que abre E en una zona: el de la reparación del incidente en curso o el de la tarea del cuarto. Más
+   * fácil en modo ayuda o si el tripulante es especialista (§3.3); más difícil si se eligió improvisar. En la
+   * cocina depende de dónde está parado (`position`, en tiles; sin ella, junto a la mesada).
+   */
+  minigameAt(zone: string | null, position?: Point): ZoneMinigame | null {
+    const task = this.taskAt(zone);
+    const s = this._state;
+    const member = s.crew.find((m) => m.id === s.activeCrewId);
+    if (!zone || !task || !member || member.resting || (task.kind === 'task' && (task.upToDate || task.blockedKey))) return null;
+    let id: MinigameId | undefined;
+    let category: TaskCategory;
+    const setup: Omit<MinigameSetup, 'seed'> = { delaySeconds: this.delaySeconds };
+    if (task.kind === 'incident') {
+      const def = definitionOf(this.content.incidents, task.incident.definitionId);
+      const response = def.responses.find((r) => r.id === task.incident.responseId);
+      if (!response?.work) return null;
+      category = response.work.task;
+      id = def.id === 'micrometeoroid' ? 'patch' : (INCIDENT_MINIGAMES[category] ?? this.content.tasks.find((t) => t.zone === zone)?.minigame ?? 'patch');
+      setup.hard = response.risk !== 'green';
+      setup.pests = def.id === 'greenhousePest';
+    } else {
+      id = task.task.minigame;
+      category = task.task.category;
+      if (id === 'meal') {
+        const kitchen = this.kitchenAt(zone, position);
+        if (!kitchen?.action) return null;
+        setup.meal = { dish: kitchen.dish, stage: kitchen.action };
+      }
+    }
+    if (!id) return null;
+    setup.easy = s.helpMode || ROLE_SPECIALTIES[member.role].includes(category);
+    return { zone, id, setup: { ...setup, seed: hashOf(`${s.seed}|${s.simDate}|${zone}|${s.activeCrewId}`) } };
+  }
+
+  /**
+   * Cocina del día (cuidado con el minijuego `meal`): primero el menú en la mesada, después la receta en el recetario
+   * y de vuelta en la mesada, cocinar. Null fuera de la cocina o si ya se cocinó hoy.
+   */
+  kitchenAt(zone: string | null, position?: Point): KitchenStep | null {
+    const task = this.taskAt(zone);
+    if (!zone || task?.kind !== 'task' || task.task.minigame !== 'meal' || task.upToDate || task.blockedKey) return null;
+    const k = this.kitchenToday();
+    const next: MealStage = k.read ? 'cook' : k.menu ? 'recipe' : 'menu';
+    const near = (p: Point) => !position || Math.hypot(position.x - p.x, position.y - p.y) <= KITCHEN_REACH;
+    const { recipeAt } = task.task;
+    const action = position && recipeAt && near(recipeAt) ? 'recipe' : near(zoneSpot(zoneById(this.content.layout, zone))) ? (k.read ? 'cook' : 'menu') : null;
+    return { dish: k.dish, action, next };
+  }
+
+  private kitchenToday(): { dish: DishId; menu: boolean; read: boolean } {
+    const day = this._state.simDate.slice(0, 10);
+    if (this.kitchen.day !== day) this.kitchen = { day, menu: false, read: false };
+    return { ...this.kitchen, dish: DISH_IDS[hashOf(`${this._state.seed}|${day}|meal`) % DISH_IDS.length]! };
+  }
+
+  /** Se abrió un minijuego: en la cocina, queda visto el menú o leída la receta. */
+  minigameStarted(m: ZoneMinigame): void {
+    const stage = m.setup.meal?.stage;
+    if (!stage || stage === 'cook') return;
+    this.kitchenToday();
+    this.kitchen.menu = true;
+    if (stage === 'recipe') this.kitchen.read = true;
+  }
+
+  /**
+   * Minijuego ganado: termina de una vez lo que antes se hacía manteniendo apretada E (la reparación, el
+   * mantenimiento, el ejercicio, la llamada o el cuidado del día). El trabajo cansa lo mismo que hecho a mano.
+   */
+  finishTask(zone: string): boolean {
+    const task = this.taskAt(zone);
+    let s = this._state;
+    const member = s.crew.find((m) => m.id === s.activeCrewId)!;
+    if (!task || this._outcome || member.resting) return false;
+    const co2 = s.meters.lifeSupport.co2MmHg;
+    if (task.kind === 'incident') {
+      const work = definitionOf(this.content.incidents, task.incident.definitionId).responses.find((r) => r.id === task.incident.responseId)?.work;
+      if (!work) return false;
+      s = this.tired(s, member.id, ((1 - task.progress) * work.hours) / workSpeed(member, work.task, co2));
+      const r = workOnIncident(this.ctx, this._planner, s, task.incident.id, member.id, 1e6);
+      this._planner = r.planner;
+      this._state = r.state;
+      this.handleIncidentEvents(r.events);
+    } else {
+      const t = task.task;
+      if (task.upToDate || task.blockedKey) return false;
+      if (t.kind === 'maintenance' && t.system) {
+        const hours = ((1 - task.progress) * this.content.wear.maintenanceHours) / workSpeed(member, t.category, co2);
+        this._state = this.maintained(this.tired(s, member.id, hours), t);
+      } else if (t.kind === 'exercise') {
+        // Un minijuego es el ejercicio de todo el día (§3.2): la condición sube lo que se habría perdido sin él.
+        const h = this.content.meterRules.health;
+        const gain = h.conditionGainPerDayExercise + h.conditionLossPerDayNoExercise;
+        this._state = { ...s, crew: s.crew.map((m) => (m.id === member.id ? { ...m, condition: clamp(m.condition + gain) } : m)) };
+      } else if (t.kind === 'callHome') {
+        this.callProgress = 0;
+        this.pendingCalls++;
+        this._state = this.answerWithCall(s);
+        this.handleIncidentEvents([]);
+      } else if (t.care) {
+        const { morale = 0, condition = 0 } = t.care;
+        this._state = { ...s, crew: s.crew.map((m) => ({ ...m, morale: clamp(m.morale + morale), condition: clamp(m.condition + condition) })) };
+      }
+      this.doneOn[this.dailyKey(t)] = s.simDate.slice(0, 10);
+    }
+    this.publishState();
+    this.publishSnapshot();
+    return true;
+  }
+
+  /** Cansancio de `hours` de trabajo (el que daría hacerlo manteniendo apretada E). */
+  private tired(s: GameState, id: CrewId, hours: number): GameState {
+    const k = this.content.meterRules.health.fatiguePerWorkHour;
+    return { ...s, crew: s.crew.map((m) => (m.id === id ? { ...m, fatigue: clamp(m.fatigue + Math.max(0, hours) * k) } : m)) };
+  }
+
+  /** Mantenimiento terminado: el sistema vuelve a verde y, si corresponde, se reinicia su contador. */
+  private maintained(s: GameState, task: HabitatTask): GameState {
+    const m = this.maintenance[task.system!]!;
+    m.progress = 0;
+    m.hoursSince = 0;
+    if (task.resets) this._planner = { ...this._planner, counters: { ...this._planner.counters, [task.resets]: 0 } };
+    return s.systems[task.system!] === 'yellow' ? { ...s, systems: { ...s.systems, [task.system!]: 'green' } } : s;
   }
 
   /**
@@ -628,6 +803,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
         if (task && workHours > 0) s = this.work(s, m.id, task.zone, workHours, true).state;
       }
     }
+    if (this.pendingCalls) {
+      activities[activeId] = { ...activities[activeId], callsHome: (activities[activeId]?.callsHome ?? 0) + this.pendingCalls };
+      this.pendingCalls = 0;
+    }
     // Una llamada desde la radio es de toda la tripulación con sus familias [regla].
     const playerCalls = activities[activeId]?.callsHome ?? 0;
     for (const m of s.crew) {
@@ -691,15 +870,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       const member = s.crew.find((m) => m.id === crewId)!;
       const m = this.maintenance[task.system]!;
       m.progress += (hours * workSpeed(member, task.category, s.meters.lifeSupport.co2MmHg)) / this.content.wear.maintenanceHours;
-      if (m.progress >= 1) {
-        m.progress = 0;
-        m.hoursSince = 0;
-        if (s.systems[task.system] === 'yellow') s = { ...s, systems: { ...s.systems, [task.system]: 'green' } };
-        if (task.resets) this._planner = { ...this._planner, counters: { ...this._planner.counters, [task.resets]: 0 } };
-      }
+      if (m.progress >= 1) s = this.maintained(s, task);
       return { state: s, activity: { workHours: hours } };
     }
-    if (auto) return { state: s, activity: {} };
+    if (auto || task.kind === 'care') return { state: s, activity: {} };
     if (task.kind === 'exercise') return { state: s, activity: { exerciseHours: hours } };
     if (this.loadsOff.has('radio') || s.systems.radio === 'red') return { state: s, activity: {} };
     this.callProgress += hours / this.content.wear.callHours;
