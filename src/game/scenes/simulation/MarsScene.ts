@@ -79,7 +79,7 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     if (ext && !s.daylight) this.markers.fillStyle(0x0b1020, 0.45).fillRect(ext.col * TILE, ext.row * TILE, ext.cols * TILE, ext.rows * TILE);
     for (const { site, progress } of s.remainingSites()) {
       const p = toPx(site);
-      const r = 6 + site.massKg * 3;
+      const r = 6 + site.massKg;
       this.markers.fillStyle(0xd69e2e, 0.95).fillCircle(p.x, p.y, r);
       this.markers.lineStyle(2, 0xfefcbf, 0.9).strokeCircle(p.x, p.y, r + 3);
       if (progress > 0) this.markers.lineStyle(3, 0x63b3ed, 1).beginPath().arc(p.x, p.y, r + 7, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2).strokePath();

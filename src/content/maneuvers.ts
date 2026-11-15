@@ -7,8 +7,14 @@ import { METER_RULES } from './meters';
 
 /**
  * Las cuatro maniobras (game-design §4.0, §4.1, §4.3, §4.5, §4.7). Velocidades y anchos de zona son [regla].
- * Las cifras físicas que muestra cada etapa están en `src/i18n/*\/maneuvers.json` y se presentan como estimación
- * hasta verificarlas (§10).
+ * Las cifras físicas que muestra cada etapa están en `src/i18n/*\/maneuvers.json` [dato]:
+ * - Aterrizaje (Perseverance, 2021): entrada a ~20 000 km/h; escudo a ~1300 °C en el pico de calentamiento;
+ *   paracaídas supersónico a ~11 km de altura y ~1512 km/h.
+ *   https://www.nasa.gov/image-article/perseverance-rover-decelerates-martian-atmosphere/ ·
+ *   https://www.nasa.gov/image-article/perseverance-deploys-parachute/
+ * - Reentrada (Orion, Artemis I, 2022): ~40 000 km/h, ~2800 °C, el plasma corta las comunicaciones un rato y los
+ *   paracaídas la frenan a menos de 32 km/h. https://www.nasa.gov/artemis-i-press-kit/ ·
+ *   https://www.nasa.gov/blogs/missions/2022/12/11/artemis-i-flight-day-26-orion-crew-module-separation-from-service-module-complete/
  */
 export const MANEUVERS: Record<ManeuverId, ManeuverDefinition> = {
   ascent: {

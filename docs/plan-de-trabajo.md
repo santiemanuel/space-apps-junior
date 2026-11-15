@@ -447,7 +447,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 - `Loadout` modo `return`: límite de masa, muestras contra comida, agua y repuestos; recordatorio de que el agua
   también es blindaje.
 - Hecho: `TitleScene` (+ `core/flow/titleMenu.ts`, `core/flow/newGame.ts`, `content/missionStart.ts`) y `LoadoutScene`
-  (+ `core/loadout/loadout.ts`, `content/loadouts.ts`). Límite de vuelta provisional: 1650 kg [regla]. Dev:
+  (+ `core/loadout/loadout.ts`, `content/loadouts.ts`). Límite de vuelta: 1660 kg [regla] (ver §11). Dev:
   `?scene=Title&level=3&save=1`, `?scene=Loadout&level=4`, `?scene=Loadout&mode=return`.
 
 ### F7 · `DataCard` y `Report`
@@ -479,7 +479,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 
 ### Entregables de Facundo
 
-- [ ] `i18n` completo y textos actuales migrados.
+- [x] `i18n` completo y textos actuales migrados (revisado en la integración: en `src/game/` sólo quedan nombres propios como "Curiosity").
 - [x] `createCrewSprite` con los 4 personajes animados y el cambio por Tab.
 - [x] `core/flow`, `maneuvers`, `save`, `progression` con tests.
 - [x] `Title`, `Loadout`, `Maneuver` (4 configuraciones), `DataCard`, `Report`, `Pause`.
@@ -579,10 +579,10 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 - [ ] Prueba manual en `npm run dev`: las 7 fases en orden, en ES y en EN.
 - [ ] Guardar en `Voyage`, recargar la página y continuar con el mismo estado.
 - [ ] La tormenta de mayo de 2024 frena el reloj, se tiñe de amarillo y abre su `DataCard`.
-- [ ] Un medidor en cero entra en cascada y no termina la partida.
-- [ ] `EnvironmentSnapshot.source` dice "archivo" cuando el dato no es en vivo.
-- [ ] Ningún texto de UI escrito en el código; todas las claves existen en `es` y `en`.
-- [ ] Revisión cruzada: cada uno revisa la parte del otro.
+- [x] Un medidor en cero entra en cascada y no termina la partida (`VoyageSession.test.ts`, "sin aire entra en emergencia").
+- [x] Los datos archivados nunca se presentan como en vivo: el tablero dice "Dato real archivado del <fecha> · <fuente>" y cada tarjeta muestra la fecha del dato. (Reemplaza al criterio de `EnvironmentSnapshot.source`, que sólo usaba el prototipo lunar.)
+- [x] Ningún texto de UI escrito en el código; todas las claves existen en `es` y `en`.
+- [ ] Revisión cruzada: cada uno revisa la parte del otro. (En la integración se revisaron las convenciones de `AGENTS.md` en todo el código: sin `Math.random`, sin textos en el código, capas respetadas; falta la revisión entre personas.)
 
 ---
 
@@ -594,8 +594,8 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 | ~~Antelación real DONKI→RadLab en mayo y octubre de 2024~~ Hecho: mayo 69 h, octubre 1,9 h (ver `datasets/README.md`) | Santiago | S1 |
 | ~~Factores Q por fase (Hassler 2014, Zeitlin 2013)~~ Hecho: 3,05 y 3,8, citados en `datasets/curated/radiation-dose.json` | Santiago | S2 |
 | ~~Mínimas de REMS por debajo de −90 °C~~ Hecho: son artefactos aislados, se reemplazan por la mediana vecina (ver `datasets/README.md`) | Santiago | S8 |
-| Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I) | Facundo | F5 |
-| Límites de masa de las cargas de ida y vuelta | Facundo | F6 |
+| ~~Cifras de aterrizaje (Curiosity/Perseverance) y reentrada (Orion/Artemis I)~~ Hecho: Perseverance y Orion con fuentes de la NASA en `src/content/maneuvers.ts` y game-design §4.3, §4.7 | Facundo | F5 |
+| ~~Límites de masa de las cargas de ida y vuelta~~ Hecho: los tres perfiles de ida pesan 2700 kg; la vuelta tiene 1660 kg y las muestras de Gale pesan 4–14 kg, así que con lo recomendado entran 3 o 4 de 8 (`src/content/loadouts.test.ts`) | Facundo | F6 |
 | Pesos de la eficiencia y márgenes de la cascada: ajustar con pruebas con niños | Ambos | Después de la integración |
 
 ---

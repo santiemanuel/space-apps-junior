@@ -36,7 +36,7 @@ Plataforma: **PC con teclado y mouse**.
 | 4. Estancia en Marte | **Polvo y frío** | La atmósfera protege de la radiación pero tapa el sol | REMS y RAD de Curiosity (cráter Gale) |
 | 5. Despegue de Marte | Masa: muestras contra suministros | Lo que te llevás a casa también pesa | Reglas de carga (4.5) |
 | 6. Viaje de vuelta | Radiación con una nave y una tripulación gastadas | Las decisiones de la ida se pagan en la vuelta | RadLab: BioSentinel; DONKI |
-| 7. Reentrada a la Tierra | Calor y precisión | Volver también es difícil | Secuencia de reentrada de cápsulas tripuladas [verificar cifras] |
+| 7. Reentrada a la Tierra | Calor y precisión | Volver también es difícil | Reentrada de Orion en Artemis I (NASA) |
 
 El contraste entre fases es medible: durante la tormenta de mayo de 2024, el espacio profundo registró
 **653 μGy/h** (BioSentinel) y la superficie de Marte **304 μGy/h** (Curiosity) [dato, RadLab]. Son instrumentos
@@ -365,12 +365,13 @@ falta en Marte.
 ### 4.3 Fase 3 — Aterrizaje en Marte (básico)
 
 Maniobra (4.0) con cuatro etapas:
-1. Entrada a la atmósfera (escudo térmico a ~2000 °C).
-2. Paracaídas a ~Mach 1,7.
+1. Entrada a la atmósfera a ~20 000 km/h (escudo térmico a ~1300 °C en el pico de calentamiento).
+2. Paracaídas supersónico a ~11 km de altura y ~1500 km/h.
 3. Separación del escudo.
 4. Motores de descenso.
 
-Son los valores de Curiosity y Perseverance [verificar las cifras exactas].
+Son los valores de Perseverance (2021) según la NASA ([desaceleración](https://www.nasa.gov/image-article/perseverance-rover-decelerates-martian-atmosphere/),
+[paracaídas](https://www.nasa.gov/image-article/perseverance-deploys-parachute/)) [dato].
 
 - **Dificultad:** depende de la precisión de la trayectoria, la carga y el polvo real del día.
 - **Resultado:** la distancia a la base. Más distancia → más salidas al exterior → más polvo y dosis. Nunca hay "choque" ni muerte.
@@ -424,7 +425,8 @@ Mismo mapa y tareas que la ida, con tres diferencias para que no se repita:
 ### 4.7 Fase 7 — Reentrada a la Tierra
 
 Maniobra (4.0) con tres etapas: orientar el escudo térmico, reentrada (zona de calor y apagón de comunicaciones),
-paracaídas y amerizaje [verificar cifras de cápsulas tripuladas: Orion/Artemis I]. Cierra con la tripulación
+paracaídas y amerizaje. Cifras de Orion en Artemis I: ~40 000 km/h, ~2800 °C, el plasma corta las comunicaciones un
+rato y los paracaídas la frenan a menos de 32 km/h ([press kit](https://www.nasa.gov/artemis-i-press-kit/)) [dato]. Cierra con la tripulación
 caminando o en camilla según su condición física, y da paso al informe de misión.
 
 ## 5. Objetivos, puntuación y final
@@ -489,7 +491,7 @@ Así se aprende un sistema por vez y el juego cambia al rejugar.
 - [ ] Simulaciones WSA-ENLIL de DONKI con impactos en Marte (para eventos en superficie fuera de RAD).
 - [ ] Error típico de las predicciones de llegada de CME (CCMC CME Scoreboard).
 - [x] Mínimas < −90 °C de REMS (40 soles): caídas aisladas de ~30 °C, tratadas como artefacto (ver `datasets/README.md`). (Los máximos de BioSentinel se resolvieron con el tope de 3.2.1.)
-- [ ] Cifras del aterrizaje (velocidad de entrada, temperatura del escudo, Mach del paracaídas) y de la reentrada de Orion.
+- [x] Cifras del aterrizaje y de la reentrada: Perseverance (~20 000 km/h, escudo ~1300 °C, paracaídas a ~1500 km/h y 11 km) y Orion en Artemis I (~40 000 km/h, ~2800 °C, menos de 32 km/h al amerizar), con sus fuentes en 4.3, 4.7 y `src/content/maneuvers.ts`.
 - [x] Factores Q por fase: Marte 3,05 (0,64 mSv / 0,21 mGy, Hassler 2014); crucero 3,8 (1,84 mSv / 0,48 mGy, Zeitlin 2013).
 - [x] Antelación real entre detección en DONKI y pico en RadLab para los eventos de la campaña: mayo de 2024, 69 h (X1.0 de la región 13664 el 08/05 → subida en BioSentinel el 11/05); octubre de 2024, 1,9 h (X1.8 del 09/10). Detalle en `datasets/README.md`.
 - [ ] Hallazgos de Mars-500 sobre sueño y actividad (Basner et al. 2013, PNAS).

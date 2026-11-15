@@ -58,7 +58,7 @@ describe('carga de ida', () => {
     const next = applyOutboundLoadout(state, OUTBOUND_PROFILES.workshop);
     expect(next).toMatchObject({ loadout: 'workshop', waterShield: 0.25 });
     expect(next.inventory).toMatchObject({ spares: 8, foodKg: 2000 });
-    expect(next.meters.lifeSupport.waterL).toBe(200);
+    expect(next.meters.lifeSupport.waterL).toBe(OUTBOUND_PROFILES.workshop.waterL);
     expect(next.history.at(-1)).toMatchObject({ phase: 'prep', kind: 'loadout', key: 'outbound.workshop' });
     expect(state.loadout).toBeNull();
   });

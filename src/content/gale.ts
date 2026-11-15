@@ -76,8 +76,9 @@ export const MARS_CONTENT: MarsContent = {
   daylight: { sunriseHour: 6, sunsetHour: 18 },
   samples: {
     count: 8,
-    minMassKg: 0.5,
-    maxMassKg: 2.5,
+    // Caja de muestras con su contenedor [regla]: compiten con los suministros en la carga de vuelta (§4.5).
+    minMassKg: 4,
+    maxMassKg: 14,
     baseValue: 10,
     valuePerTile: 2,
     collectHours: 1,
