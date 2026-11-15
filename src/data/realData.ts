@@ -26,6 +26,22 @@ export function seriesFor(phase: TimedPhase, date: string): PhaseSeries {
   return { site, dose: doseRateOn(site, date), weather: phase === 'mars' ? galeWeatherOn(date) : null };
 }
 
+/** Un día de la gráfica del informe: la dosis real del lugar donde estaba la tripulación. */
+export interface DailyDosePoint extends DailyDose {
+  site: DoseSite;
+}
+
+/** Dosis real día por día en [from, to], según la fase de cada fecha. Para la gráfica del informe (§5). */
+export function dailyDoses(from: string, to: string, phaseOn: (date: string) => TimedPhase): DailyDosePoint[] {
+  const points: DailyDosePoint[] = [];
+  for (let ms = Date.parse(from.slice(0, 10)); ms <= Date.parse(to); ms += 86_400_000) {
+    const date = new Date(ms).toISOString();
+    const { site, dose } = seriesFor(phaseOn(date), date);
+    points.push({ ...dose, date: date.slice(0, 10), site });
+  }
+  return points;
+}
+
 /**
  * Todos los eventos reales con fecha en [from, to): tormentas en espacio profundo y en Marte, polvo, noches
  * extremas, conjunciones y el cruce de Van Allen de Artemis I. Para el panel de datos y el informe (§3.8, §5).

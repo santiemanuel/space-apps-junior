@@ -13,6 +13,7 @@ import type { SystemStatus } from '../../../core/systems/types';
 import { t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { GAME_HEIGHT, GAME_WIDTH, TILE } from '../../display';
 import { createCrewSprite, type CrewSprite } from '../../entities/CrewSprite';
+import { bindCrewSwitch } from '../../input/crewSwitch';
 import { createKeyboardControls, type PlayerControls } from '../../input/PlayerControls';
 import { SceneKeys, type SceneKey } from '../../sceneKeys';
 import type { PhaseSceneData } from '../sceneData';
@@ -144,9 +145,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       detach();
       for (const key of [SceneKeys.Hud, ...OVERLAY_KEYS.map(([, scene]) => scene)]) this.scene.stop(key);
     });
-    // Provisional hasta F2: Tab y `crew:switched` son de Facundo (src/game/input/); quitar en la integración.
-    keyboard.addCapture('TAB');
-    keyboard.addKey('TAB').on('down', () => this.sceneData.bus.emit('crew:switched', { crewId: this.nextCrew() }));
+    bindCrewSwitch(this, this.sceneData.bus, () => this.session.state);
   }
 
   update(_time: number, deltaMs: number): void {
@@ -188,11 +187,6 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   protected showToast(text: string): void {
     this.toast.setText(text).setVisible(true);
     this.toastUntil = this.time.now + 4500;
-  }
-
-  private nextCrew(): CrewId {
-    const ids = this.session.state.crew.map((m) => m.id);
-    return ids[(ids.indexOf(this.session.state.activeCrewId) + 1) % ids.length]!;
   }
 
   private listen(): void {

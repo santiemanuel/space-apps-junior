@@ -9,15 +9,16 @@ la distancia entre los planetas. El diseño completo está en [`docs/game-design
 
 ## Estado
 
-Dos frentes en paralelo, que se unen en un pull request de integración ([`docs/plan-de-trabajo.md`](docs/plan-de-trabajo.md)):
+Los dos frentes de trabajo ([`docs/plan-de-trabajo.md`](docs/plan-de-trabajo.md)) están integrados en
+`feat/integracion`:
 
-| Frente | Rama | Estado |
-|---|---|---|
-| Simulación (Santiago): reloj, medidores, tripulación, cascada, incidentes, datos, `Voyage`, `Mars`, `Hud`, `Planning`, `MissionControl`, `DataPanel` | `feat/simulacion` | Terminado (S1–S9) |
-| Flujo y maniobras (Facundo): `Title`, `Loadout`, `Maneuver`, `DataCard`, `Report`, `Pause`, guardado, sprites animados | `feat/flujo-maniobras` | En curso |
+| Frente | Contenido |
+|---|---|
+| Simulación (Santiago) | Reloj, medidores, tripulación, cascada, incidentes, datos, `Voyage`, `Mars`, `Hud`, `Planning`, `MissionControl`, `DataPanel` |
+| Flujo y maniobras (Facundo) | `Title`, `Loadout`, `Maneuver`, `DataCard`, `Report`, `Pause`, guardado, progresión, sprites animados |
 
-Hasta la integración, `npm run dev` arranca el **prototipo de base lunar** (`Habitat`); las escenas nuevas se abren
-directamente con `?scene=` (ver abajo).
+`npm run dev` arranca la misión completa: menú → carga de ida → despegue → viaje → aterrizaje → Gale → carga de
+vuelta → despegue de Marte → viaje de vuelta → reentrada → informe. Cada escena también se abre sola con `?scene=`.
 
 ## Comandos
 
@@ -34,8 +35,9 @@ node scripts/build-events.mjs   # picos de radiación, Van Allen y avisos de DON
 node scripts/build-series.mjs   # series diarias de dosis y clima de Gale desde datasets/raw/
 ```
 
-`VITE_NASA_DATA_MODE` (en `.env`, ver `.env.example`): `live` consulta DONKI y, si falla, usa el archivo real;
-`archive` juega siempre offline. No hace falta API key. Los datos archivados nunca se presentan como "en vivo".
+El juego usa sólo datos archivados en `datasets/` y juega offline; las tarjetas muestran la fecha real de cada dato.
+El cliente de DONKI en vivo (`src/data/donki/`, `EnvironmentService`, `VITE_NASA_DATA_MODE`) quedó sin conectar al
+retirar el prototipo lunar.
 
 ### Abrir una escena sola (sólo en `npm run dev`)
 
@@ -58,12 +60,13 @@ En `Voyage` y `Mars`:
 
 - **WASD / flechas**: moverse · **E** (mantener): usar la estación del cuarto (ejercicio, mantenimiento, llamar a casa,
   juntar muestras afuera)
-- **Tab** o clic en un tripulante: cambiar de tripulante (provisional hasta la integración)
+- **Tab**: cambiar de tripulante (saltea a los que están en reposo)
 - **1 / 2 / 3** o clic: elegir la respuesta a un incidente, siempre con su coste y su semáforo
 - **P**: planificación en pausa (rutinas y tablero de energía) · **C**: Control de Misión · **G**: panel de datos
 - **M**: silenciar el monitor de partículas
+- **Esc**: pausa (continuar, guardar, guardar y salir, idioma)
 
-En el prototipo lunar: WASD, E junto a una estación, 1/2/3 en las decisiones y R para reiniciar.
+En las maniobras: flechas y Enter en el checklist, **Espacio** (o clic) en el momento justo de cada etapa.
 
 ## Datos de la NASA
 
@@ -79,10 +82,10 @@ Están en [`datasets/`](datasets/README.md), fuera de `src/`, con su catálogo, 
 | JPL: órbitas aproximadas de los planetas | Distancia Tierra–nave y Tierra–Marte por fecha → demora de la señal |
 | JPL: moratorias por conjunción solar | Días sin Control de Misión (modo libre) |
 | NASA-STD-3001 y BVAD | O2, agua, comida, CO2, ejercicio y límites de dosis |
-| NASA OSDR | Datos científicos al resolver misiones (prototipo lunar) |
 
-Cada evento real se anuncia en el juego (`realEvent:shown`); con la integración abre la tarjeta "Esto pasó de verdad"
-(`DataCard`). El panel de datos (G) muestra las series alrededor de la fecha del jugador.
+Cada evento real abre la tarjeta "Esto pasó de verdad" (`DataCard`) con el reloj en pausa y queda en el informe, que
+dibuja la dosis real de cada día de la misión junto a las decisiones. El panel de datos (G) muestra las series
+alrededor de la fecha del jugador.
 
 ## Arquitectura
 
@@ -102,8 +105,10 @@ src/
 │   ├── mars/        MarsSession: sol marciano, polvo, frío, MOXIE, invernadero, EVA y muestras
 │   ├── environment/ Series, tormentas, avisos de DONKI y órbitas
 │   ├── state/, flow/, systems/, events/   Contratos compartidos (GameState, fases, EventBus, GameEvents)
-│   ├── rng/         RNG con semilla → partidas reproducibles
-│   └── session/, resources/, missions/, decisions/   Prototipo lunar (se retira en la integración)
+│   ├── flow/        MissionFlow (fases en orden), partida nueva, menú principal
+│   ├── maneuvers/, loadout/, report/   Maniobras, cargas de ida y vuelta, informe y logros
+│   ├── save/, progression/   Guardado con versión y niveles de desbloqueo
+│   └── rng/         RNG con semilla → partidas reproducibles
 ├── data/        Puerta de entrada a datasets/ y a las APIs (series, tormentas, línea de tiempo, órbitas, DONKI)
 ├── content/     Diseño y reglas: campaña 2024, plano de la nave (ship.ts) y de Gale (gale.ts), incidentes,
 │                medidores, cascada, tripulación
@@ -111,9 +116,10 @@ src/
 ├── game/        Capa Phaser (vista + entrada). No contiene reglas.
 │   ├── scenes/flow/        Boot, Title, Loadout, Maneuver, DataCard, Report, Pause (Facundo)
 │   ├── scenes/simulation/  Voyage y Mars (SimulationMapScene) · Hud · Planning · MissionControl · DataPanel
-│   ├── entities/, input/   CrewSprite, StationView, controles de teclado
+│   ├── entities/, input/   CrewSprite animado, controles de teclado y Tab
 │   └── dev/                Arranque directo de escenas con ?scene=
-└── main.ts      Raíz de composición: conecta datos + lógica + motor
+├── fullGame.test.ts   Partida completa en Node (campaña 2024, semilla fija), de la carga de ida al informe
+└── main.ts      Crea el juego; BootScene arranca el flujo de misión (FlowDirector)
 ```
 
 **Reglas** (las verificadas por tests están en `src/architecture.test.ts` y `src/i18n/`):

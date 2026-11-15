@@ -3,7 +3,6 @@
   "loadout.sceneTitle": "Pack the ship",
   "pause.sceneTitle": "Pause",
   "boot.loading": "Getting the ship ready… {percent} %",
-  "boot.telemetry": "Receiving NASA telemetry…",
   "title.subtitle": "Take your crew to Mars and bring them back home healthy",
   "title.continue": "Continue mission",
   "title.continue.detail": "{phase} · {date}",

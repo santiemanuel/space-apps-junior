@@ -3,7 +3,6 @@
   "loadout.sceneTitle": "Cargar la nave",
   "pause.sceneTitle": "Pausa",
   "boot.loading": "Preparando la nave… {percent} %",
-  "boot.telemetry": "Recibiendo telemetría de la NASA…",
   "title.subtitle": "Llevá a tu tripulación a Marte y traela de vuelta a casa sana",
   "title.continue": "Continuar misión",
   "title.continue.detail": "{phase} · {date}",

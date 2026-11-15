@@ -41,7 +41,7 @@ describe('informe de misión', () => {
   it('junta los logros otorgados por las fases con los que se deducen del final', () => {
     const state = finalState({
       achievements: ['shelterInTime'],
-      history: [{ simDate: '2024-05-25T00:00:00Z', phase: 'mars', kind: 'incident', key: 'dustStorm' }],
+      history: [{ simDate: '2024-05-25T00:00:00Z', phase: 'mars', kind: 'incident', key: 'incidents.dustStorm.title' }],
     });
     const report = buildReport(state, 'completed', ACHIEVEMENTS, REPORT_RULES);
     expect(earnedAchievements(report)).toEqual(['shelterInTime', 'likeOpportunity', 'survivedX9']);
@@ -60,6 +60,24 @@ describe('informe de misión', () => {
     const report = buildReport(state, 'completed', ACHIEVEMENTS, REPORT_RULES);
     expect(report.decisions.map((e) => e.key)).toEqual(['outbound.balanced', 'ascent']);
     expect(report.realEvents.map((e) => e.id)).toEqual(['rad-2024-05-20']);
+  });
+
+  it('de cada incidente de la simulación queda una sola línea (aviso, impacto y fin van juntos)', () => {
+    const incident = (status: string, simDate: string) =>
+      ({ simDate, phase: 'cruiseOut', kind: 'incident', key: 'incidents.radiationStorm.title', data: { incidentId: 'storm-1', status } }) as const;
+    const state = finalState({
+      history: [
+        incident('warned', '2024-05-09T00:00:00Z'),
+        { simDate: '2024-05-09T02:00:00Z', phase: 'cruiseOut', kind: 'decision', key: 'incidents.radiationStorm.response.goToShelter.title' },
+        incident('active', '2024-05-11T00:00:00Z'),
+        incident('resolved', '2024-05-12T00:00:00Z'),
+      ],
+    });
+    const report = buildReport(state, 'completed', ACHIEVEMENTS, REPORT_RULES);
+    expect(report.decisions.map((e) => [e.kind, e.data?.status])).toEqual([
+      ['incident', 'warned'],
+      ['decision', undefined],
+    ]);
   });
 
   it('un evento real se guarda en el historial y se recupera igual, con sus parámetros', () => {

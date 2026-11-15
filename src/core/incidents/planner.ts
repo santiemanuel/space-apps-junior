@@ -6,6 +6,7 @@ import type { GameEvents } from '../events/GameEvents';
 import type { RealEvent } from '../events/RealEvent';
 import type { PhaseId, UnlockLevel } from '../flow/types';
 import { clamp } from '../math';
+import { realEventLogEntry } from '../report/report';
 import type { Rng } from '../rng/Rng';
 import type { GameState, MissionLogEntry } from '../state/types';
 import type {
@@ -177,7 +178,7 @@ class Draft {
     const real = this.ctx.timeline.find((e) => e.realEvent.id === incident.realEventId)?.realEvent;
     if (real) {
       this.events.push({ type: 'realEvent', event: real });
-      this.log('realEvent', real.id);
+      this.history.push(realEventLogEntry(real, this.state));
     }
     return started;
   }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INCIDENT_RULES } from '../content/incidents';
 import { noticesBetween, noticeText } from '../core/environment/notices';
 import { DONKI_NOTICES } from './notices';
-import { cruiseSiteFor, eventsBetween, seriesFor } from './realData';
+import { cruiseSiteFor, dailyDoses, eventsBetween, seriesFor } from './realData';
 import { VAN_ALLEN } from './vanAllen';
 
 describe('seriesFor', () => {
@@ -17,6 +17,20 @@ describe('seriesFor', () => {
     expect(seriesFor('cruiseOut', '2024-05-11T00:00:00Z')).toMatchObject({ site: 'deepSpace', weather: null });
     expect(cruiseSiteFor('2016-06-01')).toBe('marsCruise');
     expect(seriesFor('cruiseBack', '2016-06-01T00:00:00Z').site).toBe('marsCruise');
+  });
+});
+
+describe('dailyDoses', () => {
+  it('da un punto por día con la serie del lugar de cada fase', () => {
+    const points = dailyDoses('2024-05-13T00:00:00Z', '2024-05-17T06:00:00Z', (date) => (date < '2024-05-15' ? 'cruiseOut' : 'mars'));
+    expect(points.map((p) => [p.date, p.site])).toEqual([
+      ['2024-05-13', 'deepSpace'],
+      ['2024-05-14', 'deepSpace'],
+      ['2024-05-15', 'marsSurface'],
+      ['2024-05-16', 'marsSurface'],
+      ['2024-05-17', 'marsSurface'],
+    ]);
+    expect(points[2]).toMatchObject(seriesFor('mars', '2024-05-15T00:00:00Z').dose);
   });
 });
 

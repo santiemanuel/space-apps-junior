@@ -68,6 +68,6 @@
   "result.arrival.walk": "{name} baja caminando",
   "result.arrival.stretcher": "{name} baja en camilla: su cuerpo se desacostumbró a la gravedad",
   "result.continue": "Continuar",
-  "vanAllen.kidValue": "Es lo más fuerte que midió Artemis I en todo su viaje, pero dura poco: la nave cruza rápido.",
-  "vanAllen.explanation": "Los cinturones de Van Allen son zonas alrededor de la Tierra donde el campo magnético atrapa partículas del Sol. Nos protegen acá abajo, pero al cruzarlos la dosis sube: mirá tu medidor de salud."
+  "dust.Moderate": "Curiosity ve algo de polvo en el aire de Gale hoy: la barra va un poco más rápido.",
+  "dust.Low": "Curiosity ve mucho polvo en el aire de Gale hoy: la barra va más rápido."
 }

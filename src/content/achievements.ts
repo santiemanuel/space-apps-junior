@@ -1,6 +1,10 @@
 import type { AchievementDefinition, ReportRules } from '../core/report/report';
 import { CAREER_DOSE_LIMIT_MSV, CHEST_XRAY_MSV } from '../data/curated';
+import { INCIDENTS } from './incidents';
 import { MANEUVER_RULES } from './maneuvers';
+
+/** La simulación anota cada incidente en el historial con la clave de su título. */
+const DUST_STORM_KEY = `${INCIDENTS.find((d) => d.id === 'dustStorm')!.textKey}.title`;
 
 /**
  * Logros del informe (game-design §5). "Refugio a tiempo" y "Cero radiografías extra" los otorga la simulación
@@ -9,7 +13,7 @@ import { MANEUVER_RULES } from './maneuvers';
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   { id: 'shelterInTime' },
   // "Como Opportunity": vivir una tormenta de polvo en Marte y seguir adelante.
-  { id: 'likeOpportunity', earned: (state) => state.history.some((e) => e.kind === 'incident' && e.key === 'dustStorm') },
+  { id: 'likeOpportunity', earned: (state) => state.history.some((e) => e.kind === 'incident' && e.key === DUST_STORM_KEY) },
   { id: 'zeroExtraXrays' },
   // La campaña vuelve pasando por la llamarada X9.0 del 03/10/2024 (§2.2).
   { id: 'survivedX9', earned: (state, outcome) => outcome === 'completed' && state.mode === 'campaign2024' },

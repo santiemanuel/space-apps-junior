@@ -1,11 +1,8 @@
 import type { CrewId, CrewMemberState } from '../crew/types';
-import type { Decision, DecisionOutcome } from '../decisions/DecisionEngine';
-import type { EnvironmentSnapshot } from '../environment/types';
 import type { ManeuverId, PhaseId, PhaseResult } from '../flow/types';
 import type { CascadeEmergency, CascadeSacrifice, IncidentState } from '../incidents/types';
 import type { AlertLevel, MeterState } from '../meters/types';
-import type { MissionState } from '../missions/types';
-import type { ResourceKey, ResourceState } from '../resources/ResourceModel';
+import type { GameState } from '../state/types';
 import type { RealEvent } from './RealEvent';
 
 /**
@@ -13,22 +10,11 @@ import type { RealEvent } from './RealEvent';
  * no renombrar ni cambiar payloads sin acordarlo (ver docs/plan-de-trabajo.md §3.2).
  */
 export interface GameEvents {
-  // Prototipo actual (base lunar). Se retiran en la integración.
-  'clock:tick': { gameHours: number };
-  'resources:changed': ResourceState;
-  'resources:depleted': { resource: ResourceKey };
-  'environment:changed': EnvironmentSnapshot;
-  'mission:started': MissionState;
-  'mission:progress': MissionState;
-  'mission:completed': MissionState;
-  'mission:failed': MissionState;
-  'decision:required': Decision;
-  'decision:resolved': DecisionOutcome;
-  'session:over': { reason: string };
-
   // Flujo de misión (Facundo emite phase:started; ambos emiten phase:completed).
   'phase:started': { phase: PhaseId };
   'phase:completed': PhaseResult;
+  /** Estado de la fase en curso para el guardado manual: lo publican `Voyage` y `Mars` mientras corre el reloj. */
+  'phase:progress': GameState;
 
   // Simulación (Santiago).
   'clock:day': { simDate: string };

@@ -23,6 +23,7 @@ describe('claves de texto del flujo', () => {
       ...m.stages.flatMap((s) => [`maneuvers.stage.${m.id}.${s.id}`, `maneuvers.stage.${m.id}.${s.id}.fact`]),
     ]),
     ...PRECISION_LEVELS.map((level) => `maneuvers.result.precision.${level}`),
+    ...['Low', 'Moderate'].map((uv) => `maneuvers.dust.${uv}`),
     ...OUTBOUND_ORDER.flatMap((p) => [`menu.loadout.profile.${p}`, `menu.loadout.profile.${p}.description`]),
     ...CARGO_FIELDS.map((field) => `menu.loadout.return.${field}`),
     ...ACHIEVEMENTS.flatMap((a) => [`report.achievement.${a.id}`, `report.achievement.${a.id}.description`]),

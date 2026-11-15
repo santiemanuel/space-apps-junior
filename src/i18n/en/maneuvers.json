@@ -68,6 +68,6 @@
   "result.arrival.walk": "{name} walks out",
   "result.arrival.stretcher": "{name} is carried out on a stretcher: their body got used to low gravity",
   "result.continue": "Continue",
-  "vanAllen.kidValue": "It is the strongest reading Artemis I measured on its whole trip, but it does not last: the ship crosses fast.",
-  "vanAllen.explanation": "The Van Allen belts are zones around Earth where the magnetic field traps particles from the Sun. They protect us down here, but crossing them raises the dose: watch your health meter."
+  "dust.Moderate": "Curiosity sees some dust in the air over Gale today: the bar moves a little faster.",
+  "dust.Low": "Curiosity sees a lot of dust in the air over Gale today: the bar moves faster."
 }

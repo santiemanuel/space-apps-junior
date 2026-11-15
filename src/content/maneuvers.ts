@@ -1,7 +1,9 @@
-import type { RealEvent } from '../core/events/RealEvent';
+import type { UvIndex } from '../core/environment/series';
 import type { ManeuverId } from '../core/flow/types';
 import type { ManeuverConditions, ManeuverDefinition, ManeuverRules } from '../core/maneuvers/types';
+import { dustFactorFromUv } from '../core/meters/energy';
 import type { GameState } from '../core/state/types';
+import { METER_RULES } from './meters';
 
 /**
  * Las cuatro maniobras (game-design §4.0, §4.1, §4.3, §4.5, §4.7). Velocidades y anchos de zona son [regla].
@@ -62,28 +64,16 @@ export const MANEUVER_RULES: ManeuverRules = {
   walkCondition: 0.6,
 };
 
-/**
- * Dificultad del día [regla]. El aterrizaje es más difícil con poco combustible para corregir la trayectoria y con
- * la carga más pesada (§4.3). El polvo real del día (REMS) se suma en la integración.
- */
-export function maneuverConditions(id: ManeuverId, state: GameState): ManeuverConditions {
-  if (id !== 'landing') return { speedFactor: 1 };
-  return { speedFactor: 1 + 0.2 * (1 - state.fuel) + (state.loadout === 'waterShield' ? 0.1 : 0) };
-}
+/** Cuánto más rápida va la marca con el cielo más polvoriento (UV "Low" de REMS) [regla]. */
+const DUST_SPEED = 0.3;
 
 /**
- * Cruce de los cinturones de Van Allen (§4.1): pico de 14 393 μGy/h medido por Artemis I (EAD) el 16/11/2022
- * [dato, RadLab]. En la integración se reemplaza por `VAN_ALLEN` de `src/data/` con la serie completa.
+ * Dificultad del día [regla]. El aterrizaje es más difícil con poco combustible para corregir la trayectoria, con
+ * la carga más pesada y con polvo en el aire de Gale: `uv` es el índice UV real de REMS del día (§4.3), que el juego
+ * ya usa para el polvo en los paneles.
  */
-export const VAN_ALLEN_EVENT: RealEvent = {
-  id: 'artemis1-van-allen-2022-11-16',
-  date: '2022-11-16T00:00:00Z',
-  instrument: 'EAD',
-  mission: 'Artemis I',
-  agency: 'NASA',
-  value: 14393,
-  unit: 'μGy/h',
-  kidValueKey: 'maneuvers.vanAllen.kidValue',
-  explanationKey: 'maneuvers.vanAllen.explanation',
-  sourceUrl: 'https://visualization.osdr.nasa.gov/radlab/',
-};
+export function maneuverConditions(id: ManeuverId, state: GameState, uv: UvIndex | null = null): ManeuverConditions {
+  if (id !== 'landing') return { speedFactor: 1 };
+  const dust = 1 - dustFactorFromUv(METER_RULES, uv);
+  return { speedFactor: 1 + 0.2 * (1 - state.fuel) + (state.loadout === 'waterShield' ? 0.1 : 0) + DUST_SPEED * dust };
+}

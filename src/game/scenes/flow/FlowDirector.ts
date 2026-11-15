@@ -65,6 +65,7 @@ export class FlowDirector {
     this.bus = bus;
     this.offs = [
       bus.on('phase:completed', (result) => this.onPhaseCompleted(result)),
+      bus.on('phase:progress', (state) => flow.progress(state)),
       bus.on('realEvent:shown', (event) => this.onRealEvent(event)),
       bus.on('save:requested', () => this.save()),
     ];

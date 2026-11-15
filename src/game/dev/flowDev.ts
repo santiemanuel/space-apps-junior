@@ -35,7 +35,7 @@ function reportState(base: GameState): GameState {
     realEventLogEntry(makeRealEvent({ date: '2024-05-20T00:00:00Z' }), { simDate: '2024-05-20T00:00:00Z', phase: 'mars' }),
     { simDate: '2024-05-15T00:00:00Z', phase: 'landing', kind: 'decision', key: 'maneuver.risk', data: { system: 'parachutes' } },
     { simDate: '2024-05-15T00:00:00Z', phase: 'landing', kind: 'maneuver', key: 'landing', data: { precision: 0.64 } },
-    { simDate: '2024-05-25T00:00:00Z', phase: 'mars', kind: 'incident', key: 'dustStorm' },
+    { simDate: '2024-05-25T00:00:00Z', phase: 'mars', kind: 'incident', key: 'incidents.dustStorm.title', data: { incidentId: 'dust-2024-05-25', status: 'active' } },
     { simDate: '2024-06-04T00:00:00Z', phase: 'marsAscent', kind: 'loadout', key: 'return', data: { samples: 3, massKg: 1612 } },
     { simDate: '2024-10-10T00:00:00Z', phase: 'reentry', kind: 'maneuver', key: 'reentry', data: { precision: 0.4 } },
   ];

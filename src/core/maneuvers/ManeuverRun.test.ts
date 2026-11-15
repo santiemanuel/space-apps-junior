@@ -186,5 +186,10 @@ describe('maniobras', () => {
     expect(maneuverConditions('ascent', makeGameState({ fuel: 0 })).speedFactor).toBe(1);
     expect(maneuverConditions('landing', makeGameState({ fuel: 1, loadout: 'balanced' })).speedFactor).toBe(1);
     expect(maneuverConditions('landing', makeGameState({ fuel: 0.5, loadout: 'waterShield' })).speedFactor).toBeCloseTo(1.2);
+    // Con polvo en Gale (UV real de REMS) la marca va más rápido; con cielo limpio, igual.
+    const calm = makeGameState({ fuel: 1, loadout: 'balanced' });
+    expect(maneuverConditions('landing', calm, 'High').speedFactor).toBe(1);
+    expect(maneuverConditions('landing', calm, 'Low').speedFactor).toBeGreaterThan(maneuverConditions('landing', calm, 'Moderate').speedFactor);
+    expect(maneuverConditions('ascent', calm, 'Low').speedFactor).toBe(1);
   });
 });

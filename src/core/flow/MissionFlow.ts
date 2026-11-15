@@ -54,8 +54,17 @@ export class MissionFlow {
   /** Estado actual con los eventos reales vividos en la fase en curso (lo que se guarda). */
   get state(): GameState {
     const state = structuredClone(this.current);
-    state.history.push(...structuredClone(this.pending));
+    state.history.push(...structuredClone(this.unlogged(state)));
     return state;
+  }
+
+  /**
+   * Estado de la fase en curso que publican `Voyage` y `Mars` (`phase:progress`) para el guardado manual. Se guarda
+   * la referencia sin copiar (llega en cada cuadro); `state` la copia al leerla. Ignora el de otra fase.
+   */
+  progress(state: GameState): void {
+    if (this.ended || state.phase !== this.current.phase) return;
+    this.current = state;
   }
 
   get outcome(): MissionOutcome | null {
@@ -72,6 +81,12 @@ export class MissionFlow {
     if (!seen) this.pending.push(realEventLogEntry(event, this.current));
   }
 
+  /** Tarjetas vividas que la fase todavía no anotó en su historial (la simulación anota las suyas). */
+  private unlogged(state: GameState): MissionLogEntry[] {
+    const known = new Set(state.history.filter((e) => e.kind === 'realEvent').map((e) => e.key));
+    return this.pending.filter((e) => !known.has(e.key));
+  }
+
   /**
    * Aplica el resultado de la fase en curso y devuelve el paso siguiente. Ignora resultados de otra fase
    * (llegan tarde o de una escena vieja) y los que llegan después del final.
@@ -79,8 +94,8 @@ export class MissionFlow {
   complete(result: PhaseResult): FlowStep | null {
     if (this.ended || result.phase !== this.current.phase) return null;
     const state = structuredClone(result.state);
-    const known = new Set(state.history.filter((e) => e.kind === 'realEvent').map((e) => e.key));
-    state.history.push(...this.pending.filter((e) => !known.has(e.key)));
+    delete state.habitat;
+    state.history.push(...this.unlogged(state));
     state.achievements = [...new Set([...(this.current.achievements ?? []), ...(state.achievements ?? []), ...result.achievements])];
     this.pending = [];
 

@@ -549,10 +549,33 @@ El selector `?scene=` ya está implementado (§3.7): cada uno agrega sus datos d
 4. Se retiran el prototipo lunar y el código muerto (`ResourceModel` de 4 recursos, decisiones con 1/2/3, fin de
    partida por recurso), y se actualiza `README.md` (hoy dice "Base Lunar").
 
+**Hecho en `feat/integracion`:**
+- `main.ts` sólo crea el juego: `BootScene` arranca `FlowDirector`, `Title` crea el `GameState` con `createNewGame` y
+  cada fase arma su sesión (`VoyageSession`, `MarsSession`, `ManeuverRun`). `GameSession` se retiró con el prototipo.
+- Tab: `SimulationMapScene` usa `bindCrewSwitch` (saltea a los que reposan).
+- `realEvent:shown` → `DataCard` con las escenas en pausa (el reloj no avanza). La tarjeta de Van Allen es `VAN_ALLEN`
+  de `src/data/` (HERA, Artemis I). El planificador anota cada tarjeta con todos sus datos (`realEventLogEntry`) y
+  `MissionFlow` no la repite.
+- Aterrizaje: la dificultad suma el polvo real del día (UV de REMS en Gale, el mismo factor de los paneles) y el
+  narrador lo avisa. La distancia ya llegaba a `Mars` por `GameState.landingDistanceKm`.
+- Carga: `MISSION_START` lleva el O2 de toda la misión (+10 %); cada lugar tiene su batería (`HabitatPower.capacityKwh`:
+  al llegar a Gale se usa la de la base, cargada; al volver, la de la nave).
+- Guardado a mitad de fase: `Voyage`/`Mars` publican `phase:progress` con `GameState.habitat` (planificador y
+  cascada, en lugar del campo `cascade` previsto) y `MissionFlow.progress()` lo guarda; al retomar no se repiten los
+  incidentes ya disparados.
+- Logros de la simulación en `PhaseResult.achievements`: "Refugio a tiempo" (todos en el refugio antes del impacto) y
+  "Cero radiografías extra" (en las tormentas nadie recibió más de 0,1 mSv por encima de lo que da el refugio).
+- `Report`: traduce las claves que anota la simulación, muestra cada incidente una vez y dibuja la dosis real de cada
+  día (`dailyDoses`) sobre la línea de tiempo.
+- Progresión → planificador: ya funcionaba por `GameState.unlockLevel`.
+- Retirados: `core/session|resources|missions|decisions`, `HabitatScene`, `PrototypeHud`, `Player`, `StationView`,
+  `services.ts`, `content/missions|startingConditions|habitat` y los eventos del prototipo en `GameEvents`. Queda sin
+  conectar el cliente de DONKI en vivo (`src/data/donki/`, `EnvironmentService`): decidir si se retira.
+
 ### 10.2 Criterios de aceptación del PR final
 
-- [ ] `npm test`, `npm run typecheck` y `npm run build` en verde, incluido `src/architecture.test.ts`.
-- [ ] Test de partida completa en Node: campaña 2024, modo corto, semilla fija, de `prep` a `report`.
+- [x] `npm test`, `npm run typecheck` y `npm run build` en verde, incluido `src/architecture.test.ts`.
+- [x] Test de partida completa en Node: campaña 2024, modo corto, semilla fija, de `prep` a `report` (`src/fullGame.test.ts`).
 - [ ] Prueba manual en `npm run dev`: las 7 fases en orden, en ES y en EN.
 - [ ] Guardar en `Voyage`, recargar la página y continuar con el mismo estado.
 - [ ] La tormenta de mayo de 2024 frena el reloj, se tiñe de amarillo y abre su `DataCard`.

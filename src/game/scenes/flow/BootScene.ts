@@ -5,7 +5,6 @@ import { setLocale, t } from '../../../i18n';
 import { isLocale } from '../../../i18n/locales';
 import { BOOT_ASSETS, queueAssets } from '../../assets';
 import { SceneKeys } from '../../sceneKeys';
-import { getServices } from '../../services';
 import { createBrowserSaveStore } from '../../storage/browserSaveStore';
 import { createPlaceholderTextures } from '../../textures';
 import { FlowDirector } from './FlowDirector';
@@ -58,23 +57,11 @@ export class BootScene extends Phaser.Scene {
     createPlaceholderTextures(this);
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(window.location.search);
-      // Prototipo lunar hasta la integración: depende de GameSession y no se abre con launchDevScene.
-      if (params.get('scene') === SceneKeys.Habitat) return this.startPrototype();
       if (params.has('scene')) {
         const { launchDevScene } = await import('../../dev/devLaunch');
         if (launchDevScene(this, params)) return;
       }
     }
     new FlowDirector(this.game, this.store).showTitle();
-  }
-
-  private async startPrototype(): Promise<void> {
-    const { width, height } = this.scale;
-    this.add.text(width / 2, height / 2, t('menu.boot.telemetry'), TEXT_STYLE).setOrigin(0.5);
-
-    const services = getServices(this);
-    const session = services.createSession(await services.loadEnvironment());
-    this.scene.start(SceneKeys.Habitat, { session });
-    this.scene.launch(SceneKeys.Hud, { session });
   }
 }

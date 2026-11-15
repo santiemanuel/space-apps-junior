@@ -1,12 +1,15 @@
 import Phaser from 'phaser';
 import { CREW_ROSTER } from '../../../content/crew';
-import { MANEUVER_RULES, MANEUVERS, maneuverConditions, VAN_ALLEN_EVENT } from '../../../content/maneuvers';
+import { MANEUVER_RULES, MANEUVERS, maneuverConditions } from '../../../content/maneuvers';
 import type { EventBus } from '../../../core/events/EventBus';
 import type { GameEvents } from '../../../core/events/GameEvents';
 import { ManeuverRun, precisionLevel } from '../../../core/maneuvers/ManeuverRun';
 import type { ChecklistDecision, ChecklistItem } from '../../../core/maneuvers/types';
 import type { CrewId } from '../../../core/crew/types';
+import type { UvIndex } from '../../../core/environment/series';
 import type { SystemStatus } from '../../../core/systems/types';
+import { galeWeatherOn } from '../../../data/series';
+import { VAN_ALLEN } from '../../../data/vanAllen';
 import { t } from '../../../i18n';
 import { GAME_WIDTH } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
@@ -37,6 +40,7 @@ export class ManeuverScene extends Phaser.Scene {
   private result: Button | null = null;
   private readyAt = 0;
   private completed = false;
+  private dustUv: UvIndex | null = null;
 
   constructor() {
     super(SceneKeys.Maneuver);
@@ -44,7 +48,9 @@ export class ManeuverScene extends Phaser.Scene {
 
   init(data: ManeuverSceneData): void {
     this.data_ = data;
-    this.run = new ManeuverRun(MANEUVERS[data.maneuverId], data.state, MANEUVER_RULES, maneuverConditions(data.maneuverId, data.state));
+    // Polvo real del día en Gale (REMS) para el aterrizaje.
+    this.dustUv = data.maneuverId === 'landing' ? galeWeatherOn(data.state.simDate).uv : null;
+    this.run = new ManeuverRun(MANEUVERS[data.maneuverId], data.state, MANEUVER_RULES, maneuverConditions(data.maneuverId, data.state, this.dustUv));
     this.completed = false;
     this.stageView = null;
     this.result = null;
@@ -82,7 +88,8 @@ export class ManeuverScene extends Phaser.Scene {
   private rebuild(): void {
     const id = this.data_.maneuverId;
     this.header.title.setText(t(`maneuvers.name.${id}`));
-    this.header.narrator.setText(`${t('maneuvers.narrator')}: ${t(`maneuvers.intro.${id}`)}`);
+    const dust = this.dustUv === 'Low' || this.dustUv === 'Moderate' ? ` ${t(`maneuvers.dust.${this.dustUv}`)}` : '';
+    this.header.narrator.setText(`${t('maneuvers.narrator')}: ${t(`maneuvers.intro.${id}`)}${dust}`);
     this.header.fuel.setText(t('maneuvers.fuel'));
     this.view.removeAll(true);
     this.stageView = null;
@@ -260,7 +267,7 @@ export class ManeuverScene extends Phaser.Scene {
   private finish(): void {
     if (this.completed || this.run.step !== 'done') return;
     this.completed = true;
-    if (this.run.definition.effect === 'vanAllen') this.bus.emit('realEvent:shown', VAN_ALLEN_EVENT);
+    if (this.run.definition.effect === 'vanAllen') this.bus.emit('realEvent:shown', VAN_ALLEN.realEvent);
     this.bus.emit('phase:completed', this.run.toPhaseResult());
   }
 

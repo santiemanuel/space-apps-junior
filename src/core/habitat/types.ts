@@ -37,6 +37,8 @@ export interface WearRules {
 /** Paneles a 1 UA y consumo de cada sistema encendido (§3.2). */
 export interface HabitatPower {
   panelKwAt1Au: number;
+  /** Batería del lugar (kWh): al llegar a un lugar con otra batería, se usa la suya, cargada. */
+  capacityKwh: number;
   loadsKw: Record<string, number>;
   /** Lo que queda encendido en el modo de emergencia de energía (§3.5). */
   essentialLoads: readonly string[];

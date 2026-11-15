@@ -280,3 +280,33 @@ describe('Voyage: falla en cascada', () => {
     expect(results[0]).toMatchObject({ outcome: 'suspended' });
   });
 });
+
+describe('Voyage: guardado a mitad de fase y logros', () => {
+  it('publica su estado para el guardado manual y retoma sin repetir los incidentes ya disparados', () => {
+    const { session, bus } = voyage({}, { timeline: storm });
+    const published: GameState[] = [];
+    bus.on('phase:progress', (s) => published.push(s));
+    runUntil(session, () => session.state.activeIncidents.length > 0);
+    const saved = published.at(-1)!;
+    expect(saved.habitat?.planner.fired).toContain('storm-test');
+
+    const resumed = voyage(JSON.parse(JSON.stringify(saved)) as GameState, { timeline: storm }).session;
+    expect(resumed.state.habitat).toBeUndefined();
+    runUntil(resumed, () => hoursSince(resumed) >= 30);
+    expect(resumed.state.activeIncidents.filter((i) => i.id === 'storm-test')).toHaveLength(1);
+  });
+
+  it('"Refugio a tiempo" y "Cero radiografías extra" si todos esperan la tormenta en el refugio', () => {
+    const achievements = (response: string, zone: string) => {
+      const { session, bus } = voyage({}, { timeline: storm });
+      const results: PhaseResult[] = [];
+      bus.on('phase:completed', (r) => results.push(r));
+      runUntil(session, () => session.level === 'alert');
+      session.respond(session.pendingDecisions()[0]!.incident.id, response);
+      runUntil(session, () => false, { activeZone: zone, interacting: false });
+      return results[0]!.achievements;
+    };
+    expect(achievements('goToShelter', 'shelter')).toEqual(expect.arrayContaining(['shelterInTime', 'zeroExtraXrays']));
+    expect(achievements('keepWorking', 'command')).toEqual([]);
+  });
+});

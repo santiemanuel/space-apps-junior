@@ -172,6 +172,13 @@ describe('Mars: tormenta de radiación', () => {
     expect(session.evaOpen).toBe(false);
   });
 
+  it('al llegar se usa la batería de la base, cargada; una partida guardada conserva la suya', () => {
+    const shipBattery = makeMeters({ energy: { batteryKwh: 30, capacityKwh: 120 } });
+    const capacity = CONTENT.power.capacityKwh;
+    expect(mars({ meters: shipBattery }).session.state.meters.energy).toEqual({ batteryKwh: capacity, capacityKwh: capacity });
+    expect(mars({ meters: shipBattery, simDate: at(10) }).session.state.meters.energy).toEqual(shipBattery.energy);
+  });
+
   it('al terminar la estancia emite phase:completed con las muestras', () => {
     const { session, bus } = mars();
     const done: string[] = [];

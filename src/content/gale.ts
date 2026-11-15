@@ -60,7 +60,7 @@ export const MARS_CONTENT: MarsContent = {
   routineOffsetHours: ROUTINE_OFFSET_HOURS,
   // [regla] Sin cuidado, MOXIE se gasta en 4 soles.
   wear: { systems: ['moxie'], hoursToYellow: 96, maintenanceHours: 2, callHours: 1 },
-  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'], socketKw: 2 },
+  power: { panelKwAt1Au: GALE_POWER.panelKwAt1Au, capacityKwh: GALE_POWER.capacityKwh, loadsKw: GALE_POWER.loadsKw, essentialLoads: ['lifeSupport', 'moxie'], socketKw: 2 },
   crewSpeedTilesPerS: 3.5,
   infirmaryZone: 'infirmary',
   shelterZone: 'shelter',

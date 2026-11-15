@@ -38,10 +38,11 @@ import {
 } from '../incidents/planner';
 import type { TimelineEntry } from '../incidents/timeline';
 import type { IncidentState } from '../incidents/types';
+import { doseMSv, qualityFactor, shieldingFactor } from '../meters/dose';
 import { stepMeters, type CrewActivity, type MeterEnvironment, type MeterPlan } from '../meters/step';
 import type { AlertLevel } from '../meters/types';
 import { Rng } from '../rng/Rng';
-import type { GameState } from '../state/types';
+import type { GameState, HabitatSave } from '../state/types';
 import type { SystemId } from '../systems/types';
 import { EXTERIOR, pathLength, pointAlong, route, zoneAt, zoneById, zoneSpot, type Point } from './layout';
 import type { MissionControlRequest, SimSnapshot, SimulationEvents } from './events';
@@ -149,6 +150,10 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private readonly diagnosed = new Set<string>();
   private lastPower = { generationKw: 0, loadKw: 0 };
   private sim: EventBus<SimulationEvents> | null = null;
+  /** Logros de la fase (§5) que se entregan en el `PhaseResult`. */
+  private readonly achievements = new Set<string>();
+  /** Dosis de más en las tormentas por tripulante (mSv); null mientras no haya habido ninguna. */
+  private stormExtraMSv: Partial<Record<CrewId, number>> | null = null;
 
   constructor(options: HabitatOptions<C>) {
     const { state, content } = options;
@@ -173,20 +178,38 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       ...(resume ? { from: state.simDate } : {}),
     });
     this.rng = new Rng(state.rngState);
-    this._cascade = options.cascade ?? initialCascade();
-    this._planner = options.planner ?? initialPlanner(this.clock.simDate);
+    const saved = resume ? state.habitat : undefined;
+    this._cascade = options.cascade ?? saved?.cascade ?? initialCascade();
+    this._planner = options.planner ?? saved?.planner ?? initialPlanner(this.clock.simDate);
     const ship = content.layout;
     const crew = state.crew.map((m) => {
       const zone = ship.zones.some((z) => z.id === m.location) ? m.location : ship.spawnZone;
       this.positions[m.id] = this.spotFor(m.id, zone, state.crew);
       return { ...m, location: zone };
     });
-    this._state = { ...state, phase: this.phase, simDate: this.clock.simDate, crew };
+    const { habitat: _saved, ...rest } = state;
+    this._state = { ...rest, phase: this.phase, simDate: this.clock.simDate, crew, meters: this.placeMeters(state, resume) };
     this._dose = this.doseRate(this.clock.simDate);
   }
 
   get state(): GameState {
     return this._state;
+  }
+
+  /** Estado para guardar a mitad de fase: incluye los incidentes ya disparados y la falla en cascada. */
+  get savedState(): GameState {
+    const habitat: HabitatSave = { planner: this._planner, cascade: this._cascade };
+    return { ...this._state, habitat };
+  }
+
+  /**
+   * Cada lugar tiene su batería (§3.2): al llegar a uno con otra capacidad (la base de Gale o la nave en órbita),
+   * se usa la suya, que espera cargada.
+   */
+  private placeMeters(state: GameState, resume: boolean): GameState['meters'] {
+    const capacityKwh = this.content.power.capacityKwh;
+    if (resume || state.meters.energy.capacityKwh === capacityKwh) return state.meters;
+    return { ...state.meters, energy: { batteryKwh: capacityKwh, capacityKwh } };
   }
 
   get cascade(): CascadeState {
@@ -614,10 +637,11 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const loads = c.power.loadsKw;
     const loadKw = Math.max(0, this.activeLoads(ctx).reduce((sum, k) => sum + (loads[k] ?? 0), 0) + adj.extraLoadKw);
     const evaHours = hours * s.crew.filter((m) => m.location === EXTERIOR).length;
+    const env = this.environment(s, hours, ctx);
     const step = stepMeters(
       c.meterRules,
       s,
-      this.environment(s, hours, ctx),
+      env,
       {
         ...this.planExtras(s, hours, ctx),
         evaHours,
@@ -631,6 +655,7 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       hours,
     );
     this.lastPower = { generationKw: step.generationKw, loadKw: step.loadKw };
+    if (env.sepActive) this.trackStormDose(env, step.doseMSv, s.waterShield * adj.shelterEfficacy, hours);
     s = applyEmergencyEffects(c.cascadeRules, this._cascade, this.afterStep(s, step.state, hours, ctx), hours);
     const cascade = updateCascade(c.cascadeRules, c.meterRules, this._cascade, s, hours);
     this._cascade = cascade.cascade;
@@ -732,6 +757,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     const all = this._state.crew.filter((m) => !m.resting).every((m) => m.location === this.content.shelterZone);
     if (!all) return;
     order.reached = true;
+    const incident = this._state.activeIncidents.find((i) => i.id === order.incidentId);
+    if (incident && Date.parse(this._state.simDate) <= Date.parse(incident.impactAt)) this.achievements.add('shelterInTime');
     this.handleClock(this.clock.resolve(order.incidentId));
     const seconds = Math.round((this.realSeconds - order.orderedAtS) * 10) / 10;
     this._state = {
@@ -856,11 +883,31 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
   private publishState(): void {
     this.bus.emit('meters:changed', this._state.meters);
     this.bus.emit('crew:changed', this._state.crew);
+    this.bus.emit('phase:progress', this.savedState);
+  }
+
+  /**
+   * "Cero radiografías extra" (§5): en cada paso de tormenta suma lo que cada uno recibió por encima de lo que daba
+   * el refugio. Si nadie pasó de una radiografía de tórax, la fase entrega el logro.
+   */
+  private trackStormDose(env: MeterEnvironment, added: Record<CrewId, number>, waterShield: number, hours: number): void {
+    const rules = this.content.meterRules;
+    const inShelter = doseMSv(env.doseRateUGyH, shieldingFactor(rules, 'shelter', waterShield), qualityFactor(rules, env.place, true), hours);
+    const extra = this.stormExtraMSv ?? {};
+    for (const [id, mSv] of Object.entries(added) as [CrewId, number][]) extra[id] = (extra[id] ?? 0) + Math.max(0, mSv - inShelter);
+    this.stormExtraMSv = extra;
+  }
+
+  private phaseAchievements(outcome: PhaseResult['outcome']): string[] {
+    const extra = this.stormExtraMSv;
+    const xray = this.content.meterRules.dose.chestXrayMSv;
+    if (outcome === 'completed' && extra && Object.values(extra).every((mSv) => mSv < xray)) this.achievements.add('zeroExtraXrays');
+    return [...this.achievements];
   }
 
   private finish(outcome: PhaseResult['outcome']): void {
     if (this._outcome) return;
     this._outcome = outcome;
-    this.bus.emit('phase:completed', { phase: this.phase, outcome, state: this._state, achievements: [] });
+    this.bus.emit('phase:completed', { phase: this.phase, outcome, state: this._state, achievements: this.phaseAchievements(outcome) });
   }
 }

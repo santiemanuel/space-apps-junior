@@ -100,6 +100,19 @@ export function realEventFromLog(entry: MissionLogEntry): RealEvent | null {
 /** Detalle de una etapa de maniobra (`landing.parachute`): queda fuera del resumen de decisiones. */
 const isStageEntry = (entry: MissionLogEntry) => entry.kind === 'maneuver' && entry.key.includes('.');
 
+/** Decisiones e hitos en orden; de cada incidente queda la primera anotación (la simulación anota aviso, impacto y fin). */
+function decisionsOf(history: readonly MissionLogEntry[]): MissionLogEntry[] {
+  const seen = new Set<string | number | boolean>();
+  return history.filter((e) => {
+    if (e.kind === 'realEvent' || isStageEntry(e)) return false;
+    const incidentId = e.kind === 'incident' ? e.data?.incidentId : undefined;
+    if (incidentId === undefined) return true;
+    if (seen.has(incidentId)) return false;
+    seen.add(incidentId);
+    return true;
+  });
+}
+
 /** Informe final (§5): 3 estrellas, logros, tripulación, decisiones y datos reales vividos. */
 export function buildReport(
   state: GameState,
@@ -135,7 +148,7 @@ export function buildReport(
       massKg: Math.round(samples.reduce((sum, s) => sum + s.massKg, 0) * 10) / 10,
     },
     landingDistanceKm: state.landingDistanceKm,
-    decisions: state.history.filter((e) => e.kind !== 'realEvent' && !isStageEntry(e)),
+    decisions: decisionsOf(state.history),
     realEvents: state.history.map(realEventFromLog).filter((e): e is RealEvent => e !== null),
   };
 }

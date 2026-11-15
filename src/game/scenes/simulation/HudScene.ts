@@ -13,9 +13,7 @@ import type { SystemStatus } from '../../../core/systems/types';
 import { getLocale, t, type TranslationKey, type TranslationParams } from '../../../i18n';
 import { GAME_HEIGHT, GAME_WIDTH, TILE } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
-import type { SessionSceneData } from '../../services';
 import { PanelColumn, type PanelRow } from './PanelColumn';
-import { PrototypeHud } from './prototype/PrototypeHud';
 import type { SimulationSceneData } from './simulationData';
 
 /** La vista del mapa ocupa 19 tiles; el resto de la pantalla es el tablero. */
@@ -47,11 +45,10 @@ export const particleClicksPerSecond = (uGyH: number, level: AlertLevel): number
 /**
  * Tablero de la simulación (§3.1, §3.6): reloj con semáforo, fecha y fuente del dato, los tres medidores (la salud
  * con cuatro íconos por tripulante), decisiones con su coste, emergencias y el monitor de partículas con clics.
- * Lee `sim:snapshot` y responde por el bus de la simulación. Con `{ session }` muestra el tablero del prototipo lunar.
+ * Lee `sim:snapshot` y responde por el bus de la simulación.
  */
 export class HudScene extends Phaser.Scene {
-  private data_: SimulationSceneData | null = null;
-  private prototype: PrototypeHud | null = null;
+  private data_!: SimulationSceneData;
   private snapshot: SimSnapshot | null = null;
   private column!: PanelColumn;
   private tint!: Phaser.GameObjects.Rectangle;
@@ -65,15 +62,13 @@ export class HudScene extends Phaser.Scene {
     super(SceneKeys.Hud);
   }
 
-  init(data: SimulationSceneData | SessionSceneData): void {
+  init(data: SimulationSceneData): void {
     this.snapshot = null;
-    this.data_ = 'session' in data ? null : data;
-    this.prototype = 'session' in data ? new PrototypeHud(this, data) : null;
+    this.data_ = data;
   }
 
   create(): void {
-    if (this.prototype) return this.prototype.create();
-    const { sim } = this.data_!;
+    const { sim } = this.data_;
     this.tint = this.add.rectangle(0, 0, VIEW_WIDTH, GAME_HEIGHT, 0, 0).setOrigin(0, 0);
     this.add.rectangle(VIEW_WIDTH, 0, GAME_WIDTH - VIEW_WIDTH, GAME_HEIGHT, 0x0b1020, 0.96).setOrigin(0, 0);
     this.add.rectangle(VIEW_WIDTH, 0, 2, GAME_HEIGHT, 0x2d3748).setOrigin(0, 0);
@@ -88,7 +83,6 @@ export class HudScene extends Phaser.Scene {
   }
 
   update(time: number): void {
-    if (this.prototype) return this.prototype.update();
     const s = this.snapshot;
     if (!s) return;
     const [color, alpha] = LEVEL_TINT[s.level];

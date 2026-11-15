@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeGameState, makeRealEvent } from '../../test-utils/factories';
+import { initialCascade } from '../cascade/types';
+import { initialPlanner } from '../incidents/planner';
 import type { GameState, MissionLogEntry } from '../state/types';
 import { MissionFlow, stepFor, type FlowStep } from './MissionFlow';
 import type { PhaseId, PhaseResult } from './types';
@@ -99,5 +101,27 @@ describe('flujo de misión', () => {
     const flow = new MissionFlow(state);
     flow.complete(fakeResult(flow));
     expect(state.phase).toBe('prep');
+  });
+
+  it('guarda el estado que publica la fase en curso (Voyage/Mars) y descarta el de otra fase', () => {
+    const flow = new MissionFlow(makeGameState({ phase: 'cruiseOut', simDate: '2024-01-15T00:00:00Z' }));
+    flow.progress(makeGameState({ phase: 'cruiseOut', simDate: '2024-02-01T00:00:00Z' }));
+    flow.progress(makeGameState({ phase: 'mars', simDate: '2024-05-20T00:00:00Z' }));
+    expect(flow.state).toMatchObject({ phase: 'cruiseOut', simDate: '2024-02-01T00:00:00Z' });
+  });
+
+  it('no repite una tarjeta que la simulación ya anotó, ni deja en el estado lo que sólo sirve a mitad de fase', () => {
+    const event = makeRealEvent({ id: 'storm-2024-05-11' });
+    const flow = new MissionFlow(makeGameState({ phase: 'cruiseOut' }));
+    flow.recordRealEvent(event);
+    const inPhase = flow.state;
+    inPhase.history.length = 0;
+    inPhase.history.push({ simDate: inPhase.simDate, phase: 'cruiseOut', kind: 'realEvent', key: event.id });
+    flow.progress({ ...inPhase, habitat: { planner: initialPlanner(inPhase.simDate), cascade: initialCascade() } });
+    expect(flow.state.history.filter((e) => e.key === event.id)).toHaveLength(1);
+    expect(flow.state.habitat).toBeDefined();
+    flow.complete({ phase: 'cruiseOut', outcome: 'completed', state: flow.state, achievements: [] });
+    expect(flow.state.history.filter((e) => e.key === event.id)).toHaveLength(1);
+    expect(flow.state.habitat).toBeUndefined();
   });
 });

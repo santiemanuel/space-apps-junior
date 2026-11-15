@@ -18,8 +18,6 @@ export const SceneKeys = {
   Hud: 'Hud',
   MissionControl: 'MissionControl',
   DataPanel: 'DataPanel',
-  /** Prototipo de base lunar: se reemplaza por Mars y se retira en la integración. */
-  Habitat: 'Habitat',
 } as const;
 
 export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];

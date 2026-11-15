@@ -79,6 +79,4 @@ export const simulationDevData: DevDataBuilders = {
   Planning: null,
   MissionControl: null,
   DataPanel: null,
-  // Prototipo: depende de GameSession y se abre sólo por el camino normal.
-  Habitat: null,
 };

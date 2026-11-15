@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
 import { ACHIEVEMENTS, REPORT_RULES } from '../../../content/achievements';
+import { CAMPAIGN_2024 } from '../../../content/campaign';
 import { CREW_ROSTER } from '../../../content/crew';
+import type { TimedPhase } from '../../../core/clock/schedule';
+import type { DoseSite } from '../../../core/environment/series';
 import type { ManeuverId } from '../../../core/flow/types';
 import { precisionLevel } from '../../../core/maneuvers/ManeuverRun';
 import { buildReport, type MissionReport } from '../../../core/report/report';
 import type { MissionLogEntry } from '../../../core/state/types';
 import type { SystemId } from '../../../core/systems/types';
+import { dailyDoses } from '../../../data/realData';
 import { hasKey, t, type TranslationKey } from '../../../i18n';
 import { formatDate, formatNumber } from '../../../i18n/format';
 import { GAME_WIDTH } from '../../display';
@@ -21,8 +25,12 @@ const PAGES: readonly Page[] = ['summary', 'mission', 'data'];
 const STARS = ['healthyCrew', 'lowDose', 'samplesHome'] as const;
 const CENTER = GAME_WIDTH / 2;
 const GOLD = 0xf6e05e;
-const TIMELINE = { x: 140, y: 225, width: 1000 } as const;
-const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name]));
+const TIMELINE = { x: 140, y: 290, width: 1000 } as const;
+/** Gráfica de la dosis real sobre la línea de tiempo (game-design §5: decisiones contra los datos reales). */
+const CHART = { top: 196, height: 84 } as const;
+const SITE_COLOR: Record<DoseSite, number> = { deepSpace: 0x63b3ed, marsCruise: 0x63b3ed, marsSurface: 0xf6ad55 };
+const MAX_ENTRIES = 9;
+const NAMES: Record<string, string> = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name]));
 
 /** Texto de una entrada del historial para el informe. */
 function describe(entry: MissionLogEntry): string {
@@ -38,17 +46,35 @@ function describe(entry: MissionLogEntry): string {
         quality: t(`maneuvers.result.precision.${precisionLevel(Number(data.precision ?? 0))}`),
       });
     case 'incident': {
-      const key = `incidents.${entry.key}.title`;
+      const key = hasKey(entry.key) ? entry.key : `incidents.${entry.key}.title`;
       return t('report.log.incident', { name: hasKey(key) ? t(key as TranslationKey) : entry.key });
     }
-    case 'cascade':
-      return t('report.log.cascade', { name: entry.key });
+    case 'cascade': {
+      // La simulación anota el medidor que entró en emergencia, el sacrificio elegido o el punto de no retorno.
+      const meter = /^incidents\.cascade\.(\w+)\.entered$/.exec(entry.key)?.[1];
+      if (meter) return t('report.log.cascade', { name: [label(`hud.meter.${meter}`, data), crewName(data)].filter(Boolean).join(' · ') });
+      if (entry.key.startsWith('incidents.cascade.noReturn')) return t('report.log.noReturn');
+      return t('report.log.cascade', { name: label(entry.key, data) });
+    }
     default:
       if (entry.key === 'maneuver.repair' || entry.key === 'maneuver.risk') {
         return t(`report.log.${entry.key}`, { system: t(`common.system.${String(data.system) as SystemId}`) });
       }
-      return t('report.log.decision', { name: entry.key });
+      return t('report.log.decision', { name: label(entry.key, data) });
   }
+}
+
+const crewName = (data: NonNullable<MissionLogEntry['data']>) => (typeof data.crewId === 'string' ? (NAMES[data.crewId] ?? '') : '');
+
+/** Las fases anotan claves de texto con sus datos como parámetros; si no hay texto, queda la clave. */
+const label = (key: string, data: NonNullable<MissionLogEntry['data']>) =>
+  hasKey(key) ? t(key as TranslationKey, { ...data, name: crewName(data) }) : key;
+
+/** Fase de cada fecha de la campaña, para elegir la serie real de la gráfica. */
+function phaseOn(date: string): TimedPhase {
+  const { mars, cruiseBack } = CAMPAIGN_2024.windows;
+  const ms = Date.parse(date);
+  return ms < Date.parse(mars.start) ? 'cruiseOut' : ms < Date.parse(cruiseBack.start) ? 'mars' : 'cruiseBack';
 }
 
 /**
@@ -163,6 +189,7 @@ export class ReportScene extends Phaser.Scene {
       addText(this, TIMELINE.x, TIMELINE.y + 14, 12, COLOR.dim).setText(formatDate(new Date(start).toISOString())),
       addText(this, TIMELINE.x + TIMELINE.width, TIMELINE.y + 14, 12, COLOR.dim).setOrigin(1, 0).setText(formatDate(new Date(end).toISOString())),
     ]);
+    this.drawDoseChart(new Date(start).toISOString(), new Date(end).toISOString(), xOf);
     for (const entry of this.data_.state.history) {
       if (!entry.simDate) continue;
       const isReal = entry.kind === 'realEvent';
@@ -174,10 +201,29 @@ export class ReportScene extends Phaser.Scene {
       view.add(addText(this, CENTER, 330, 16, COLOR.dim).setOrigin(0.5).setText(t('report.mission.empty')));
       return;
     }
-    const shown = report.outcome === 'suspended' ? entries.slice(-11) : entries.slice(0, 11);
+    const shown = report.outcome === 'suspended' ? entries.slice(-MAX_ENTRIES) : entries.slice(0, MAX_ENTRIES);
     shown.forEach((entry, i) => {
-      view.add(addText(this, 160, 272 + i * 31, 15, COLOR.text).setText(`${formatDate(entry.simDate)}  ·  ${describe(entry)}`));
+      view.add(addText(this, 160, TIMELINE.y + 45 + i * 31, 15, COLOR.text).setText(`${formatDate(entry.simDate)}  ·  ${describe(entry)}`));
     });
+  }
+
+  /** Dosis real de cada día de la misión (BioSentinel en el viaje, Curiosity en Marte), en la misma escala de fechas. */
+  private drawDoseChart(from: string, to: string, xOf: (iso: string) => number): void {
+    const points = dailyDoses(from, to, phaseOn);
+    const max = Math.max(...points.map((p) => p.uGyH), 1);
+    // Los rótulos van arriba: el pico más alto queda debajo de ellos.
+    const yOf = (uGyH: number) => CHART.top + CHART.height - (uGyH / max) * (CHART.height - 16);
+    const g = this.add.graphics();
+    points.forEach((p, i) => {
+      const next = points[i + 1];
+      if (!next) return;
+      g.lineStyle(2, SITE_COLOR[p.site], 0.9).lineBetween(xOf(`${p.date}T00:00:00Z`), yOf(p.uGyH), xOf(`${next.date}T00:00:00Z`), yOf(next.uGyH));
+    });
+    this.view.add([
+      g,
+      addText(this, TIMELINE.x, CHART.top - 4, 12, COLOR.dim).setText(t('report.chart.title', { max: formatNumber(max, undefined, 0) })),
+      addText(this, TIMELINE.x + TIMELINE.width, CHART.top - 4, 12, COLOR.dim).setOrigin(1, 0).setText(t('report.chart.legend')),
+    ]);
   }
 
   private showData(): void {
