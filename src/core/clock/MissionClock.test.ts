@@ -147,6 +147,31 @@ describe('MissionClock', () => {
   });
 });
 
+describe('tiempo entre avisos', () => {
+  it('después de un aviso, el siguiente no llega antes de los segundos mínimos reales', () => {
+    const second: ClockAlert = { ...storm, id: 'otra', warnAt: '2024-01-06T00:00:00.000Z', impactAt: '2024-01-06T06:00:00.000Z', endAt: '2024-01-07T00:00:00.000Z' };
+    const clock = new MissionClock({ start: '2024-01-01T00:00:00Z', end: '2024-01-20T00:00:00Z', alerts: [storm, second] });
+    let ended = -1;
+    let warned = -1;
+    for (let t = 0; t < 2000 && warned < 0; t += 0.5) {
+      for (const e of clock.advance(0.5)) {
+        if (e.type === 'level' && e.level === 'calm' && ended < 0) ended = t;
+        if (e.type === 'level' && e.alertId === 'otra' && warned < 0) warned = t;
+      }
+    }
+    expect(ended).toBeGreaterThanOrEqual(0);
+    expect(warned - ended).toBeGreaterThanOrEqual(CLOCK_RULES.alertGapSeconds - 1);
+    expect(clock.level).toBe('alert');
+  });
+
+  it('sin otro aviso por delante, la calma sigue a su velocidad', () => {
+    const clock = new MissionClock({ start: '2024-01-04T23:00:00Z', end: '2024-01-20T00:00:00Z', alerts: [storm] });
+    clock.advance(10);
+    expect(clock.level).toBe('calm');
+    expect(clock.hoursPerSecond).toBe(CLOCK_RULES.calmHoursPerSecond);
+  });
+});
+
 describe('tormentas largas y dormir', () => {
   it('el Impacto va a tiempo normal sólo sus primeras horas; después sigue rápido', () => {
     const long = { ...storm, impactAt: '2024-01-04T00:00:00.000Z', endAt: '2024-01-09T00:00:00.000Z' };

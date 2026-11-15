@@ -33,7 +33,7 @@ function play(maneuver: ManeuverRun, hits: boolean[]): void {
 
 describe('maniobras', () => {
   it('las cuatro maniobras tienen las etapas del diseño', () => {
-    expect(Object.values(MANEUVERS).map((m) => m.stages.length)).toEqual([6, 4, 4, 3]);
+    expect(Object.values(MANEUVERS).map((m) => m.stages.length)).toEqual([8, 4, 5, 3]);
     for (const m of Object.values(MANEUVERS)) {
       for (const stage of m.stages) for (const system of stage.systems) expect(m.checklist).toContain(system);
     }
@@ -100,7 +100,7 @@ describe('maniobras', () => {
 
     it('acertar en el centro da precisión 1 y no gasta combustible', () => {
       const maneuver = run('ascent');
-      play(maneuver, [true, true, true, true, true, true]);
+      play(maneuver, [true, true, true, true, true, true, true, true]);
       expect(maneuver.step).toBe('done');
       expect(maneuver.precision).toBeCloseTo(1);
       expect(maneuver.fuel).toBe(1);
@@ -108,11 +108,11 @@ describe('maniobras', () => {
 
     it('un error cuesta combustible pero la maniobra sigue hasta el final', () => {
       const maneuver = run('ascent');
-      play(maneuver, [false, true, false, true, true, true]);
+      play(maneuver, [false, true, false, true, true, true, true, true]);
       expect(maneuver.step).toBe('done');
       expect(maneuver.misses).toBe(2);
       expect(maneuver.fuel).toBeCloseTo(1 - 2 * MANEUVER_RULES.fuelPerMiss);
-      expect(maneuver.precision).toBeCloseTo(4 / 6);
+      expect(maneuver.precision).toBeCloseTo(6 / 8);
     });
 
     it('los minijuegos gastan combustible según el puntaje y no se pueden terminar con la barra', () => {
@@ -157,9 +157,9 @@ describe('maniobras', () => {
 
     it('la precisión del despegue de Marte define el combustible para la vuelta', () => {
       const good = run('marsAscent');
-      play(good, [true, true, true, true]);
+      play(good, [true, true, true, true, true]);
       const bad = run('marsAscent');
-      play(bad, [false, false, false, false]);
+      play(bad, [false, false, false, false, false]);
       expect(good.toPhaseResult().state.fuel).toBe(1);
       expect(bad.toPhaseResult().state.fuel).toBe(MANEUVER_RULES.returnFuel.worst);
     });

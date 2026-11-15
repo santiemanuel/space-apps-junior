@@ -150,7 +150,7 @@ export class ReportScene extends Phaser.Scene {
       view.add([shape, addText(this, x, 234, 15, earned ? COLOR.focus : COLOR.dim).setOrigin(0.5).setText(t(`report.star.${star}`))]);
       if (earned) {
         shape.setScale(0);
-        this.tweens.add({ targets: shape, scale: 1, angle: 360, duration: 500, delay: 400 + i * 450, ease: 'Back.Out', onStart: () => audio.sfx('success', 1 + i * 0.12) });
+        this.tweens.add({ targets: shape, scale: 1, angle: 360, duration: 500, delay: 400 + i * 450, ease: 'Back.Out', onStart: () => audio.sfx('reportStar', 1 + i * 0.12) });
       }
     });
 
@@ -166,6 +166,8 @@ export class ReportScene extends Phaser.Scene {
       ]);
       y += 19 + description.height + 9;
     }
+    // Después de las estrellas, un sonido por cada logro ganado.
+    report.achievements.filter((a) => a.earned).forEach((_a, i) => this.time.delayedCall(2000 + i * 500, () => audio.sfx('achievementUnlock')));
 
     view.add(addText(this, 680, 266, 20, COLOR.text).setText(t('report.crew.title')));
     report.crew.forEach((member, i) => {

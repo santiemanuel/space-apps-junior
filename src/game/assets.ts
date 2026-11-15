@@ -80,6 +80,34 @@ export const FlightTextures = {
   shield: 'flight-shield',
   parachute: 'flight-parachute',
   lander: 'flight-lander',
+  /** Escenografía generada de los despegues (`scripts/art/flight-scenery.py`). */
+  earthFar: 'flight-earth-far',
+  earthNear: 'flight-earth-near',
+  marsFar: 'flight-mars-far',
+  marsNear: 'flight-mars-near',
+  core: 'flight-core',
+  sideBooster: 'flight-side-booster',
+  launchTower: 'flight-launch-tower',
+  ascentVehicle: 'flight-ascent-vehicle',
+  serviceMast: 'flight-service-mast',
+  fuelTanks: 'flight-fuel-tanks',
+  mothership: 'flight-mothership',
+  van: 'flight-van',
+} as const;
+
+const SCENERY_FILES = {
+  earthFar: 'earth-far',
+  earthNear: 'earth-near',
+  marsFar: 'mars-far',
+  marsNear: 'mars-near',
+  core: 'core',
+  sideBooster: 'side-booster',
+  launchTower: 'launch-tower',
+  ascentVehicle: 'ascent-vehicle',
+  serviceMast: 'service-mast',
+  fuelTanks: 'fuel-tanks',
+  mothership: 'mothership',
+  van: 'van',
 } as const;
 
 export const FLIGHT_ASSETS: readonly AssetEntry[] = [
@@ -88,6 +116,9 @@ export const FLIGHT_ASSETS: readonly AssetEntry[] = [
   ),
   { kind: 'spritesheet', key: FlightTextures.flame, url: 'assets/ui/flight/flame.png', frame: { frameWidth: 12, frameHeight: 20 } },
   { kind: 'spritesheet', key: FlightTextures.smoke, url: 'assets/ui/flight/smoke.png', frame: { frameWidth: 14, frameHeight: 14 } },
+  ...Object.entries(SCENERY_FILES).map(
+    ([name, file]): AssetEntry => ({ kind: 'image', key: FlightTextures[name as keyof typeof SCENERY_FILES], url: `assets/ui/flight/${file}.png` }),
+  ),
 ];
 
 /** Pixel art de la carga de vuelta, la bodega de casilleros (`scripts/art/cargo.py`; registro en docs/pixel-art.md). */

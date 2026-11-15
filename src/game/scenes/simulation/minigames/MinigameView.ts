@@ -11,6 +11,7 @@ import { Painter } from './Painter';
 import { MINIGAME_ICON, renderMinigame, type Area } from './renderers';
 import { renderTutorial } from './tutorials';
 import { audio } from '../../../audio/audio';
+import { MinigameSounds } from './sounds';
 import { panelIn } from '../../../ui/ui';
 
 const tr = (key: string, params?: TranslationParams) => t(key as TranslationKey, params);
@@ -46,11 +47,11 @@ export class MinigameView {
   private readonly keys: Record<KeyName, Phaser.Input.Keyboard.Key>;
   private game: Minigame | null = null;
   private request: Request | null = null;
+  private readonly sounds = new MinigameSounds();
   private wonAt: number | null = null;
   /** Tutorial a la vista, con la casilla «No volver a mostrar» marcada o no. */
   private tutorial: { checked: boolean } | null = null;
   /** Último aviso del minijuego que ya sonó. */
-  private lastMessage: Minigame['message'] = null;
   private readonly prefs = new TutorialPrefs(createBrowserSaveStore());
 
   constructor(
@@ -80,7 +81,8 @@ export class MinigameView {
     this.tutorial = this.game.tutorial && !this.prefs.hidden(request.id) ? { checked: false } : null;
     // Que la E que abrió el juego no cuente como la primera jugada.
     for (const key of Object.values(this.keys)) Phaser.Input.Keyboard.JustDown(key);
-    this.lastMessage = null;
+    this.sounds.reset(this.game);
+    if (request.id === 'meal' && !this.game.card) audio.sfx('mealCook', 1, 0.7);
     panelIn(this.root, 220);
     this.root.setVisible(true);
     this.painter.setVisible(true);
@@ -89,6 +91,7 @@ export class MinigameView {
 
   close(): void {
     this.endTutorial();
+    this.sounds.stop();
     const zone = this.request?.zone;
     this.game = null;
     this.request = null;
@@ -119,13 +122,11 @@ export class MinigameView {
     } else if (this.wonAt === null) {
       game.update(Math.min(deltaMs / 1000, 0.1), input);
       if (game.closed) return this.close();
-      // Cada aviso del minijuego suena: acierto o error.
-      if (game.message && game.message !== this.lastMessage) {
-        this.lastMessage = game.message;
-        if (!game.done) audio.sfx(game.message.good ? 'good' : 'bad');
-      }
+      // Cada minijuego suena a lo que se hace en él (filtro, dial, latido, fusible, tierra…).
+      this.sounds.frame(game, input);
       if (game.done) {
-        audio.sfx('win');
+        this.sounds.stop();
+        audio.sfx(this.request.id === 'meal' && !game.card ? 'mealServe' : 'win');
         this.wonAt = now;
         this.sim.emit('sim:minigameWon', { zone: this.request.zone });
       }

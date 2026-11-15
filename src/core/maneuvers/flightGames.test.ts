@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoardGame, CountdownGame, createFlightGame, FuelGame, NO_FLIGHT_INPUT, SteerGame, type Arrow, type FlightInput } from './flightGames';
+import { BoardGame, CountdownGame, createFlightGame, FuelGame, NO_FLIGHT_INPUT, PressureGame, RadioGame, SteerGame, type Arrow, type FlightInput } from './flightGames';
 
 const hold = (action = true, left = false, right = false): FlightInput => ({ held: { action, left, right }, pressed: { action: false, arrow: null } });
 const press: FlightInput = { held: { action: true, left: false, right: false }, pressed: { action: true, arrow: null } };
@@ -103,6 +103,85 @@ describe('minijuegos de vuelo', () => {
       expect(game.message?.key).toBe('late');
       expect(game.score).toBeCloseTo(0.3);
     });
+
+    it('la cuenta larga pasa rápido hasta T-10 y después va a ritmo de juego', () => {
+      const game = new CountdownGame(1, 1, 60);
+      expect(game.count).toBe(60);
+      expect(game.final).toBe(false);
+      run(game, 50 * CountdownGame.FAST_TICK_SECONDS + 0.01);
+      expect(game.count).toBe(10);
+      expect(game.zeroAt).toBeCloseTo(50 * CountdownGame.FAST_TICK_SECONDS + 10 * CountdownGame.TICK_SECONDS);
+    });
+
+    it('apretar antes de T-10 no cuenta como apuro', () => {
+      const game = new CountdownGame(1, 1, 60);
+      run(game, 1);
+      game.update(1 / 60, press);
+      expect(game.mistakes).toBe(0);
+      run(game, game.zeroAt - game.elapsed - 1 / 120);
+      game.update(1 / 60, press);
+      expect(game.done).toBe(true);
+      expect(game.score).toBe(1);
+    });
+  });
+
+  describe('presurizar la cabina', () => {
+    it('mantener la presión en la franja da puntaje perfecto', () => {
+      const game = new PressureGame(4);
+      for (let i = 0; i < 1000 && !game.done; i++) game.update(1 / 60, hold(game.pressure < game.target.center));
+      expect(game.done).toBe(true);
+      expect(game.score).toBeGreaterThan(0.85);
+      expect(game.message).toMatchObject({ good: true });
+    });
+
+    it('sin bombear la presión no sube y el puntaje es bajo', () => {
+      const game = new PressureGame(4);
+      run(game, 10);
+      expect(game.done).toBe(true);
+      expect(game.pressure).toBe(0);
+      expect(game.score).toBe(0);
+    });
+
+    it('con sistemas en amarillo la franja es más angosta', () => {
+      expect(new PressureGame(4, 0.6).target.width).toBeLessThan(new PressureGame(4).target.width);
+    });
+  });
+
+  describe('prueba de radio', () => {
+    /** Espera a que termine de mostrar la secuencia. */
+    const listen = (game: RadioGame) => {
+      for (let i = 0; i < 600 && game.phase === 'show'; i++) game.update(1 / 60, NO_FLIGHT_INPUT);
+    };
+
+    it('muestra la secuencia luz por luz y después espera la respuesta', () => {
+      const game = new RadioGame(2);
+      expect(game.showing).toBe(game.sequence[0]);
+      game.update(1 / 60, arrow('up'));
+      expect(game.mistakes).toBe(0);
+      listen(game);
+      expect(game.phase).toBe('input');
+      expect(game.showing).toBeNull();
+    });
+
+    it('repetirla bien da puntaje perfecto', () => {
+      const game = new RadioGame(2);
+      listen(game);
+      for (const a of game.sequence) game.update(1 / 60, arrow(a));
+      expect(game.done).toBe(true);
+      expect(game.score).toBe(1);
+    });
+
+    it('un error la vuelve a mostrar y al tercero termina con poca señal', () => {
+      const game = new RadioGame(2);
+      const wrong = (a: Arrow): Arrow => (a === 'up' ? 'down' : 'up');
+      for (let i = 0; i < 3; i++) {
+        listen(game);
+        game.update(1 / 60, arrow(wrong(game.sequence[0]!)));
+        if (i < 2) expect(game.phase).toBe('show');
+      }
+      expect(game.done).toBe(true);
+      expect(game.message?.key).toBe('static');
+    });
   });
 
   describe('pilotaje', () => {
@@ -135,6 +214,8 @@ describe('minijuegos de vuelo', () => {
   });
 
   it('crea el minijuego de cada tipo', () => {
-    expect(['fuel', 'board', 'countdown', 'steer'].map((kind) => createFlightGame(kind as 'fuel', 1).kind)).toEqual(['fuel', 'board', 'countdown', 'steer']);
+    const kinds = ['fuel', 'board', 'pressure', 'radio', 'countdown', 'steer'] as const;
+    expect(kinds.map((kind) => createFlightGame(kind, 1).kind)).toEqual([...kinds]);
+    expect((createFlightGame('countdown', 1, 1, { from: 30 }) as CountdownGame).count).toBe(30);
   });
 });

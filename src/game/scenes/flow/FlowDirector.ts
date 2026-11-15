@@ -147,12 +147,15 @@ export class FlowDirector {
   private startStep(step: FlowStep): void {
     const { flow, bus } = this;
     if (!flow || !bus) return;
+    audio.sfx('whoosh');
     this.transition(() => {
       if (this.flow !== flow) return;
       const state = flow.state;
       this.stopAll();
       audio.music(musicFor(step));
+      audio.ambience(null);
       if (step.kind === 'report') {
+        audio.sfx(step.outcome === 'completed' ? 'missionVictory' : 'missionSuspended');
         this.finishMission(state, step.outcome);
         const report: ReportData = { state, bus, outcome: step.outcome, onExit: () => this.showTitle() };
         this.startScene(SceneKeys.Report, report);

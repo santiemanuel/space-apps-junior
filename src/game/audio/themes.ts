@@ -1,28 +1,167 @@
-import type { ZzfxParams } from './zzfx';
-
-/** Efectos de sonido del juego (parámetros de ZzFX): menús, puertas, acciones, avisos y maniobras. */
+/**
+ * Efectos de sonido del juego: cada uno es un MP3 de `public/assets/audio/sfx/` (ElevenLabs Sound Effects; prompts y
+ * criterios en `public/assets/audio/README.md`). Menús, puertas, avisos, minijuegos, maniobras y el mundo.
+ */
 export const SFX = {
-  hover: [0.3, , 620, , 0.01, 0.03, 1],
-  select: [0.5, , 660, , 0.02, 0.09, 1, 2, , , 330, 0.05],
-  back: [0.4, , 520, , 0.02, 0.1, 1, , , , -180, 0.05],
-  toggle: [0.4, , 760, , 0.01, 0.05, 2],
-  open: [0.45, , 400, , 0.03, 0.1, 1, , , , 200, 0.04],
-  door: [0.5, , 260, 0.02, 0.06, 0.16, 4, , 2, , , , , 0.3],
-  doorClose: [0.5, , 150, 0.01, 0.04, 0.12, 4, , -3, , , , , 0.3],
-  success: [0.55, , 523, , 0.05, 0.25, 1, 1.5, , , 523, 0.08],
-  error: [0.5, , 180, , 0.05, 0.2, 2, 1, -8],
-  alarm: [0.55, , 880, , 0.18, 0.12, 5, , , , -300, 0.1, 0.3],
-  siren: [0.6, , 600, 0.05, 0.45, 0.3, 5, , , , 300, 0.2, 0.2, , , , , 0.7],
-  warning: [0.6, , 220, , 0.2, 0.3, 5, , , , -110, 0.15, 0.3],
-  card: [0.5, , 660, , 0.04, 0.2, 1, , , , 330, 0.06],
-  tick: [0.4, , 1200, , 0.005, 0.03, 1],
-  ignition: [0.9, , 60, 0.05, 0.7, 1, 4, 0.5, , , , , , , , 0.2, , 0.8],
-  whoosh: [0.5, , 300, 0.05, 0.2, 0.3, 4, , -3],
-  // Minijuegos de las salas: acierto, error y minijuego ganado.
-  good: [0.4, , 880, , 0.02, 0.08, 1, , , , 440, 0.04],
-  bad: [0.4, , 200, , 0.03, 0.12, 2, , -4],
-  win: [0.6, , 523, 0.02, 0.12, 0.3, 1, 1.2, , , 262, 0.07, 0.1],
-} as const satisfies Record<string, ZzfxParams>;
+  hover: 'foco-boton',
+  select: 'confirmar',
+  back: 'volver',
+  toggle: 'cambiar-interruptor',
+  open: 'abrir-panel',
+  door: 'abrir-puerta',
+  doorClose: 'cerrar-puerta',
+  // Incidente resuelto (más importante que un acierto de minijuego).
+  success: 'incidente-resuelto',
+  alarm: 'alarma',
+  siren: 'sirena',
+  warning: 'advertencia',
+  card: 'revelar-tarjeta',
+  tick: 'cuenta-regresiva',
+  ignition: 'ignicion',
+  // Transición genérica (cambio de pantalla).
+  whoosh: 'transicion',
+  // Minijuegos: acierto, error y minijuego ganado.
+  good: 'paso-correcto',
+  bad: 'paso-incorrecto',
+  win: 'minijuego-completo',
+  // Pulso del contador de partículas del tablero.
+  particleClick: 'detector-particulas',
+  // Maniobras.
+  parachute: 'paracaidas',
+  splashdown: 'amerizaje',
+  stageSeparation: 'separar-etapas',
+  // Mundo: dormir, pasos, agua y escaneo.
+  sleep: 'descanso',
+  footstepCabin: 'paso-cabina',
+  footstepMars: 'paso-marte',
+  water: 'flujo-agua',
+  scan: 'escaneo-completo',
+  // Final de la misión.
+  missionVictory: 'mision-completa',
+  missionSuspended: 'mision-suspendida',
+  // Despegue y vuelo: presurizar, prueba de radio (un tono por flecha), motores en T-6, brazo y torre de servicio,
+  // público, acople con la nave nodriza y contacto con el suelo de Marte.
+  cabinPressurize: 'cabin-pressurize',
+  radioDown: 'radio-test-01',
+  radioLeft: 'radio-test-02',
+  radioRight: 'radio-test-03',
+  radioUp: 'radio-test-04',
+  engineStart: 'engine-start-t6',
+  serviceArm: 'service-arm-retract',
+  crowdCheer: 'crowd-cheer',
+  marsDocking: 'mars-docking',
+  marsTouchdown: 'mars-touchdown',
+  // Base y nave: esclusa (salir y entrar), micrometeorito, apagón y vuelta de la energía, cambio de tripulante.
+  airlockOut: 'airlock-cycle-01',
+  airlockIn: 'airlock-cycle-02',
+  micrometeorite: 'micrometeorite-hit',
+  powerDown: 'power-change-01',
+  powerUp: 'power-change-02',
+  crewSwitch: 'crew-switch',
+  // Cocina: cocinar y servir.
+  mealCook: 'meal-action-01',
+  mealServe: 'meal-action-02',
+  // Tercera tanda (docs/sonidos-variedad.md): un sonido propio por minijuego, maniobra, incidente y pantalla.
+  achievementUnlock: 'achievement-unlock',
+  bikeOffPace01: 'bike-off-pace-01',
+  bikeOffPace02: 'bike-off-pace-02',
+  boosterSeparation: 'booster-separation',
+  cableSnap: 'cable-snap',
+  cargoStow01: 'cargo-stow-01',
+  cargoStow02: 'cargo-stow-02',
+  checklistRepair: 'checklist-repair',
+  commsPanelOpen: 'comms-panel-open',
+  crateBlocked: 'crate-blocked',
+  crateLift: 'crate-lift',
+  cratePlace: 'crate-place',
+  crateRotate: 'crate-rotate',
+  dataScreenOpen: 'data-screen-open',
+  departureScheduled: 'departure-scheduled',
+  dustGust: 'dust-gust',
+  electricSpark01: 'electric-spark-01',
+  electricSpark02: 'electric-spark-02',
+  flightConfirm: 'flight-confirm',
+  flightMiss: 'flight-miss',
+  fuseInsert: 'fuse-insert',
+  fusePop: 'fuse-pop',
+  growLightOn: 'grow-light-on',
+  habitatMorning: 'habitat-morning',
+  harvestMiss: 'harvest-miss',
+  harvestSnip01: 'harvest-snip-01',
+  harvestSnip02: 'harvest-snip-02',
+  heartbeat: 'heartbeat',
+  heatShieldRelease: 'heat-shield-release',
+  holdSealed: 'hold-sealed',
+  hullCreakCold: 'hull-creak-cold',
+  ingredientAdd01: 'ingredient-add-01',
+  ingredientAdd02: 'ingredient-add-02',
+  ingredientReturn: 'ingredient-return',
+  isolationHush: 'isolation-hush',
+  ladybugsRelease: 'ladybugs-release',
+  leakDetectorBeep: 'leak-detector-beep',
+  machineWindDown: 'machine-wind-down',
+  missionStart: 'mission-start',
+  moxieOverheat: 'moxie-overheat',
+  moxieOxygen: 'moxie-oxygen',
+  outerDoorLock: 'outer-door-lock',
+  particleAbsorbed: 'particle-absorbed',
+  particleThrough: 'particle-through',
+  patchApply: 'patch-apply',
+  patchMiss: 'patch-miss',
+  pestBuzz: 'pest-buzz',
+  pipeRotate01: 'pipe-rotate-01',
+  pipeRotate02: 'pipe-rotate-02',
+  powerRelay01: 'power-relay-01',
+  powerRelay02: 'power-relay-02',
+  pulseMonitorBeep: 'pulse-monitor-beep',
+  radioFadeStatic: 'radio-fade-static',
+  radioLock: 'radio-lock',
+  reportStar: 'report-star',
+  scrubberCatch: 'scrubber-catch',
+  scrubberOxygenLost: 'scrubber-oxygen-lost',
+  seatbeltClick01: 'seatbelt-click-01',
+  seatbeltClick02: 'seatbelt-click-02',
+  shelterSeal: 'shelter-seal',
+  starLock: 'star-lock',
+  starTrackerStep: 'star-tracker-step',
+  suitConnect: 'suit-connect',
+  telemetryReceived: 'telemetry-received',
+  waterBagPlace: 'water-bag-place',
+  wireSelect: 'wire-select',
+  wireSplice: 'wire-splice',
+} as const satisfies Record<string, string>;
+
+/**
+ * Sonidos en loop: ambientes (interior de la nave, sala de máquinas, Marte desde el casco) y los que duran mientras
+ * pasa algo (cargar combustible, rugido del despegue, agua de la plataforma, plasma, fuga de aire, tormenta, bici,
+ * riego, taladro o pala de las muestras).
+ */
+export const LOOPS = {
+  cabin: 'ambiente-cabina',
+  equipment: 'sala-equipos',
+  marsSuit: 'casco-marte',
+  fuelFlow: 'fuel-flow-loop',
+  launchRoar: 'launch-roar-loop',
+  padWater: 'pad-water-loop',
+  reentryRumble: 'reentry-rumble-loop',
+  airLeak: 'air-leak-loop',
+  dustStorm: 'dust-storm-loop',
+  bike: 'exercise-bike-loop',
+  plantWater: 'plant-water-loop',
+  drill: 'sample-drill-loop-01',
+  shovel: 'sample-drill-loop-02',
+  radioTuning: 'radio-tuning-loop',
+  moxieHeat: 'moxie-heat-loop',
+  sealBrush: 'seal-brush-loop',
+  geiger: 'geiger-loop',
+  rover: 'rover-motor-loop',
+} as const satisfies Record<string, string>;
+
+export type LoopId = keyof typeof LOOPS;
+export type AmbienceId = Extract<LoopId, 'cabin' | 'equipment' | 'marsSuit'>;
+
+/** URL de un sonido (relativa a la página, como los demás recursos). */
+export const soundUrl = (file: string): string => `assets/audio/sfx/${file}.mp3`;
 
 export type SfxId = keyof typeof SFX;
 

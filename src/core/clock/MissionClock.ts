@@ -51,6 +51,12 @@ export const CLOCK_RULES = {
   impactSlowHours: 8,
   /** La Alerta dura al menos estos segundos reales, aunque la antelación real sea de minutos. */
   alertMinSeconds: 10,
+  /**
+   * Segundos reales mínimos entre el fin de un aviso y el comienzo del siguiente: las tormentas reales a veces llegan
+   * con pocos días de diferencia y, con el avance rápido, se encadenaban. El reloj se frena lo justo para respetarlo
+   * (las fechas reales no cambian).
+   */
+  alertGapSeconds: 120,
   calmReasonKey: 'hud.alert.calm',
 } as const;
 
@@ -96,6 +102,8 @@ export class MissionClock {
   private lastDay: string;
   private lastLevel: { level: AlertLevel; alertId: string | null };
   private lastPace: ClockPace;
+  /** Segundos reales que faltan para que pueda empezar otro aviso (desde que terminó el último). */
+  private quietSeconds = 0;
 
   constructor(options: MissionClockOptions) {
     this.nowMs = Date.parse(options.start);
@@ -138,8 +146,18 @@ export class MissionClock {
   /** Horas simuladas por segundo real en este momento (con el avance de las jornadas sin nada que hacer). */
   get hoursPerSecond(): number {
     const base = this.baseHoursPerSecond;
-    if (this.sleep && this.currentAlert().level === 'calm') return Math.max(base, CLOCK_RULES.sleepHoursPerSecond);
-    return this.idleBoost ? Math.max(base, CLOCK_RULES.idleHoursPerSecond) : base;
+    const calm = this.currentAlert().level === 'calm';
+    const rate = this.sleep && calm ? Math.max(base, CLOCK_RULES.sleepHoursPerSecond) : this.idleBoost ? Math.max(base, CLOCK_RULES.idleHoursPerSecond) : base;
+    // Recién terminó un aviso: el próximo no llega antes de `alertGapSeconds` reales.
+    const next = calm && this.quietSeconds > 0 ? this.nextWarnMs() : null;
+    return next === null ? rate : Math.min(rate, (next - this.nowMs) / HOUR_MS / this.quietSeconds);
+  }
+
+  /** Cuándo empieza el próximo aviso pendiente (null si no queda ninguno). */
+  private nextWarnMs(): number | null {
+    let next: number | null = null;
+    for (const a of this.alerts) if (!this.resolved.has(a.id) && a.warnMs > this.nowMs && (next === null || a.warnMs < next)) next = a.warnMs;
+    return next;
   }
 
   /** La jornada corre rápido porque el jugador no tiene nada que hacer (sólo en calma y dentro de una jornada). */
@@ -208,13 +226,17 @@ export class MissionClock {
       const msPerSecond = this.hoursPerSecond * HOUR_MS;
       const target = this.nowMs + remaining * msPerSecond;
       const boundary = this.nextBoundary();
+      let used: number;
       if (target < boundary) {
+        used = remaining;
         this.nowMs = target;
         remaining = 0;
       } else {
-        remaining -= (boundary - this.nowMs) / msPerSecond;
+        used = (boundary - this.nowMs) / msPerSecond;
+        remaining -= used;
         this.nowMs = boundary;
       }
+      this.quietSeconds = Math.max(0, this.quietSeconds - used);
       this.collectTransitions(events);
     }
     if (this.nowMs >= this.endMs && !this.ended) {
@@ -270,6 +292,7 @@ export class MissionClock {
     }
     const current = this.currentAlert();
     if (current.level !== this.lastLevel.level || current.alertId !== this.lastLevel.alertId) {
+      if (current.level === 'calm' && this.lastLevel.level !== 'calm') this.quietSeconds = CLOCK_RULES.alertGapSeconds;
       this.lastLevel = current;
       events.push({ type: 'level', level: current.level, reasonKey: this.reasonFor(current), alertId: current.alertId, at: this.simDate });
     }

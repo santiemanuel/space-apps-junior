@@ -17,7 +17,7 @@ import { crewTextureKey } from '../../assets';
 import { CraterView, CRATER_TEXTURE } from './CraterView';
 import { HUD_ICONS, preloadHudIcons } from '../../hudIcons';
 import { Minimap, MINIMAP_FRAME, type MinimapFrame } from './Minimap';
-import { PanelColumn, type PanelRow, drawPresence, PRESENCE_COLOR } from './PanelColumn';
+import { PanelColumn, type PanelRow, PRESENCE_COLOR } from './PanelColumn';
 import { MinigameView } from './minigames/MinigameView';
 import { formatDate, healthLights, LIGHT, lightFor, NAMES, StatusView, supplies } from './StatusView';
 import { gridWarningKey, locationKey, toggleOverlay, type SimulationSceneData } from './simulationData';
@@ -25,12 +25,13 @@ import { audio } from '../../audio/audio';
 
 /** La vista del mapa ocupa 21 tiles; el resto de la pantalla es el tablero (como en las referencias, angosto). */
 export const VIEW_WIDTH = 21 * TILE;
-/** Dónde aparecen los avisos sobre el mapa: debajo de la placa del jugador y de los botones. */
-export const TOAST_Y = 104;
+/** Dónde aparecen los avisos sobre el mapa: arriba al centro, entre la placa del jugador y los botones. */
+export const TOAST_Y = 14;
 const DAY_MS = 86_400_000;
 /** Superpuestas que tapan la vista del mapa: con una abierta no se abre el estado ni el mapa del cráter. */
 const OVERLAYS = [SceneKeys.Planning, SceneKeys.DataPanel, SceneKeys.MissionControl] as const;
 const LEVEL_COLOR: Record<AlertLevel, string> = { calm: '#68d391', alert: '#f6e05e', impact: '#fc8181' };
+const LEVEL_BOX: Record<AlertLevel, BoxStyle> = { calm: 'normal', alert: 'goal', impact: 'alert' };
 /** Tinte de la interfaz según el nivel del reloj (§3.1): amarillo en Alerta. */
 const LEVEL_TINT: Record<AlertLevel, [number, number]> = { calm: [0, 0], alert: [0xecc94b, 0.1], impact: [0xe53e3e, 0.12] };
 /** Cajas del tablero: borde izquierdo, ancho y margen interno (px). */
@@ -39,14 +40,27 @@ const INNER = { x: PANEL.x + PANEL.pad, width: PANEL.width - 2 * PANEL.pad } as 
 /** Alto máximo del minimapa (px). */
 const MINIMAP_MAX_HEIGHT = 150;
 /** Placa del jugador (arriba a la izquierda del mapa) y botones (arriba a la derecha). */
-const BADGE = { x: 10, y: 10, width: 252, height: 60 } as const;
+const BADGE = { x: 10, y: 8, width: 262, height: 84 } as const;
+/**
+ * Avatar circular del jugador: la cara en el centro y un anillo con sus cuatro stats, un cuarto cada uno (comida,
+ * forma, descanso y radiación). Cada cuarto se llena en el sentido del reloj con su color; lo vacío queda oscuro.
+ */
+const AVATAR = { cx: BADGE.x + 42, cy: BADGE.y + 42, outer: 40, ring: 11, face: 25, gap: 0.09 } as const;
+const STAT_RING: Record<'food' | 'condition' | 'fatigue' | 'radiation', { start: number; color: number; dark: number }> = {
+  food: { start: Math.PI, color: 0x48bb78, dark: 0x1c3a2a },
+  condition: { start: Math.PI * 1.5, color: 0xf56565, dark: 0x4a1c22 },
+  fatigue: { start: 0, color: 0x4299e1, dark: 0x1a2c4a },
+  radiation: { start: Math.PI / 2, color: 0xecc94b, dark: 0x473b16 },
+};
 const BUTTON = { size: 46, gap: 6, y: 10 } as const;
-/** Franja de la misión, arriba al centro del mapa (entre la placa y los botones): fase, fecha, avance y semáforo. */
-const STRIP = { x: BADGE.x + BADGE.width + 10, width: 456, y: 10 } as const;
-/** Tarjeta de la decisión pendiente, abajo al centro del mapa. */
-const CARD = { width: 780, bottom: GAME_HEIGHT - 34 } as const;
+/** Cartel de la misión, abajo a la izquierda del mapa: fase, fecha, avance, semáforo y tareas pendientes. */
+const STRIP = { x: 10, width: 436, bottom: GAME_HEIGHT - 10 } as const;
+/** Barra de controles, abajo a la derecha del mapa (compacta, con teclas dibujadas). */
+const CONTROLS = { right: VIEW_WIDTH - 10, bottom: GAME_HEIGHT - 10, height: 30 } as const;
+/** Tarjeta de la decisión pendiente, abajo a la derecha (encima de los controles, sin pisar el cartel de la misión). */
+const CARD = { x: STRIP.x + STRIP.width + 12, width: VIEW_WIDTH - (STRIP.x + STRIP.width + 12) - 10, bottom: CONTROLS.bottom - CONTROLS.height - 6 } as const;
 /** Recorte de la cara en el cuadro de frente de las hojas de la tripulación (px de mundo). */
-const FACE = { x: 4, y: 18, w: 72, h: 52, scale: 0.75 } as const;
+const FACE = { x: 18, y: 20, w: 44, h: 44 } as const;
 const HEAD = '#90cdf4';
 const SOFT = '#a0aec0';
 const DIM = '#718096';
@@ -105,18 +119,20 @@ export class HudScene extends Phaser.Scene {
   private columns!: Record<'meters' | 'crew' | 'real' | 'bottom', PanelColumn>;
   private boxes!: Phaser.GameObjects.Graphics;
   private boxSignature = '';
-  private strip!: { box: Phaser.GameObjects.Graphics; column: PanelColumn; height: number };
+  private strip!: { box: Phaser.GameObjects.Graphics; column: PanelColumn; signature: string };
+  private controlsBar!: { root: Phaser.GameObjects.Container; signature: string };
   private minimap!: Minimap;
   private tint!: Phaser.GameObjects.Rectangle;
   private monitorDot!: Phaser.GameObjects.Arc;
   private badge!: {
     face: Phaser.GameObjects.Image;
+    ring: Phaser.GameObjects.Graphics;
     name: Phaser.GameObjects.Text;
     place: Phaser.GameObjects.Text;
-    icons: { image: Phaser.GameObjects.Image; pip: Phaser.GameObjects.Rectangle }[];
-    /** Estado del jugador (como en Discord): el punto sobre la cara y su nombre. */
-    presence: Phaser.GameObjects.Graphics;
+    icons: Phaser.GameObjects.Image[];
+    /** Estado del jugador (como en Discord), junto al nombre. */
     presenceText: Phaser.GameObjects.Text;
+    signature: string;
   };
   private card!: { box: Phaser.GameObjects.Graphics; column: PanelColumn; signature: string };
   /** Lo que el tablero dibuja sobre el mapa (placa, botones, ayuda): se esconde con una pantalla superpuesta abierta. */
@@ -183,17 +199,15 @@ export class HudScene extends Phaser.Scene {
     this.minimap = new Minimap(this, mars ? MARS_CONTENT.layout : SHIP_LAYOUT, { x: INNER.x, y: 8 + PANEL.pad, width: INNER.width, height: MINIMAP_MAX_HEIGHT });
     const column = () => new PanelColumn(this, INNER.x, 0, INNER.width);
     this.columns = { meters: column(), crew: column(), real: column(), bottom: column() };
-    this.strip = { box: this.add.graphics().setDepth(50), column: new PanelColumn(this, STRIP.x + 14, STRIP.y + 9, STRIP.width - 28), height: 0 };
+    this.strip = { box: this.add.graphics().setDepth(50), column: new PanelColumn(this, STRIP.x + 14, 0, STRIP.width - 28), signature: '' };
     this.monitorDot = this.add.circle(0, 0, 4, 0xfbd38d).setVisible(false).setDepth(52);
     this.createBadge();
     this.createButtons(mars);
-    this.card = { box: this.add.graphics().setDepth(50), column: new PanelColumn(this, (VIEW_WIDTH - CARD.width) / 2 + 16, 0, CARD.width - 32), signature: '' };
-    this.onMap.push(
-      this.add
-        .text(12, GAME_HEIGHT - 10, t('hud.panel.controlsShort'), { fontFamily: 'monospace', fontSize: '11px', color: '#cbd5e0', backgroundColor: '#0b1020b0', padding: { x: 6, y: 3 } })
-        .setOrigin(0, 1)
-        .setDepth(50),
-    );
+    this.card = { box: this.add.graphics().setDepth(50), column: new PanelColumn(this, CARD.x + 16, 0, CARD.width - 32), signature: '' };
+    const controlsRoot = this.add.container(0, 0).setDepth(50);
+    this.controlsBar = { root: controlsRoot, signature: '' };
+    this.onMap.push(controlsRoot);
+    this.renderControls(false);
 
     const off = sim.on('sim:snapshot', (s) => (this.snapshot = s));
     const keyboard = this.input.keyboard!;
@@ -227,30 +241,58 @@ export class HudScene extends Phaser.Scene {
   private toggleOverlay(key: SceneKey): void {
     if (this.minigame.visible) return;
     this.show(null);
-    audio.sfx(this.scene.isActive(key) ? 'back' : 'open');
+    audio.sfx(this.scene.isActive(key) ? 'back' : key === SceneKeys.MissionControl ? 'commsPanelOpen' : key === SceneKeys.DataPanel ? 'dataScreenOpen' : 'open');
     toggleOverlay(this.scene, key, this.data_);
   }
 
-  /** Placa del tripulante que maneja el jugador: cara, nombre, dónde está y las cuatro luces de su salud. */
+  /** Placa del tripulante que maneja el jugador: avatar circular con el anillo de sus stats, nombre y dónde está. */
   private createBadge(): void {
     const g = this.add.graphics().setDepth(50);
-    drawBox(g, BADGE.x, BADGE.y, BADGE.width, BADGE.height, 'goal');
-    g.fillStyle(0x05070d).fillRect(BADGE.x + 8, BADGE.y + 8, 58, 44);
-    g.fillStyle(0x2a2440).fillRect(BADGE.x + 10, BADGE.y + 10, 54, 40);
-    const face = this.add.image(0, 0, '__WHITE').setOrigin(0, 0).setScale(FACE.scale).setDepth(51).setVisible(false);
-    const name = this.add.text(BADGE.x + 74, BADGE.y + 8, '', { fontFamily: 'monospace', fontSize: '15px', color: '#fbd38d' }).setDepth(51);
-    const place = this.add.text(BADGE.x + 74, BADGE.y + 12, '', { fontFamily: 'monospace', fontSize: '11px', color: SOFT }).setDepth(51);
-    const icons = Array.from({ length: 4 }, (_, i) => {
-      const x = BADGE.x + 84 + i * 26;
-      return {
-        image: (this.textures.exists(HUD_ICONS) ? this.add.image(x, BADGE.y + 38, HUD_ICONS) : this.add.image(x, BADGE.y + 38, '__WHITE')).setDepth(51),
-        pip: this.add.rectangle(x, BADGE.y + 49, 12, 2, 0x68d391).setDepth(51),
-      };
+    // Chapa del nombre detrás del avatar, que sale hacia la derecha.
+    const plate = { x: AVATAR.cx + 20, y: AVATAR.cy - 24, w: BADGE.x + BADGE.width - AVATAR.cx - 20, h: 48 };
+    drawBox(g, plate.x, plate.y, plate.w, plate.h, 'goal');
+    // Disco del avatar: contorno oscuro, fondo del anillo y el círculo azul de la cara.
+    g.fillStyle(0x05070d).fillCircle(AVATAR.cx, AVATAR.cy, AVATAR.outer + 3);
+    g.fillStyle(0x1a1d2b).fillCircle(AVATAR.cx, AVATAR.cy, AVATAR.outer);
+    g.fillStyle(0x05070d).fillCircle(AVATAR.cx, AVATAR.cy, AVATAR.face + 3);
+    g.fillStyle(0x5a6fd6).fillCircle(AVATAR.cx, AVATAR.cy, AVATAR.face);
+    const ring = this.add.graphics().setDepth(51);
+    const face = this.add.image(AVATAR.cx, AVATAR.cy, '__WHITE').setDepth(52).setVisible(false);
+    const textX = AVATAR.cx + AVATAR.outer + 10;
+    const name = this.add.text(textX, plate.y + 8, '', { fontFamily: 'monospace', fontSize: '15px', color: '#fbd38d' }).setDepth(51);
+    const place = this.add.text(textX, plate.y + 27, '', { fontFamily: 'monospace', fontSize: '11px', color: SOFT }).setDepth(51);
+    const icons = (Object.keys(STAT_RING) as (keyof typeof STAT_RING)[]).map((id) => {
+      const mid = STAT_RING[id].start + Math.PI / 4;
+      const r = AVATAR.outer - AVATAR.ring / 2;
+      return (this.textures.exists(HUD_ICONS) ? this.add.image(0, 0, HUD_ICONS) : this.add.image(0, 0, '__WHITE'))
+        .setPosition(Math.round(AVATAR.cx + Math.cos(mid) * r), Math.round(AVATAR.cy + Math.sin(mid) * r))
+        .setScale(0.72)
+        .setDepth(53)
+        .setData('stat', id);
     });
-    const presence = this.add.graphics().setDepth(53).setScrollFactor(0);
     const presenceText = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '10px', color: '#a0aec0' }).setDepth(53).setScrollFactor(0);
-    this.badge = { face, name, place, icons, presence, presenceText };
-    this.onMap.push(g, name, place, presence, presenceText, ...icons.flatMap((i) => [i.image, i.pip]));
+    this.badge = { face, ring, name, place, icons, presenceText, signature: '' };
+    this.onMap.push(g, ring, name, place, presenceText, ...icons);
+  }
+
+  /** Cara del tripulante recortada en círculo (una textura por tripulante, hecha una vez). */
+  private faceTexture(id: CrewId): string | null {
+    const key = `badge-face-${id}`;
+    if (this.textures.exists(key)) return key;
+    const sheet = crewTextureKey(id);
+    if (!this.textures.exists(sheet)) return null;
+    const frame = this.textures.getFrame(sheet, 0);
+    const size = AVATAR.face * 2;
+    const canvas = this.textures.createCanvas(key, size, size);
+    if (!canvas) return null;
+    const ctx = canvas.getContext();
+    ctx.imageSmoothingEnabled = false;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(frame.source.image as CanvasImageSource, frame.cutX + FACE.x, frame.cutY + FACE.y, FACE.w, FACE.h, 0, 0, size, size);
+    canvas.refresh();
+    return key;
   }
 
   /** Botones de las pantallas, arriba a la derecha del mapa: ícono y la tecla que hace lo mismo. */
@@ -333,6 +375,7 @@ export class HudScene extends Phaser.Scene {
       this.renderStrip(s);
       this.renderBadge(s);
       this.renderCard(s);
+      this.renderControls(s.decisions.length > 0);
     }
     this.particleMonitor(s, time);
     // Alerta: el tablero titila un poco, como si la nave sintiera la tormenta que viene (§3.1).
@@ -379,33 +422,102 @@ export class HudScene extends Phaser.Scene {
       }
     }
     this.badge.face.setVisible(!covered && this.badge.face.texture.key !== '__WHITE');
+    if (!covered) this.badge.signature = '';
     if (!covered) return;
     for (const part of [this.strip, this.card]) {
       part.column.render([]);
       part.box.clear();
+      part.signature = '';
     }
-    this.strip.height = 0;
-    this.card.signature = '';
   }
 
-  /** Franja de la misión: fase con la fecha y el día, la barra de avance y el semáforo con su motivo. */
+  /** Barra de controles abajo a la derecha: teclas de pixel art con su acción, sin tapar el centro del mapa. */
+  private renderControls(hasDecision: boolean): void {
+    const signature = `${getLocale()}|${this.muted ? 1 : 0}|${hasDecision ? 1 : 0}`;
+    if (signature === this.controlsBar.signature) return;
+    this.controlsBar.signature = signature;
+    const { root } = this.controlsBar;
+    root.removeAll(true);
+    const items: { cap: string; label: string; dim?: boolean }[] = [
+      { cap: 'WASD', label: t('hud.info.key.move') },
+      { cap: 'E', label: t('hud.info.key.use') },
+      { cap: 'Tab', label: t('hud.info.key.switch') },
+      ...(hasDecision ? [{ cap: '1-3', label: t('hud.info.key.decide') }] : []),
+      { cap: 'M', label: t('hud.info.key.sound'), dim: this.muted },
+    ];
+    const g = this.add.graphics();
+    root.add(g);
+    const top = CONTROLS.bottom - CONTROLS.height;
+    const cy = top + CONTROLS.height / 2;
+    const parts: { capText: Phaser.GameObjects.Text; labelText: Phaser.GameObjects.Text; capW: number; totalW: number; dim?: boolean }[] = items.map((item) => {
+      const capText = this.add
+        .text(0, 0, item.cap, { fontFamily: 'monospace', fontSize: '10px', color: item.dim ? DIM : '#fbd38d' })
+        .setOrigin(0.5, 0.5);
+      const labelText = this.add
+        .text(0, 0, item.label, { fontFamily: 'monospace', fontSize: '11px', color: item.dim ? DIM : '#cbd5e0' })
+        .setOrigin(0, 0.5);
+      const capW = Math.max(18, Math.ceil(capText.width) + 10);
+      root.add([capText, labelText]);
+      return { capText, labelText, capW, totalW: capW + 5 + Math.ceil(labelText.width), dim: item.dim };
+    });
+    const gap = 11;
+    const padX = 10;
+    const contentW = parts.reduce((sum, p) => sum + p.totalW, 0) + gap * (parts.length - 1);
+    const barW = contentW + padX * 2;
+    const barX = CONTROLS.right - barW;
+    // Caja biselada con esquinas cortadas, un poco translúcida para que se perciba liviana sobre el mapa.
+    const octagon = (inset: number, cut: number, color: number, alpha = 1) => {
+      const [ix, iy, iw, ih] = [barX + inset, top + inset, barW - 2 * inset, CONTROLS.height - 2 * inset];
+      g.fillStyle(color, alpha).fillRect(ix + cut, iy, iw - 2 * cut, ih).fillRect(ix, iy + cut, iw, ih - 2 * cut);
+    };
+    octagon(0, 6, 0x05070d, 0.94);
+    octagon(2, 4, 0x4a4266, 0.94);
+    g.fillStyle(0x7c6fa8, 0.94).fillRect(barX + 6, top + 2, barW - 12, 2);
+    octagon(4, 2, 0x101626, 0.92);
+    let x = barX + padX;
+    for (const part of parts) {
+      const kh = 18;
+      const ky = Math.round(cy - kh / 2);
+      g.fillStyle(0x05070d).fillRect(x, ky, part.capW, kh);
+      g.fillStyle(part.dim ? 0x1a202c : 0x2a2440).fillRect(x + 1, ky + 1, part.capW - 2, kh - 3);
+      g.fillStyle(part.dim ? 0x2d3748 : 0x6b5f94).fillRect(x + 1, ky + 1, part.capW - 2, 1);
+      g.fillStyle(0x141225).fillRect(x + 1, ky + kh - 2, part.capW - 2, 1);
+      part.capText.setPosition(Math.round(x + part.capW / 2), ky + Math.round((kh - 1) / 2));
+      part.labelText.setPosition(x + part.capW + 5, Math.round(cy));
+      x += part.totalW + gap;
+    }
+  }
+
+  /** Cartel de la misión, anclado abajo a la izquierda: fase con la fecha y el día, avance y semáforo con su motivo. */
   private renderStrip(s: SimSnapshot): void {
     const { column, box } = this.strip;
-    column.render(this.missionRows(s));
-    const height = column.height + 16;
-    if (height === this.strip.height) return;
-    this.strip.height = height;
+    const rows = this.missionRows(s);
+    column.render(rows);
+    const height = column.height + 18;
+    const top = STRIP.bottom - height;
+    column.moveTo(top + 9);
+    column.render(rows);
+    const style = LEVEL_BOX[s.level];
+    const signature = `${top}|${height}|${style}`;
+    if (signature === this.strip.signature) return;
+    this.strip.signature = signature;
     box.clear();
-    drawBox(box, STRIP.x, STRIP.y, STRIP.width, height);
+    drawBox(box, STRIP.x, top, STRIP.width, height, style);
   }
 
   private missionRows(s: SimSnapshot): PanelRow[] {
     const start = Date.parse(s.window.start);
     const total = Math.round((Date.parse(s.window.end) - start) / DAY_MS);
     const day = Math.min(total, Math.floor((Date.parse(s.simDate) - start) / DAY_MS) + 1);
+    const mars = s.place === 'mars';
     const rows: PanelRow[] = [
-      { text: tr(`common.phase.${s.phase}`), size: 14, color: HEAD, value: { text: `${formatDate(s.simDate)} · ${t(s.place === 'mars' ? 'hud.panel.sol' : 'hud.panel.day', { day, total })}`, color: SOFT } },
-      { text: '', bar: { fraction: s.progress, color: '#63b3ed', from: 0, segments: 40 }, size: 4 },
+      {
+        text: tr(`common.phase.${s.phase}`),
+        size: 14,
+        color: mars ? '#fbd38d' : HEAD,
+        value: { text: `${formatDate(s.simDate)} · ${t(mars ? 'hud.panel.sol' : 'hud.panel.day', { day, total })}`, color: SOFT, size: 11 },
+      },
+      { text: '', bar: { fraction: s.progress, color: mars ? '#f6ad55' : '#63b3ed', from: 0, segments: 31 }, size: 4 },
       { gap: 2, text: `● ${tr(s.reasonKey)}`, color: LEVEL_COLOR[s.level], size: 12 },
     ];
     // El ritmo sólo aparece cuando no es el de siempre (manejando a alguien).
@@ -487,7 +599,8 @@ export class HudScene extends Phaser.Scene {
         portrait: m.id,
         presence: s.presence[m.id],
         half: true,
-        text: `${m.id === st.activeCrewId ? '▶ ' : ''}${NAMES[m.id]}`,
+        text: NAMES[m.id],
+        inverse: m.id === st.activeCrewId,
         size: 12,
         color: m.resting ? SOFT : lightFor(efficiency(m, st.meters.lifeSupport.co2MmHg), 0.8, 0.6),
         // Sólo se prende el ícono de lo que no está en verde.
@@ -583,24 +696,38 @@ export class HudScene extends Phaser.Scene {
   private renderBadge(s: SimSnapshot): void {
     const m = s.state.crew.find((c) => c.id === s.state.activeCrewId);
     if (!m) return;
-    const key = crewTextureKey(m.id);
     const b = this.badge;
-    if (this.textures.exists(key) && b.face.texture.key !== key) {
-      b.face.setTexture(key, 0).setCrop(FACE.x, FACE.y, FACE.w, FACE.h).setVisible(true);
-      b.face.setPosition(BADGE.x + 10 - FACE.x * FACE.scale, BADGE.y + 10 - FACE.y * FACE.scale);
-    }
+    const faceKey = this.faceTexture(m.id);
+    if (faceKey && b.face.texture.key !== faceKey) b.face.setTexture(faceKey).setVisible(true);
     b.name.setText(NAMES[m.id]);
     const where = locationKey(this.data_.namespace, m.location);
-    b.place.setText(m.resting ? t('hud.panel.resting') : tr(where)).setX(b.name.x + b.name.width + 8);
+    b.place.setText(m.resting ? t('hud.panel.resting') : tr(where));
     const presence = s.presence[m.id];
-    b.presence.clear();
-    drawPresence(b.presence, BADGE.x + 10 + FACE.w * FACE.scale - 6, BADGE.y + 10 + FACE.h * FACE.scale - 6, presence, 7);
-    b.presenceText.setText(`● ${t(`hud.presence.${presence}`)}`).setColor(`#${PRESENCE_COLOR[presence].toString(16).padStart(6, '0')}`).setPosition(b.place.x + b.place.width + 8, b.place.y + 1);
-    healthLights(m).forEach((light, i) => {
-      const icon = b.icons[i]!;
-      if (this.hasIcon(light.id)) icon.image.setFrame(light.id);
-      icon.pip.setFillStyle(Phaser.Display.Color.HexStringToColor(light.color).color);
-    });
+    b.presenceText.setText(`● ${t(`hud.presence.${presence}`)}`).setColor(`#${PRESENCE_COLOR[presence].toString(16).padStart(6, '0')}`).setPosition(b.name.x + b.name.width + 8, b.name.y + 4);
+    const lights = healthLights(m);
+    // Lo que está en rojo titila (se redibuja a medio segundo).
+    const blink = Math.floor(this.time.now / 450) % 2 === 0;
+    const signature = `${lights.map((l) => `${Math.round(l.fraction * 40)}${l.color}`).join('|')}|${blink}`;
+    for (const icon of b.icons) {
+      const id = icon.getData('stat') as string;
+      if (this.hasIcon(id)) icon.setFrame(id);
+    }
+    if (signature === b.signature) return;
+    b.signature = signature;
+    const g = b.ring.clear();
+    const r = AVATAR.outer - AVATAR.ring / 2;
+    for (const light of lights) {
+      const spec = STAT_RING[light.id];
+      const from = spec.start + AVATAR.gap / 2;
+      const span = Math.PI / 2 - AVATAR.gap;
+      const fill = Phaser.Math.Clamp(light.fraction, 0, 1);
+      g.lineStyle(AVATAR.ring, spec.dark).beginPath().arc(AVATAR.cx, AVATAR.cy, r, from, from + span, false).strokePath();
+      if (fill <= 0) continue;
+      const alarm = light.color === LIGHT.red && !blink;
+      g.lineStyle(AVATAR.ring, spec.color, alarm ? 0.45 : 1).beginPath().arc(AVATAR.cx, AVATAR.cy, r, from, from + span * fill, false).strokePath();
+      // Brillo en el borde de afuera, como en el pixel art de los botones.
+      g.lineStyle(2, 0xffffff, alarm ? 0.15 : 0.35).beginPath().arc(AVATAR.cx, AVATAR.cy, AVATAR.outer - 2, from, from + span * fill, false).strokePath();
+    }
   }
 
   /** Tarjeta de la primera decisión pendiente, sobre el mapa: cada opción con su color de riesgo, su tecla y su coste. */
@@ -618,29 +745,29 @@ export class HudScene extends Phaser.Scene {
     const { sim } = this.data_;
     const hint = s.hints.find((h) => h.incidentId === d.incident.id)?.responseId;
     const rows: PanelRow[] = [
-      { icon: this.icon('warning'), text: tr(`${d.textKey}.title`), color: d.incident.status === 'active' ? LIGHT.red : LIGHT.yellow, size: 22 },
-      { gap: 4, text: t('hud.panel.choose'), color: SOFT, size: 15 },
+      { icon: this.icon('warning'), text: tr(`${d.textKey}.title`), color: d.incident.status === 'active' ? LIGHT.red : LIGHT.yellow, size: 19 },
+      { gap: 2, text: t('hud.panel.choose'), color: SOFT, size: 13 },
     ];
     d.options.forEach(({ response, available }, i) => {
       rows.push({
-        gap: 12,
+        gap: 8,
         text: `[${i + 1}] ● ${tr(`${d.textKey}.response.${response.id}.title`)}${hint === response.id ? ` ${t('hud.panel.hint')}` : ''}`,
         color: available ? LIGHT[response.risk] : '#4a5568',
-        size: 19,
+        size: 16,
         onClick: available ? () => sim.emit('sim:respond', { incidentId: d.incident.id, responseId: response.id }) : undefined,
       });
-      rows.push({ text: `      ${tr(`${d.textKey}.response.${response.id}.cost`)}`, color: SOFT, size: 14 });
+      rows.push({ text: `     ${tr(`${d.textKey}.response.${response.id}.cost`)}`, color: SOFT, size: 12 });
     });
     column.render(rows);
-    const height = column.height + 24;
+    const height = column.height + 22;
     const top = CARD.bottom - height;
-    column.moveTo(top + 12);
+    column.moveTo(top + 11);
     column.render(rows);
     const signature = `${top}|${height}`;
     if (signature === this.card.signature) return;
     this.card.signature = signature;
     box.clear();
-    drawBox(box, (VIEW_WIDTH - CARD.width) / 2, top, CARD.width, height, 'alert');
+    drawBox(box, CARD.x, top, CARD.width, height, 'alert');
   }
 
   /** Clics tipo contador Geiger con tiempos al azar (con semilla) según la dosis del día; el punto titila junto a la dosis. */
@@ -654,19 +781,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private click(): void {
-    const sound = this.sound as Phaser.Sound.WebAudioSoundManager;
-    const ctx = sound.context as AudioContext | undefined;
-    if (!ctx || ctx.state !== 'running') return;
-    const length = Math.floor(ctx.sampleRate * 0.004);
-    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = (this.rng.next() * 2 - 1) * (1 - i / length);
-    const source = ctx.createBufferSource();
-    const gain = ctx.createGain();
-    // El contador de partículas respeta el volumen de los sonidos de las opciones.
-    gain.gain.value = 0.25 * audio.soundVolume;
-    source.buffer = buffer;
-    source.connect(gain).connect(ctx.destination);
-    source.start();
+    // Un poco de variación de tono para que la ráfaga no suene a metrónomo.
+    audio.sfx('particleClick', 0.9 + this.rng.next() * 0.2, 0.5);
   }
 }

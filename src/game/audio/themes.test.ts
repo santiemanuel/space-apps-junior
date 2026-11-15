@@ -1,6 +1,6 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { MUSIC, noteFrequency, SFX } from './themes';
-import { ZZFX_SAMPLE_RATE, zzfxSamples } from './zzfx';
+import { LOOPS, MUSIC, noteFrequency, SFX, soundUrl } from './themes';
 
 describe('sonido', () => {
   it('las notas tienen la frecuencia de la escala temperada (La 440)', () => {
@@ -19,13 +19,7 @@ describe('sonido', () => {
     }
   });
 
-  it('los efectos se generan sin azar (siempre igual), cortos y sin saturar', () => {
-    for (const [id, params] of Object.entries(SFX)) {
-      const a = zzfxSamples(params);
-      expect(a.length, id).toBeGreaterThan(0);
-      expect(a.length / ZZFX_SAMPLE_RATE, id).toBeLessThan(2.5);
-      expect(Math.max(...a.map(Math.abs)), id).toBeLessThanOrEqual(1);
-      expect(zzfxSamples(params)).toEqual(a);
-    }
+  it('cada efecto y cada ambiente tiene su archivo en public/', () => {
+    for (const file of [...Object.values(SFX), ...Object.values(LOOPS)]) expect(existsSync(`public/${soundUrl(file)}`), file).toBe(true);
   });
 });

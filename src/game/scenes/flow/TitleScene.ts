@@ -220,6 +220,7 @@ export class TitleScene extends Phaser.Scene {
       });
     } else if (action === 'newGame') {
       this.leaving = true;
+      audio.sfx('missionStart');
       // La semilla sale del reloj; desde acá todo el azar de la partida pasa por Rng.
       this.data_.onNewGame(createNewGame(this.menu.setup, { seed: Date.now(), unlockLevel: this.unlockLevel, start: MISSION_START }));
     }

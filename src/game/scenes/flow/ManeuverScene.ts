@@ -5,7 +5,7 @@ import type { CrewId } from '../../../core/crew/types';
 import type { UvIndex } from '../../../core/environment/series';
 import type { EventBus } from '../../../core/events/EventBus';
 import type { GameEvents } from '../../../core/events/GameEvents';
-import { BoardGame, CountdownGame, createFlightGame, FuelGame, SteerGame, type Arrow, type FlightGame, type FlightInput } from '../../../core/maneuvers/flightGames';
+import { BoardGame, CountdownGame, createFlightGame, FuelGame, PressureGame, RadioGame, SteerGame, type Arrow, type FlightGame, type FlightInput } from '../../../core/maneuvers/flightGames';
 import { ManeuverRun, precisionLevel } from '../../../core/maneuvers/ManeuverRun';
 import type { ChecklistDecision, ChecklistItem, StageKind } from '../../../core/maneuvers/types';
 import type { SystemStatus } from '../../../core/systems/types';
@@ -18,21 +18,49 @@ import type { ManeuverSceneData } from '../sceneData';
 import { ART_VIEW, FlightArt } from './flightArt';
 import { audio } from '../../audio/audio';
 
+/** Teclas de cada minijuego de vuelo ('space' se traduce). */
+const HINT_KEYS: Record<StageKind, readonly string[]> = {
+  timing: ['space'],
+  fuel: ['space'],
+  board: ['←', '↑', '↓', '→'],
+  countdown: ['space'],
+  steer: ['←', '→'],
+  pressure: ['space'],
+  radio: ['←', '↑', '↓', '→'],
+};
+import type { SfxId } from '../../audio/themes';
+
 /** Panel translúcido a la derecha, encima de la ilustración: el minijuego de cada etapa y el resultado. */
 const OVERLAY = { x: 830, y: 360, width: 430, height: 186 } as const;
 const PANEL_TOP = OVERLAY.y;
 /** Centro del panel: el cohete queda libre en el medio de la pantalla. */
 const PX = OVERLAY.x + OVERLAY.width / 2;
-const BAR = { x: PX - 180, y: OVERLAY.y + 108, width: 360, height: 26 } as const;
+/** Fila de la ayuda (teclas + frase) y sus teclas dibujadas. */
+const HINT_Y = OVERLAY.y + 70;
+const HINT_KEY_H = 28;
+const HINT_PRESS_MS = 700;
+/** Cuánto queda encendida la luz de radio que apretó el jugador. */
+const RADIO_FLASH_MS = 260;
+const BAR = { x: PX - 180, y: OVERLAY.y + 120, width: 360, height: 26 } as const;
 /** Panel del checklist, a la derecha (el cohete queda a la vista). */
 const CHECK = { x: 838, y: 90, width: 420 } as const;
 const FUEL = { x: 1050, y: 30, width: 200, height: 12 } as const;
 /** Pausa antes de que empiece cada minijuego y tiempo para leer su resultado (ms). */
 const READY_MS = 700;
 const FEEDBACK_MS = 1500;
+/** Después de la ignición: el despegue se ve un rato antes de la etapa siguiente (ms). */
+const LIFTOFF_MS = 6000;
 const NAMES = Object.fromEntries(CREW_ROSTER.map((c) => [c.id, c.name])) as Record<CrewId, string>;
 const PRECISION_LIGHT: Record<ReturnType<typeof precisionLevel>, SystemStatus> = { great: 'green', good: 'yellow', rough: 'red' };
 const ARROW_GLYPH: Record<Arrow, string> = { up: '↑', down: '↓', left: '←', right: '→' };
+/** Luces de la prueba de radio: cada flecha con su color. */
+const RADIO_LIGHTS: Record<Arrow, number> = { up: 0x68d391, left: 0x63b3ed, down: 0xf6e05e, right: 0xfc8181 };
+/** Tono de cada luz de la prueba de radio (abajo grave … arriba agudo). */
+const RADIO_TONE = { up: 'radioUp', left: 'radioLeft', down: 'radioDown', right: 'radioRight' } as const satisfies Record<Arrow, SfxId>;
+/** Canales de loop de la maniobra (se apagan al salir). */
+const LOOP_CHANNELS = ['fuel', 'roar', 'pad', 'plasma'] as const;
+/** Sonido de cada preparativo de la cuenta regresiva. */
+const MILESTONE_SOUND: Partial<Record<string, SfxId>> = { armRetract: 'serviceArm', mastRetract: 'serviceArm', engineStart: 'engineStart' };
 type KeyName = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'A' | 'D' | 'W' | 'S' | 'SPACE';
 
 /** Lo que se repinta en cada cuadro según el minijuego de la etapa. */
@@ -44,12 +72,18 @@ interface StageWidgets {
   steerTime?: Phaser.GameObjects.Rectangle;
   arrows?: { box: Phaser.GameObjects.Rectangle; glyph: Phaser.GameObjects.Text }[];
   countdown?: Phaser.GameObjects.Text;
+  pressureFill?: Phaser.GameObjects.Rectangle;
+  pressureTime?: Phaser.GameObjects.Rectangle;
+  lights?: { arrow: Arrow; lamp: Phaser.GameObjects.Rectangle; glyph: Phaser.GameObjects.Text }[];
+  radioDots?: Phaser.GameObjects.Arc[];
+  radioState?: Phaser.GameObjects.Text;
 }
 
 /**
- * Maniobra (§4.0) como escena de vuelo de ~30 s a 1 min: arriba, la ilustración animada (abordaje, cuenta regresiva,
+ * Maniobra (§4.0) como escena de vuelo de ~30 s a 1 min 30 s: arriba, la ilustración animada (abordaje, cuenta regresiva,
  * despegue, paracaídas…); abajo, el checklist Go / No-Go y un minijuego por etapa: cargar combustible, abordar,
- * cuenta regresiva T-10, pilotar o apretar en el momento justo. Lo bien que salen define el combustible que se gasta.
+ * presurizar, prueba de radio, cuenta regresiva, pilotar o apretar en el momento justo. Los despegues empiezan con
+ * una escena de entrada (la tripulación llega a la plataforma) y terminan con el despegue a la vista. Lo bien que salen define el combustible que se gasta.
  * Las reglas viven en `ManeuverRun` y en `flightGames`; la escena sólo pinta y lee la entrada.
  */
 export class ManeuverScene extends Phaser.Scene {
@@ -61,6 +95,8 @@ export class ManeuverScene extends Phaser.Scene {
   private header!: { title: Phaser.GameObjects.Text; narrator: Phaser.GameObjects.Text; fuel: Phaser.GameObjects.Text };
   private widgets: StageWidgets | null = null;
   private flightGame: FlightGame | null = null;
+  private hint: { g: Phaser.GameObjects.Graphics; caps: { text: Phaser.GameObjects.Text; x: number; width: number }[] } | null = null;
+  private radioFlash: { arrow: Arrow; good: boolean; until: number } | null = null;
   private gameStage = -1;
   private keys!: Record<KeyName, Phaser.Input.Keyboard.Key>;
   private checklist = { row: 0, option: 0, rows: [] as { buttons: Button[]; status: Phaser.GameObjects.Text }[], start: null as Button | null };
@@ -70,6 +106,13 @@ export class ManeuverScene extends Phaser.Scene {
   /** Último paso pintado, para animar sólo los cambios de paso. */
   private lastView = '';
   private dustUv: UvIndex | null = null;
+  /** Escena de entrada de los despegues en curso (el checklist espera). */
+  private intro = false;
+  /** Último número de la cuenta regresiva visto (para los preparativos y el tic). */
+  private lastCount: number | null = null;
+  /** Última luz de la prueba de radio que sonó, y si ya sonó la presurización de esta etapa. */
+  private lastLight: Arrow | null = null;
+  private pressurized = false;
 
   constructor() {
     super(SceneKeys.Maneuver);
@@ -86,6 +129,8 @@ export class ManeuverScene extends Phaser.Scene {
     this.flightGame = null;
     this.gameStage = -1;
     this.result = null;
+    this.intro = false;
+    this.lastCount = null;
   }
 
   create(): void {
@@ -104,11 +149,17 @@ export class ManeuverScene extends Phaser.Scene {
 
     onKeys(this, (code) => this.onKey(code));
     listenUntilShutdown(this, this.input, 'pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (this.intro) return this.art.skipIntro();
       if (this.run.step !== 'stage' || over.length) return;
       if (this.kind === 'timing') this.press();
       else this.pointerPressed = true;
     });
     listenUntilShutdown(this, this.events, Phaser.Scenes.Events.RESUME, () => this.rebuild());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => LOOP_CHANNELS.forEach((channel) => audio.loop(channel, null)));
+    this.intro = this.art.playIntro(() => {
+      this.intro = false;
+      this.rebuild();
+    });
     this.rebuild();
   }
 
@@ -117,10 +168,21 @@ export class ManeuverScene extends Phaser.Scene {
     const ready = this.run.step === 'stage' && time >= this.readyAt;
     if (ready && this.kind === 'timing') this.run.update(dt);
     if (ready && this.flightGame && !this.flightGame.done) {
-      this.flightGame.update(dt, this.readInput());
-      if (this.flightGame.done) this.completeGame();
+      const input = this.readInput();
+      const game = this.flightGame;
+      if (game instanceof CountdownGame && !game.final && input.pressed.action && this.widgets) this.widgets.feedback.setText(t('maneuvers.game.countdown.wait')).setColor(COLOR.muted);
+      const answering = game instanceof RadioGame && game.phase === 'input';
+      game.update(dt, input);
+      if (answering && game instanceof RadioGame && input.pressed.arrow && game.message) this.radioFlash = { arrow: input.pressed.arrow, good: game.message.good, until: time + RADIO_FLASH_MS };
+      if (game instanceof PressureGame && input.held.action && !this.pressurized) {
+        this.pressurized = true;
+        audio.sfx('cabinPressurize', 1, 0.8);
+      }
+      audio.loop('fuel', game instanceof FuelGame && !game.done && input.held.action ? 'fuelFlow' : null);
+      if (game.done) this.completeGame();
     }
     this.paintWidgets();
+    this.paintHint(time);
     this.art.update(dt, this.artFrame());
     this.fuelFill.setScale(this.run.step === 'done' ? this.run.finalFuel : this.run.fuel, 1);
   }
@@ -157,13 +219,18 @@ export class ManeuverScene extends Phaser.Scene {
   private rebuild(): void {
     const id = this.data_.maneuverId;
     this.header.title.setText(t(`maneuvers.name.${id}`));
+    this.header.fuel.setText(t('maneuvers.fuel'));
+    this.view.removeAll(true);
+    if (this.intro && (id === 'ascent' || id === 'marsAscent')) {
+      this.widgets = null;
+      this.header.narrator.setText(`${t(`maneuvers.cinematic.${id}`)}  ·  ${t('maneuvers.cinematic.skip')}`);
+      return;
+    }
     const dust = this.dustUv === 'Low' || this.dustUv === 'Moderate' ? ` ${t(`maneuvers.dust.${this.dustUv}`)}` : '';
     const current = this.run.step === 'stage' || this.run.step === 'feedback' ? this.run.stage : undefined;
     this.header.narrator.setText(
       current ? t(`maneuvers.stage.${id}.${current.id}.fact` as TranslationKey) : `${t('maneuvers.narrator')}: ${t(`maneuvers.intro.${id}`)}${dust}`,
     );
-    this.header.fuel.setText(t('maneuvers.fuel'));
-    this.view.removeAll(true);
     this.widgets = null;
     this.result = null;
     this.checklist.rows = [];
@@ -242,7 +309,9 @@ export class ManeuverScene extends Phaser.Scene {
 
   private decide(index: number, decision: ChecklistDecision): void {
     const item = this.run.items[index];
-    if (item && this.run.decide(item.systemId, decision)) this.rebuild();
+    if (!item || !this.run.decide(item.systemId, decision)) return;
+    if (decision === 'repair') audio.sfx('checklistRepair');
+    this.rebuild();
   }
 
   private moveChecklist(delta: number): void {
@@ -279,22 +348,66 @@ export class ManeuverScene extends Phaser.Scene {
     const kind = this.kind;
     if (run.step === 'stage' && this.gameStage !== run.stageIndex) {
       this.gameStage = run.stageIndex;
-      this.flightGame = kind === 'timing' ? null : createFlightGame(kind, run.stageSeed, run.stageFactor);
+      this.flightGame = kind === 'timing' ? null : createFlightGame(kind, run.stageSeed, run.stageFactor, { from: stage.from });
+      this.lastCount = null;
+      this.lastLight = null;
+      this.pressurized = false;
+      if (stage.id === 'entry' || stage.id === 'orientShield' || stage.id === 'reentry') audio.loop('plasma', 'reentryRumble', 0.6);
       this.art.setStage(stage.id);
     }
     view.add([
       addText(this, OVERLAY.x + OVERLAY.width - 16, PANEL_TOP + 18, 12, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.stage.counter', { current: run.stageIndex + 1, total })),
       addText(this, PX, PANEL_TOP + 40, 18, COLOR.text).setOrigin(0.5).setText(t(`maneuvers.stage.${id}.${stage.id}` as TranslationKey)),
-      addText(this, PX, PANEL_TOP + 70, 13, COLOR.focus, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5).setText(t(`maneuvers.game.${kind}.help`)),
     ]);
+    this.addControlHint(kind);
     run.definition.stages.forEach((_s, i) => {
       const done = run.outcomes[i];
       const color = done ? LIGHT_COLOR[PRECISION_LIGHT[precisionLevel(done.precision)]] : i === run.stageIndex ? 0xffffff : 0x4a5568;
       view.add(this.add.circle(OVERLAY.x + 20 + i * 18, PANEL_TOP + 18, 6, color));
     });
-    const feedback = addText(this, PX, PANEL_TOP + 160, 14, COLOR.ok, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5);
+    const feedback = addText(this, PX, PANEL_TOP + 168, 14, COLOR.ok, { align: 'center', wordWrap: { width: OVERLAY.width - 30 } }).setOrigin(0.5);
     view.add(feedback);
     this.widgets = { feedback, ...this.buildGameWidgets(kind) };
+  }
+
+  /** Ayuda corta: las teclas dibujadas como en las salas de la nave y una frase mínima al lado. */
+  private addControlHint(kind: StageKind): void {
+    const labels = HINT_KEYS[kind].map((k) => (k === 'space' ? t('maneuvers.game.key.space') : k));
+    const caps = labels.map((label) => {
+      const text = addText(this, 0, 0, 14, '#1a202c').setOrigin(0.5).setText(label);
+      return { text, x: 0, width: Math.max(32, Math.ceil(text.width) + 24) };
+    });
+    const help = addText(this, 0, 0, 15, COLOR.focus).setOrigin(0, 0.5).setText(t(`maneuvers.game.${kind}.help`));
+    const keysWidth = caps.reduce((sum, c) => sum + c.width + 8, -8);
+    let x = Math.round(PX - (keysWidth + 14 + help.width) / 2);
+    for (const cap of caps) {
+      cap.x = x;
+      x += cap.width + 8;
+    }
+    help.setPosition(x + 6, HINT_Y);
+    const g = this.add.graphics();
+    this.view.add([g, ...caps.map((c) => c.text), help]);
+    this.hint = { g, caps };
+    this.paintHint(this.time.now);
+  }
+
+  /** Las teclas de la ayuda se aprietan solas, una por vez, para que se vea qué hay que hacer. */
+  private paintHint(now: number): void {
+    const hint = this.hint;
+    if (!hint?.g.active) return;
+    const { g, caps } = hint;
+    const turn = Math.floor(now / HINT_PRESS_MS);
+    const pressed = now % HINT_PRESS_MS < HINT_PRESS_MS * 0.35 ? turn % caps.length : -1;
+    g.clear();
+    caps.forEach(({ text, x, width }, i) => {
+      const down = i === pressed ? 3 : 0;
+      const top = HINT_Y - HINT_KEY_H / 2;
+      g.fillStyle(0x05070d).fillRect(x - 2, top - 2, width + 4, HINT_KEY_H + 4);
+      g.fillStyle(0x9c4221).fillRect(x, top + HINT_KEY_H - 4, width, 4);
+      g.fillStyle(down ? 0xed8936 : 0xf6ad55).fillRect(x, top + down, width, HINT_KEY_H - 4);
+      if (!down) g.fillStyle(0xfbd38d).fillRect(x, top, width, 3);
+      text.setPosition(x + width / 2, HINT_Y - 1 + down);
+    });
   }
 
   private buildGameWidgets(kind: StageKind): Omit<StageWidgets, 'feedback'> {
@@ -335,6 +448,35 @@ export class ManeuverScene extends Phaser.Scene {
       view.add(countdown);
       return { countdown };
     }
+    if (game instanceof PressureGame) {
+      const { center, width } = game.target;
+      const pressureFill = this.add.rectangle(BAR.x, BAR.y, BAR.width, BAR.height - 8, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
+      const pressureTime = this.add.rectangle(BAR.x, BAR.y + 24, BAR.width, 4, 0x63b3ed).setOrigin(0, 0.5).setScale(0, 1);
+      view.add([
+        track(BAR.width),
+        this.add.rectangle(BAR.x + center * BAR.width, BAR.y, width * BAR.width, BAR.height + 6, 0x48bb78, 0.45).setStrokeStyle(2, 0x68d391),
+        pressureFill,
+        pressureTime,
+        addText(this, BAR.x - 12, BAR.y, 13, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.game.pressure.gauge')),
+      ]);
+      return { pressureFill, pressureTime };
+    }
+    if (game instanceof RadioGame) {
+      const size = 40;
+      const order: Arrow[] = ['left', 'up', 'down', 'right'];
+      const left = PX - 60 - (order.length * (size + 10) - 10) / 2;
+      const lights = order.map((arrow, i) => {
+        const x = left + i * (size + 10);
+        const lamp = this.add.rectangle(x, BAR.y, size, size, RADIO_LIGHTS[arrow], 0.25).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569);
+        const glyph = addText(this, x + size / 2, BAR.y, 22).setOrigin(0.5).setText(ARROW_GLYPH[arrow]);
+        view.add([lamp, glyph]);
+        return { arrow, lamp, glyph };
+      });
+      const radioDots = game.sequence.map((_a, i) => this.add.circle(left + order.length * (size + 10) + 16 + i * 16, BAR.y, 5, 0x4a5568));
+      const radioState = addText(this, PX, BAR.y + 28, 12, COLOR.muted).setOrigin(0.5);
+      view.add([...radioDots, radioState]);
+      return { lights, radioDots, radioState };
+    }
     const steer = game as SteerGame;
     const width = 360;
     const needle = this.add.rectangle(PX, BAR.y, 6, BAR.height + 16, 0xffffff);
@@ -363,15 +505,47 @@ export class ManeuverScene extends Phaser.Scene {
         glyph.setColor(done ? COLOR.ok : current ? COLOR.focus : COLOR.dim);
       });
     }
+    if (w.pressureFill && game instanceof PressureGame) {
+      w.pressureFill.setScale(game.pressure, 1).setFillStyle(game.inTarget ? 0x68d391 : 0x63b3ed);
+      w.pressureTime?.setScale(game.progress, 1);
+    }
+    if (w.lights && game instanceof RadioGame) {
+      const lit = game.showing;
+      if (lit && lit !== this.lastLight) audio.sfx(RADIO_TONE[lit]);
+      this.lastLight = lit;
+      const flash = this.radioFlash && this.time.now < this.radioFlash.until ? this.radioFlash : null;
+      w.lights.forEach(({ arrow, lamp, glyph }) => {
+        const pressed = flash?.arrow === arrow;
+        const on = arrow === lit || pressed;
+        const edge = pressed ? (flash.good ? 0x68d391 : 0xf56565) : on ? 0xffffff : 0x475569;
+        lamp.setFillStyle(pressed && !flash.good ? 0xe53e3e : RADIO_LIGHTS[arrow], on ? 1 : game.phase === 'input' ? 0.45 : 0.2).setStrokeStyle(on ? 4 : 2, edge);
+        glyph.setColor(on ? '#1a202c' : COLOR.text);
+      });
+      w.radioDots?.forEach((dot, i) => dot.setFillStyle(i < game.index ? 0x68d391 : 0x4a5568));
+      w.radioState?.setText(t(game.phase === 'show' ? 'maneuvers.game.radio.listen' : 'maneuvers.game.radio.answer'));
+    }
     if (w.countdown && game instanceof CountdownGame) {
-      if (game.count !== w.countdown.getData('count')) {
-        w.countdown.setData('count', game.count);
-        if (!game.done) audio.sfx('tick', game.count === 0 ? 1.5 : 1);
+      if (game.count !== this.lastCount) {
+        this.lastCount = game.count;
+        if (!game.done && game.final) audio.sfx('tick', game.count === 0 ? 1.5 : 1);
+        const milestone = this.run.stage?.milestones?.find((m) => m.at === game.count);
+        if (milestone && !game.done) {
+          this.art.milestone(milestone.id);
+          const sound = MILESTONE_SOUND[milestone.id];
+          if (sound) audio.sfx(sound);
+          if (milestone.id === 'water') audio.loop('pad', 'padWater', 0.6);
+          if (milestone.id === 'dust') audio.loop('pad', 'dustStorm', 0.45);
+        }
       }
       w.countdown.setText(game.done || game.count === 0 ? t('maneuvers.game.countdown.ignition') : t('maneuvers.game.countdown.number', { n: game.count }));
     }
     if (game.message && !game.done && w.feedback.getData('message') !== game.message) {
       w.feedback.setData('message', game.message);
+      // La respuesta correcta en la prueba de radio suena con el tono de su luz.
+      if (game instanceof RadioGame && game.message.key === 'right') audio.sfx(RADIO_TONE[game.sequence[game.index - 1]!]);
+      // Abordaje: cada flecha bien es un cinturón que se abrocha.
+      if (game instanceof BoardGame && game.message.key === 'right') audio.sfx(game.index % 2 ? 'seatbeltClick01' : 'seatbeltClick02');
+      if ((game instanceof BoardGame || game instanceof RadioGame) && game.message.key === 'wrong') audio.sfx('flightMiss', 1, 0.6);
       w.feedback.setText(t(`maneuvers.game.${game.kind}.${game.message.key}` as TranslationKey)).setColor(game.message.good ? COLOR.ok : COLOR.warn);
       pulse(this, w.feedback, { scale: 1.12, duration: 160 });
     }
@@ -383,6 +557,8 @@ export class ManeuverScene extends Phaser.Scene {
       boarding: game instanceof BoardGame ? game.index / game.sequence.length : this.run.stageIndex > this.boardIndex() ? 1 : undefined,
       countdown: game instanceof CountdownGame && !game.done ? game.count : null,
       ...(game instanceof SteerGame ? { steer: game.position } : {}),
+      radio: game instanceof RadioGame && game.showing !== null,
+      pressureOk: game instanceof PressureGame && game.inTarget,
     };
   }
 
@@ -394,11 +570,12 @@ export class ManeuverScene extends Phaser.Scene {
   /** Terminó un minijuego: su puntaje pasa a la maniobra (combustible) y la ilustración reacciona. */
   private completeGame(): void {
     const game = this.flightGame!;
+    audio.loop('fuel', null);
     const outcome = this.run.complete(game.score);
     if (!outcome || !this.widgets) return;
     this.bus.emit('maneuver:stage', { maneuverId: this.data_.maneuverId, stage: outcome.stageId, hit: outcome.hit });
     const message = game.message!;
-    audio.sfx(message.good ? 'success' : 'error');
+    audio.sfx(!message.good ? 'flightMiss' : game instanceof BoardGame ? 'suitConnect' : 'flightConfirm');
     this.widgets.feedback.setText(t(`maneuvers.game.${game.kind}.${message.key}` as TranslationKey)).setColor(message.good ? COLOR.ok : COLOR.warn);
     pulse(this, this.widgets.feedback, { scale: message.good ? 1.25 : 1.1, duration: 220 });
     this.afterOutcome(outcome.stageId);
@@ -410,7 +587,7 @@ export class ManeuverScene extends Phaser.Scene {
     if (!outcome || !this.widgets) return;
     this.bus.emit('maneuver:stage', { maneuverId: this.data_.maneuverId, stage: outcome.stageId, hit: outcome.hit });
     const key = !outcome.hit ? 'maneuvers.stage.miss' : outcome.precision >= 0.9 ? 'maneuvers.stage.perfect' : 'maneuvers.stage.hit';
-    audio.sfx(outcome.hit ? 'success' : 'error');
+    audio.sfx(outcome.hit ? 'flightConfirm' : 'flightMiss');
     this.widgets.feedback.setText(t(key)).setColor(outcome.hit ? COLOR.ok : COLOR.warn);
     pulse(this, this.widgets.feedback, { scale: outcome.hit ? 1.25 : 1.1, duration: 220 });
     this.afterOutcome(outcome.stageId);
@@ -418,9 +595,25 @@ export class ManeuverScene extends Phaser.Scene {
 
   private afterOutcome(stageId: string): void {
     this.art.outcome(stageId);
-    if (stageId === 'countdown') audio.sfx('ignition');
-    if (stageId === 'parachute' || stageId === 'splashdown' || stageId === 'boosterSeparation' || stageId === 'stageSeparation') audio.sfx('whoosh');
-    this.time.delayedCall(FEEDBACK_MS, () => {
+    if (stageId === 'countdown') {
+      audio.sfx('ignition');
+      audio.loop('roar', 'launchRoar');
+      audio.loop('pad', null);
+      if (this.data_.maneuverId === 'ascent') audio.sfx('crowdCheer', 1, 0.7);
+    }
+    if (stageId === 'entry' || stageId === 'orientShield' || stageId === 'reentry') audio.loop('plasma', null);
+    if (stageId === 'descentEngines') this.time.delayedCall(700, () => audio.sfx('marsTouchdown'));
+    if (stageId === 'orbitInsertion') this.time.delayedCall(2200, () => audio.sfx('marsDocking'));
+    // Llega a la órbita: se apaga el rugido de los motores.
+    if (stageId === 'stageSeparation' || stageId === 'orbitInsertion') audio.loop('roar', null);
+    if (stageId === 'parachute') audio.sfx('parachute');
+    if (stageId === 'splashdown') audio.sfx('splashdown');
+    if (stageId === 'stageSeparation') audio.sfx('stageSeparation');
+    if (stageId === 'boosterSeparation') audio.sfx('boosterSeparation');
+    if (stageId === 'heatShieldSeparation') audio.sfx('heatShieldRelease');
+    const liftoff = stageId === 'countdown';
+    if (liftoff) this.header.narrator.setText(t('maneuvers.cinematic.liftoff'));
+    this.time.delayedCall(liftoff ? LIFTOFF_MS : FEEDBACK_MS, () => {
       this.run.next();
       this.readyAt = this.time.now + READY_MS;
       this.rebuild();
@@ -460,6 +653,10 @@ export class ManeuverScene extends Phaser.Scene {
   }
 
   private onKey(code: string): void {
+    if (this.intro) {
+      if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') this.art.skipIntro();
+      return;
+    }
     const step = this.run.step;
     if (step === 'stage' && code === 'Space' && this.kind === 'timing') return this.press();
     if (step === 'done' && (code === 'Enter' || code === 'Space' || code === 'NumpadEnter')) return this.finish();

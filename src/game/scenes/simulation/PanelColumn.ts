@@ -29,9 +29,11 @@ export interface PanelRow {
    */
   bar?: { fraction: number; color: string; from?: number; to?: number; segments?: number };
   /** Valor alineado a la derecha de la fila (p. ej. los días que dura una reserva). */
-  value?: { text: string; color: string };
+  value?: { text: string; color: string; size?: number };
   /** Varias celdas de ícono y texto en la misma fila, repartidas a lo ancho (en vez de `text`). */
   cells?: readonly { icon: string; text: string; color: string }[];
+  /** Texto resaltado: fondo del color del texto y letra oscura (el tripulante que maneja el jugador). */
+  inverse?: boolean;
   /** Cara del tripulante antes del texto. */
   portrait?: CrewId;
   /** Estado del tripulante (como en Discord): punto, luna, signo menos o anillo en la esquina del retrato. */
@@ -117,7 +119,8 @@ export class PanelColumn {
       const lead = row.icon && icons;
       const indent = portrait ? (PORTRAIT.w * PORTRAIT.scale) + 6 : lead ? ICON_CELL : 0;
       const { text } = slot;
-      text.setText(row.cells ? '' : row.text).setColor(row.color ?? '#e2e8f0').setFontSize(size).setVisible(!row.cells);
+      text.setText(row.cells ? '' : row.text).setColor(row.inverse ? '#0b1020' : (row.color ?? '#e2e8f0')).setFontSize(size).setVisible(!row.cells);
+      text.setBackgroundColor(row.inverse ? (row.color ?? '#e2e8f0') : 'rgba(0,0,0,0)').setPadding(row.inverse ? { x: 4, y: 1 } : { x: 0, y: 0 });
       const textHeight = row.cells ? size + 4 : text.height;
       const height = below
         ? Math.max(textHeight + 22, portrait ? PORTRAIT.h * PORTRAIT.scale + 2 : 0)
@@ -139,7 +142,10 @@ export class PanelColumn {
       slot.bar.clear().setVisible(!!row.bar);
       if (row.bar) this.drawBar(slot.bar, row.bar.from ?? BAR.x, row.bar.to ?? width, y + Math.round((height - BAR.height) / 2), row.bar.fraction, hex(row.bar.color), row.bar.segments);
       slot.value.setVisible(!!row.value);
-      if (row.value) slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(size).setPosition(x + width, textY);
+      if (row.value) {
+        const valueSize = row.value.size ?? size;
+        slot.value.setText(row.value.text).setColor(row.value.color).setFontSize(valueSize).setPosition(x + width, textY + Math.round((size - valueSize) / 2));
+      }
       slot.icons.forEach((icon, n) => {
         // Abajo del texto se leen de izquierda a derecha; al final de la fila, desde la derecha.
         const spec = below ? row.icons?.[n] : row.icons?.[row.icons.length - 1 - n];

@@ -32,6 +32,9 @@ const CABLE = { outline: 0x1a2a12, wire: 0x5fbf3a, light: 0x9be36b, box: 0xf2d24
  * Estancia en el cráter Gale (game-design §4.4): la base, la esclusa y el exterior con los puntos de muestreo.
  * Curiosity, el vecino robot, reporta el clima real del día. Reglas en `MarsSession`.
  */
+/** Distancia (tiles) desde la que se oyen los motores de Curiosity. */
+const ROVER_REACH = 7;
+
 export class MarsScene extends SimulationMapScene<MarsSession> {
   constructor() {
     super(SceneKeys.Mars, 'mars');
@@ -67,6 +70,8 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
   private departureShown = false;
   /** Zona del jugador en el cuadro anterior: al cruzar la puerta exterior de la esclusa la vista hace un fundido. */
   private lastZone: string | null = null;
+  /** Lo juntado de cada roca en el cuadro anterior (si sube, se está juntando). */
+  private sampleProgress = new Map<string, number>();
   /** Próxima ráfaga que sacude la cámara en el pico de la tormenta (ms de la escena). */
   private nextGust = 0;
   private readonly gustRng = new Rng(0x6057);
@@ -223,10 +228,18 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     this.weather ??= new MarsWeatherFx(this, this.interior, this.session.state.seed);
     const sky = this.marsSky;
     const outside = activeZone === EXTERIOR;
+    // Curiosity: sus motores se oyen al acercarse (a menos de ROVER_REACH tiles).
+    const rover = GALE_LANDMARKS.curiosity!;
+    const player = walkers.find((w) => w.active);
+    const near = player ? Math.hypot(player.x / TILE - rover.x, player.y / TILE - rover.y) : Infinity;
+    audio.loop('rover', near < ROVER_REACH ? 'rover' : null, 0.55 * (1 - near / ROVER_REACH));
+    // Tormenta de polvo: el viento se oye fuerte afuera y apagado desde adentro.
+    audio.loop('weather', this.marsSky.storm ? 'dustStorm' : null, outside ? 0.75 : 0.3);
     this.weather.update({ sky, outside, walkers }, time, dt);
     // Fundido corto al pasar por la puerta exterior de la esclusa, como al bajar el visor del casco.
     const crossed = (this.lastZone === 'airlock' && outside) || (this.lastZone === EXTERIOR && activeZone === 'airlock');
     if (crossed && this.lastZone !== null) {
+      audio.sfx(outside ? 'airlockOut' : 'airlockIn', 1, 0.8);
       const cam = this.cameras.main;
       cam.fadeOut(110, 10, 8, 16);
       cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => cam.fadeIn(260, 10, 8, 16));
@@ -275,12 +288,12 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
       const rock = taken.at(-1)?.rock;
       if (rock === PLANT_ROCK) this.showToast(t('mars.plant.collected'));
       else if (rock) this.showToast(t('mars.rock.collected', { name: tr(`mars.rock.${rock}.name`), fact: tr(`mars.rock.${rock}.fact`) }));
-      audio.sfx('success');
+      audio.sfx('scan');
     }
     // Con todas las rocas, F (dos veces) empieza el embarque sin esperar al último sol.
     if (this.leaveKey && Phaser.Input.Keyboard.JustDown(this.leaveKey) && s.canLeaveEarly) {
       if (this.time.now < this.leaveConfirmUntil && s.leaveEarly()) {
-        audio.sfx('select');
+        audio.sfx('departureScheduled');
         this.showToast(t('mars.leave.started'));
       } else {
         this.leaveConfirmUntil = this.time.now + 4000;
@@ -289,6 +302,10 @@ export class MarsScene extends SimulationMapScene<MarsSession> {
     }
     this.samplesTaken = taken.length;
     const remaining = s.remainingSites();
+    // Mientras se junta una muestra suena el taladro (la pala en la planta).
+    const digging = remaining.find((r) => r.progress > (this.sampleProgress.get(r.site.id) ?? 0));
+    audio.loop('drill', digging ? (digging.site.rock === PLANT_ROCK ? 'shovel' : 'drill') : null, 0.6);
+    this.sampleProgress = new Map(remaining.map((r) => [r.site.id, r.progress]));
     for (const [id, image] of this.sampleSprites) image.setVisible(remaining.some((r) => r.site.id === id));
     for (const { site, progress } of remaining) {
       // Anillo a los pies de la roca; el arco azul es lo que lleva juntado el jugador.

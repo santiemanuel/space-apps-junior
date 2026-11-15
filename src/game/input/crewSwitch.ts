@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import type { CrewId } from '../../core/crew/types';
 import type { EventBus } from '../../core/events/EventBus';
 import type { GameEvents } from '../../core/events/GameEvents';
+import { audio } from '../audio/audio';
 
 /** Siguiente tripulante en orden (Tab), salteando a los que están en reposo; vuelve al primero al final. */
 export function nextCrewId(crew: readonly { id: CrewId; resting?: boolean }[], active: CrewId): CrewId {
@@ -28,7 +29,9 @@ export function bindCrewSwitch(
   const onTab = () => {
     const { crew, activeCrewId } = current();
     const crewId = nextCrewId(crew, activeCrewId);
-    if (crewId !== activeCrewId) bus.emit('crew:switched', { crewId });
+    if (crewId === activeCrewId) return;
+    audio.sfx('crewSwitch');
+    bus.emit('crew:switched', { crewId });
   };
   keyboard.on('keydown-TAB', onTab);
   scene.events.once('shutdown', () => keyboard.off('keydown-TAB', onTab));

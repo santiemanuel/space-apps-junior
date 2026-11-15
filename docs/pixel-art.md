@@ -82,6 +82,34 @@ plasma, paracaídas y amerizaje.
 | Paracaídas | `public/assets/ui/flight/parachute.png` | 34 × 26 | — | ×3 | Paracaídas a franjas naranjas y blancas con sus cuerdas |
 | Nave de ascenso | `public/assets/ui/flight/lander.png` | 20 × 40 | — | ×3 | Nave de ascenso de Marte sobre sus patas, con polvo rojizo |
 
+### Escenografía de los despegues (generada)
+
+Los dos despegues (`ascent` y `marsAscent`) usan escenografía generada con codex-cli, más detallada, a partir de los
+mockups de [`docs/prototipos-despegue/`](prototipos-despegue/README.md). El cohete, la torre, la cápsula y la nave de
+ascenso viejos (`rocket.png`, `booster.png`, `tower.png`, `lander.png`) quedan sólo para el aterrizaje y la reentrada.
+
+- **Cómo se rehace:** prompts `art/prompts/vuelo-*.txt` → `scripts/art/gen.sh vuelo-<nombre> <lámina 05> <prototipo>` →
+  `python scripts/art/pre.py art/raw/vuelo-*.png` → `snap_pixels` (fondos con `pixel_size: 5.225`; hojas, automático;
+  48 colores) → copiar a `art/snapped/vuelo-*.png` → `python scripts/art/flight-scenery.py`.
+- **Escala:** ×4 como el resto de las piezas de vuelo (los fondos de 320 × 180 cubren la pantalla).
+- Las medidas que usa `flightArt.ts` (suelo, escotilla, brazo de la torre, filas de la cápsula) salen de estas
+  imágenes: si se rehacen, revisar `SITES`, `TOWER`, `CORE` y `MAST`.
+
+| Nombre | Archivo | Tamaño (px de arte) | Qué es |
+|---|---|---|---|
+| Costa (lejos) | `earth-far.png` | 320 × 180 | Mar, costa con faro y domos, colinas y palmeras; cielo transparente |
+| Plataforma (cerca) | `earth-near.png` | 320 × 180 | Plataforma con foso de llamas, gradas, pasarelas, caños, edificio de control; la superficie queda en y = 151 |
+| Gale (lejos) | `mars-far.png` | 320 × 180 | Monte Sharp, mesetas y dunas |
+| Base de Gale (cerca) | `mars-near.png` | 320 × 180 | Base con domos y paneles, rover, plataforma de despegue (superficie en y = 149), caños y roca |
+| Etapa central | `core.png` | 30 × 114 | Cohete con la cápsula arriba; se corta en dos (cápsula: filas 0–30) para la separación de etapa |
+| Propulsor | `side-booster.png` | 14 × 79 | Propulsor lateral (el mismo a los dos lados) |
+| Torre | `launch-tower.png` | 85 × 125 | Torre roja con ascensor; el brazo de acceso (x 56–85, y 28–54) se recorta aparte y se retira en T-45 |
+| Nave de ascenso | `ascent-vehicle.png` | 71 × 62 | Nave de ascenso de Marte sobre cuatro patas |
+| Torre de servicio | `service-mast.png` | 36 × 77 | Torre con escalera y manga de viento (Marte); se inclina en T-20 |
+| Tanques | `fuel-tanks.png` | 59 × 40 | Dos tanques esféricos con escarcha (Tierra) |
+| Nave nodriza | `mothership.png` | 125 × 53 | La nave que espera en la órbita de Marte, con la compuerta abierta |
+| Combi | `van.png` | 38 × 25 | Combi que trae a la tripulación en la escena de entrada |
+
 **No son archivos** (se dibujan con código en `flightArt.ts`): el cielo con degradé, las montañas (en Marte, el monte
 Sharp), las nubes, el público detrás de la valla, los reflectores y la bandera, las cúpulas de la base, el ascensor
 y la pasarela, el suelo, el mar, las estrellas, las líneas de velocidad y el plasma de la entrada.

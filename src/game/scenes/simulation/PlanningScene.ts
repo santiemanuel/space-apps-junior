@@ -172,9 +172,10 @@ export class PlanningScene extends Phaser.Scene {
       chip.setData('load', load.id).setInteractive({ draggable: true, useHandCursor: true });
       chip.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (pointer.getDistance() > 6) return;
-        if (this.off.has(load.id)) this.off.delete(load.id);
+        const on = this.off.has(load.id);
+        if (on) this.off.delete(load.id);
         else this.off.add(load.id);
-        audio.sfx('toggle');
+        audio.sfx(on ? 'powerRelay01' : 'powerRelay02');
         this.data_.sim.emit('sim:loads', { off: [...this.off] });
         this.build();
       });

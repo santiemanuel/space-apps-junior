@@ -27,6 +27,7 @@ import type { SkyLight } from './marsSky';
 import { preloadMinigames } from './minigames/Painter';
 import { createMap, preloadMap, type MapAssets, type MapView, type Solid } from './TiledMapView';
 import { audio } from '../../audio/audio';
+import type { SfxId } from '../../audio/themes';
 import { drawPresence } from './PanelColumn';
 import { REPAIR_ACTIVITY } from '../../../core/habitat/HabitatSession';
 
@@ -73,6 +74,26 @@ export const toPx = (p: Point) => ({ x: p.x * TILE, y: p.y * TILE });
  * Mapa top-down con la tripulación, común a `Voyage` y `Mars`. Sólo pinta y lee la entrada; las reglas están en
  * la sesión de `src/core/` que crea cada escena. Textos propios en `<namespace>.zone|station|task|outcome.*`.
  */
+/** Tiempo real mínimo entre dos «buenos días» del hábitat (ms). */
+const MORNING_GAP_MS = 20_000;
+/** Segundos entre pasos del jugador al caminar. */
+const STEP_S = 0.36;
+/** Salas con máquinas: su propio ambiente (zumbido de equipos). */
+const EQUIPMENT_ZONES = new Set(['scrubber', 'recycler', 'moxie', 'energy']);
+/** Canales de loop del mapa (se apagan al salir): fuga de aire, tormenta, taladro de muestras y minijuegos. */
+const WORLD_LOOPS = ['leak', 'weather', 'drill', 'minigame', 'geiger', 'rover'] as const;
+/** Sonido propio del comienzo de cada incidente (además del aviso y la alarma). */
+const INCIDENT_SOUND: Partial<Record<string, SfxId>> = {
+  micrometeoroid: 'micrometeorite',
+  scrubberFailure: 'machineWindDown',
+  greenhousePest: 'pestBuzz',
+  extremeNight: 'hullCreakCold',
+  solarConjunction: 'radioFadeStatic',
+  cableCut: 'cableSnap',
+  fuseBlown: 'fusePop',
+  isolation: 'isolationHush',
+};
+
 export abstract class SimulationMapScene<S extends HabitatSession, D extends PhaseSceneData = PhaseSceneData> extends Phaser.Scene {
   /** Z: dormir en la enfermería hasta el día siguiente. */
   private sleepKey: Phaser.Input.Keyboard.Key | null = null;
@@ -100,6 +121,15 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
   private ended = false;
   /** Mapa de tiles del lugar y sus efectos. */
   protected mapView: MapView | null = null;
+  private stepClock = 0;
+  /** Había apagón en el cuadro anterior (null al empezar: no suena al cargar). */
+  private lastPowerOut: boolean | null = null;
+  /** Día, puerta exterior y refugio en el cuadro anterior (para sonar sólo al cambiar). */
+  private lastDay: string | null = null;
+  private lastMorningAt = -Infinity;
+  private lastDoorClosed: boolean | null = null;
+  private sheltered = false;
+  private stepCount = 0;
   private fx: HabitatFx | null = null;
   private life: MapLife | null = null;
   private fxStations: SystemId[] = [];
@@ -212,7 +242,11 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.physics.world.fixedStep = false;
     // Lo que depende de la posición del jugador (cámara, marcadores, ayuda) se ubica después de la física.
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.afterPhysics, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.afterPhysics, this));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.afterPhysics, this);
+      audio.ambience(null);
+      for (const channel of WORLD_LOOPS) audio.loop(channel, null);
+    });
 
     const walls = this.drawMap();
     if (this.mapView) this.createFx(this.mapView);
@@ -237,7 +271,7 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       .setResolution(2)
       .setVertexRoundMode('full');
     this.toast = this.pin(
-      this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '14px', color: '#fbd38d', backgroundColor: '#1a202cee', padding: { x: 8, y: 4 }, align: 'center', wordWrap: { width: VIEW_WIDTH - 80 } })
+      this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '13px', color: '#fbd38d', backgroundColor: '#121829ee', padding: { x: 8, y: 4 }, align: 'center', wordWrap: { width: 452 } })
         .setOrigin(0.5, 0)
         .setDepth(60)
         .setVisible(false),
@@ -306,10 +340,14 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     const action = this.playing ? null : s.actionAt(activeZone);
     const minigame = this.playing || action ? null : s.minigameAt(activeZone, activePosition);
     if ((action || minigame) && this.controls.interactJustPressed() && this.canPlay()) {
-      if (action) s.doAction(activeZone);
+      if (action) {
+        s.doAction(activeZone);
+        audio.sfx(this.stepCount++ % 2 ? 'cargoStow01' : 'cargoStow02');
+      }
       else this.openMinigame(minigame!);
     }
-    if (!this.playing && this.sleepKey && Phaser.Input.Keyboard.JustDown(this.sleepKey) && s.sleep(activeZone)) audio.sfx('whoosh');
+    if (!this.playing && this.sleepKey && Phaser.Input.Keyboard.JustDown(this.sleepKey) && s.sleep(activeZone)) audio.sfx('sleep');
+    this.playSounds(dt, activeZone, (x !== 0 || y !== 0) && !this.playing);
     const interacting = !this.playing && this.controls.interactHeld() && s.taskAt(activeZone, activePosition) === null;
     s.update(dt, { activeZone, activePosition, interacting });
 
@@ -324,6 +362,42 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
     this.moveAutoCrew(dt);
     if (this.toast.visible && this.time.now > this.toastUntil) this.toast.setVisible(false);
     if (s.outcome && !this.ended) this.showOutcome(s.outcome);
+  }
+
+  /** Pasos del jugador (en la nave o sobre el suelo de Marte) y el ambiente del lugar donde está. */
+  private playSounds(dt: number, zone: string | null, walking: boolean): void {
+    const outside = zone === EXTERIOR;
+    audio.ambience(outside ? 'marsSuit' : zone && EQUIPMENT_ZONES.has(zone) ? 'equipment' : 'cabin');
+    if (!walking) {
+      this.stepClock = STEP_S * 0.6;
+      return;
+    }
+    this.stepClock += dt;
+    if (this.stepClock < STEP_S) return;
+    this.stepClock = 0;
+    this.stepCount++;
+    audio.sfx(outside ? 'footstepMars' : 'footstepCabin', this.stepCount % 2 ? 0.94 : 1.06, 0.55);
+  }
+
+  /** Nuevo día, puerta exterior que se traba, contador Geiger de la tormenta solar y el refugio que se sella. */
+  private playEventSounds(zone: string | null): void {
+    const s = this.session;
+    const day = s.state.simDate.slice(0, 10);
+    // En avance rápido (o durmiendo) los días se suceden antes de que termine el efecto y se encimaban: suena sólo
+    // a tiempo normal y como mucho una vez cada MORNING_GAP_MS.
+    if (s.manual && this.lastDay !== null && day !== this.lastDay && this.time.now - this.lastMorningAt >= MORNING_GAP_MS) {
+      this.lastMorningAt = this.time.now;
+      audio.sfx('habitatMorning', 1, 0.7);
+    }
+    this.lastDay = day;
+    const doorClosed = this.outerDoorClosed();
+    if (this.lastDoorClosed === false && doorClosed) audio.sfx('outerDoorLock', 1, 0.8);
+    this.lastDoorClosed = doorClosed;
+    const alert = this.radiationAlert();
+    const inShelter = zone === this.content.shelterZone;
+    audio.loop('geiger', alert ? 'geiger' : null, inShelter ? 0.12 : 0.5);
+    if (alert && inShelter && !this.sheltered) audio.sfx('shelterSeal');
+    this.sheltered = alert && inShelter;
   }
 
   /** Se puede abrir un minijuego: tiempo normal, sin pausa ni otra pantalla encima. */
@@ -381,6 +455,8 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         this.showToast(tr(`${textKey(i.definitionId)}.impact`));
         // El golpe del micrometeorito sacude la nave.
         if (i.definitionId === 'micrometeoroid') this.cameras.main.shake(380, 0.006);
+        const sound = INCIDENT_SOUND[i.definitionId];
+        if (sound) audio.sfx(sound);
         // La tormenta de polvo llega con una ráfaga.
         if (i.definitionId === 'dustStorm') this.cameras.main.shake(900, 0.004);
       }),
@@ -392,7 +468,10 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         audio.sfx('warning');
         this.showToast(tr(`incidents.cascade.${e.meter}.entered`, { name: e.crewId ? NAMES[e.crewId as CrewId] : '' }));
       }),
-      bus.on('realEvent:shown', (e) => this.showToast(t('hud.toast.realEvent', { mission: e.mission, instrument: e.instrument }))),
+      bus.on('realEvent:shown', (e) => {
+        audio.sfx('telemetryReceived');
+        this.showToast(t('hud.toast.realEvent', { mission: e.mission, instrument: e.instrument }));
+      }),
     ];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offs.forEach((off) => off()));
   }
@@ -645,6 +724,11 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
       this.time.now,
     );
     this.life?.update(this.time.now, powerOut);
+    if (this.lastPowerOut !== null && powerOut !== this.lastPowerOut) audio.sfx(powerOut ? 'powerDown' : 'powerUp');
+    this.playEventSounds(activeZone);
+    this.lastPowerOut = powerOut;
+    const leaking = s.state.activeIncidents.some((i) => (i.definitionId === 'micrometeoroid' || i.definitionId === 'tubeBreach') && i.status === 'active');
+    audio.loop('leak', leaking ? 'airLeak' : null, 0.45);
     this.renderWeather(walkers, activeZone, this.time.now, dt);
     const shelter = zoneById(this.layout, this.content.shelterZone);
     const toShelter = this.radiationAlert();

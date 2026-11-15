@@ -17,14 +17,30 @@ import { METER_RULES } from './meters';
  *   https://www.nasa.gov/blogs/missions/2022/12/11/artemis-i-flight-day-26-orion-crew-module-separation-from-service-module-complete/
  */
 export const MANEUVERS: Record<ManeuverId, ManeuverDefinition> = {
-  // Abordaje y despegue desde la Tierra (~45 s): cargar combustible, abrocharse, cuenta regresiva, giro y separaciones.
+  // Abordaje y despegue desde la Tierra (~1 min 30 s): cargar combustible, abordar, presurizar la cabina, prueba de
+  // radio, cuenta regresiva desde T-60 con los preparativos a la vista, giro y separaciones.
   ascent: {
     id: 'ascent',
     checklist: ['engines', 'scrubber', 'radio', 'solarPanels'],
     stages: [
       { id: 'fuel', kind: 'fuel', zoneWidth: 0.2, speed: 0.6, systems: ['engines'] },
       { id: 'board', kind: 'board', zoneWidth: 0.2, speed: 0.6, systems: ['scrubber'] },
-      { id: 'countdown', kind: 'countdown', zoneWidth: 0.2, speed: 0.6, systems: ['engines'] },
+      { id: 'pressure', kind: 'pressure', zoneWidth: 0.2, speed: 0.6, systems: ['scrubber'] },
+      { id: 'radioCheck', kind: 'radio', zoneWidth: 0.2, speed: 0.6, systems: ['radio'] },
+      {
+        id: 'countdown',
+        kind: 'countdown',
+        zoneWidth: 0.2,
+        speed: 0.6,
+        systems: ['engines'],
+        from: 60,
+        milestones: [
+          { at: 45, id: 'armRetract' },
+          { at: 30, id: 'beacons' },
+          { at: 15, id: 'water' },
+          { at: 6, id: 'engineStart' },
+        ],
+      },
       { id: 'gravityTurn', kind: 'steer', zoneWidth: 0.2, speed: 0.6, systems: ['engines', 'radio'] },
       { id: 'boosterSeparation', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
       { id: 'stageSeparation', zoneWidth: 0.18, speed: 0.85, systems: ['engines'] },
@@ -43,14 +59,27 @@ export const MANEUVERS: Record<ManeuverId, ManeuverDefinition> = {
     ],
     effect: 'landingDistance',
   },
-  // Despegue de Marte (~35 s): cargar el propelente, sellar la escotilla, cuenta regresiva y entrada en órbita.
+  // Despegue de Marte (~1 min): cargar el propelente, abordar, presurizar, cuenta regresiva desde T-30 y entrada en órbita.
   marsAscent: {
     id: 'marsAscent',
     checklist: ['engines', 'scrubber', 'radio'],
     stages: [
       { id: 'fuel', kind: 'fuel', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
       { id: 'board', kind: 'board', zoneWidth: 0.2, speed: 0.75, systems: ['scrubber'] },
-      { id: 'countdown', kind: 'countdown', zoneWidth: 0.2, speed: 0.75, systems: ['engines'] },
+      { id: 'pressure', kind: 'pressure', zoneWidth: 0.2, speed: 0.75, systems: ['scrubber'] },
+      {
+        id: 'countdown',
+        kind: 'countdown',
+        zoneWidth: 0.2,
+        speed: 0.75,
+        systems: ['engines'],
+        from: 30,
+        milestones: [
+          { at: 20, id: 'mastRetract' },
+          { at: 12, id: 'dust' },
+          { at: 6, id: 'engineStart' },
+        ],
+      },
       { id: 'orbitInsertion', zoneWidth: 0.16, speed: 0.95, systems: ['engines', 'radio'] },
     ],
     effect: 'returnFuel',

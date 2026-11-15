@@ -118,7 +118,7 @@ export class CargoGridView {
 
   private say(key: string, good = false): void {
     this.message = { text: t(`menu.loadout.grid.${key}` as TranslationKey), good };
-    if (!good) audio.sfx('error');
+    if (!good) audio.sfx('crateBlocked');
   }
 
   // --- Acciones ---
@@ -128,7 +128,7 @@ export class CargoGridView {
     this.message = null;
     this.warned = false;
     this.clampCursor();
-    audio.sfx('open');
+    audio.sfx('crateLift');
   }
 
   /** Toma una pieza de la base, la pieza de la bodega bajo el cursor o suelta la que está en la mano. */
@@ -154,14 +154,14 @@ export class CargoGridView {
     this.placements = [...this.placements, placement];
     this.hand = null;
     this.message = null;
-    audio.sfx('select');
+    audio.sfx('cratePlace');
   }
 
   private rotate(): void {
     if (!this.hand) return;
     this.hand.rotated = !this.hand.rotated;
     this.clampCursor();
-    audio.sfx('toggle');
+    audio.sfx('crateRotate');
   }
 
   /** Devuelve a la base la pieza de la mano (o la de la bodega bajo el cursor). */
@@ -173,7 +173,7 @@ export class CargoGridView {
       this.placements = removeItem(this.placements, under.itemId);
     }
     this.warned = false;
-    audio.sfx('back');
+    audio.sfx('crateLift');
   }
 
   private auto(): void {
@@ -181,7 +181,7 @@ export class CargoGridView {
     this.placements = autoPack(this.items, CARGO_GRID, RETURN_RULES, this.waterPoolL);
     this.warned = false;
     this.say('autoDone', true);
-    audio.sfx('success');
+    audio.sfx('cratePlace');
   }
 
   private clear(): void {
@@ -201,6 +201,7 @@ export class CargoGridView {
       return this.say('confirmRed');
     }
     this.done = true;
+    audio.sfx('holdSealed');
     this.data.bus.emit('phase:completed', gridReturnResult(this.data.state, this.items, this.placements));
   }
 

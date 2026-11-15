@@ -122,28 +122,52 @@ export class BoardGame extends FlightGame {
 }
 
 /**
- * Cuenta regresiva: T-10 … T-0 y en el cero, ¡ignición! Hay que apretar Espacio justo en el cero; apurarse cuesta y,
- * si nadie aprieta, los motores encienden solos un poco tarde.
+ * Cuenta regresiva: desde T-`from` (60 en la Tierra) hasta el cero y ¡ignición! Hasta T-10 los números pasan rápido
+ * y se ven los preparativos (se retira el brazo, balizas, agua); los últimos diez van a ritmo de juego y hay que
+ * apretar Espacio justo en el cero. Apurarse en los últimos diez cuesta (antes no cuenta) y, si nadie aprieta, los
+ * motores encienden solos un poco tarde.
  */
 export class CountdownGame extends FlightGame {
   readonly kind = 'countdown';
-  static readonly TICK_SECONDS = 0.6;
-  static readonly FROM = 10;
+  static readonly TICK_SECONDS = 1;
+  /** Segundos por número antes de T-10 (la parte larga de la cuenta). */
+  static readonly FAST_TICK_SECONDS = 0.3;
+  static readonly FINAL = 10;
   private early = 0;
+
+  constructor(
+    seed: number,
+    factor = 1,
+    readonly from = CountdownGame.FINAL,
+  ) {
+    super(seed, factor);
+  }
+
+  /** Segundos que dura la parte rápida (de T-`from` a T-10). */
+  private get fastSeconds(): number {
+    return Math.max(0, this.from - CountdownGame.FINAL) * CountdownGame.FAST_TICK_SECONDS;
+  }
 
   /** Segundos desde el inicio hasta el cero. */
   get zeroAt(): number {
-    return CountdownGame.FROM * CountdownGame.TICK_SECONDS;
+    return this.fastSeconds + Math.min(this.from, CountdownGame.FINAL) * CountdownGame.TICK_SECONDS;
   }
 
-  /** Número que se muestra (10 … 0). */
+  /** Número que se muestra (`from` … 0). */
   get count(): number {
-    return Math.max(0, CountdownGame.FROM - Math.floor(this.elapsed / CountdownGame.TICK_SECONDS));
+    const fast = this.fastSeconds;
+    if (this.elapsed < fast) return this.from - Math.floor(this.elapsed / CountdownGame.FAST_TICK_SECONDS);
+    return Math.max(0, Math.min(this.from, CountdownGame.FINAL) - Math.floor((this.elapsed - fast) / CountdownGame.TICK_SECONDS));
+  }
+
+  /** Ya está en los últimos diez (los que se juegan). */
+  get final(): boolean {
+    return this.count <= CountdownGame.FINAL;
   }
 
   protected step(_dt: number, { pressed }: FlightInput): void {
     const window = 0.5 * this.factor;
-    if (pressed.action) {
+    if (pressed.action && this.final) {
       const diff = this.elapsed - this.zeroAt;
       if (diff < -window) {
         this.early++;
@@ -204,16 +228,117 @@ export class SteerGame extends FlightGame {
   }
 }
 
+/**
+ * Presurizar la cabina: con la escotilla cerrada, la presión se escapa de a poco (y a veces más rápido). Mantener
+ * Espacio la sube; hay que sostenerla en la franja verde hasta que termine la prueba. Puntaje: el tiempo en la franja.
+ */
+export class PressureGame extends FlightGame {
+  readonly kind = 'pressure';
+  static readonly DURATION_SECONDS = 7;
+  static readonly PUMP_PER_SECOND = 0.45;
+  pressure = 0;
+  readonly target: { center: number; width: number };
+  private leak = 0.12;
+  private sinceChange = 0;
+  private inZone = 0;
+
+  constructor(seed: number, factor = 1) {
+    super(seed, factor);
+    this.target = { center: this.rng.between(0.55, 0.7), width: 0.22 * factor };
+  }
+
+  /** Avance de la prueba (0..1). */
+  get progress(): number {
+    return Math.min(1, this.elapsed / PressureGame.DURATION_SECONDS);
+  }
+
+  get inTarget(): boolean {
+    return Math.abs(this.pressure - this.target.center) <= this.target.width / 2;
+  }
+
+  protected step(dt: number, { held }: FlightInput): void {
+    this.sinceChange += dt;
+    if (this.sinceChange >= 1.4) {
+      this.sinceChange = 0;
+      this.leak = this.rng.between(0.08, 0.3);
+    }
+    const before = this.inTarget;
+    this.pressure = clamp(this.pressure + ((held.action ? PressureGame.PUMP_PER_SECOND : 0) - this.leak) * dt);
+    if (this.inTarget) this.inZone += dt;
+    if (before !== this.inTarget && this.elapsed > 0.5) {
+      this.message = this.inTarget ? { key: 'steady', good: true } : { key: this.pressure > this.target.center ? 'high' : 'low', good: false };
+    }
+    if (this.elapsed >= PressureGame.DURATION_SECONDS) {
+      const score = Math.min(1, this.inZone / (PressureGame.DURATION_SECONDS * 0.7));
+      this.finish(score, { key: score >= 0.85 ? 'perfect' : score >= 0.5 ? 'good' : 'leaky', good: score >= 0.5 });
+    }
+  }
+}
+
+/**
+ * Prueba de radio con el control de la misión: se encienden luces en orden (cada una es una flecha) y hay que
+ * repetirlas de memoria. Un error vuelve a mostrar la secuencia; al tercero se da por terminada con poca señal.
+ */
+export class RadioGame extends FlightGame {
+  readonly kind = 'radio';
+  static readonly LIGHT_SECONDS = 0.55;
+  static readonly GAP_SECONDS = 0.2;
+  readonly sequence: Arrow[];
+  /** Lo que el jugador ya repitió bien. */
+  index = 0;
+  phase: 'show' | 'input' = 'show';
+  private showTime = 0;
+
+  constructor(seed: number, factor = 1) {
+    super(seed, factor);
+    const length = 4 + (factor < 1 ? 1 : 0);
+    this.sequence = Array.from({ length }, () => this.rng.pick(ARROWS));
+  }
+
+  /** Luz encendida mientras se muestra la secuencia (o null entre luces y al repetir). */
+  get showing(): Arrow | null {
+    if (this.phase !== 'show') return null;
+    const slot = RadioGame.LIGHT_SECONDS + RadioGame.GAP_SECONDS;
+    const i = Math.floor(this.showTime / slot);
+    return this.showTime - i * slot < RadioGame.LIGHT_SECONDS ? (this.sequence[i] ?? null) : null;
+  }
+
+  protected step(dt: number, { pressed }: FlightInput): void {
+    if (this.phase === 'show') {
+      this.showTime += dt;
+      if (this.showTime >= this.sequence.length * (RadioGame.LIGHT_SECONDS + RadioGame.GAP_SECONDS)) this.phase = 'input';
+      return;
+    }
+    if (!pressed.arrow) return;
+    if (pressed.arrow === this.sequence[this.index]) {
+      this.index++;
+      this.message = { key: 'right', good: true };
+      if (this.index >= this.sequence.length) this.finish(1 - 0.25 * this.mistakes, { key: this.mistakes === 0 ? 'perfect' : 'good', good: true });
+      return;
+    }
+    this.mistakes++;
+    if (this.mistakes >= 3) return this.finish(0.2, { key: 'static', good: false });
+    this.message = { key: 'wrong', good: false };
+    this.index = 0;
+    this.phase = 'show';
+    this.showTime = 0;
+  }
+}
+
 /** Crea el minijuego de una etapa (las de `timing` las maneja `ManeuverRun` con su barra). */
-export function createFlightGame(kind: Exclude<StageKind, 'timing'>, seed: number, factor = 1): FlightGame {
+export function createFlightGame(kind: Exclude<StageKind, 'timing'>, seed: number, factor = 1, options: { from?: number } = {}): FlightGame {
   switch (kind) {
     case 'fuel':
       return new FuelGame(seed, factor);
     case 'board':
       return new BoardGame(seed, factor);
     case 'countdown':
-      return new CountdownGame(seed, factor);
+      return new CountdownGame(seed, factor, options.from);
     case 'steer':
       return new SteerGame(seed, factor);
+    case 'pressure':
+      return new PressureGame(seed, factor);
+    case 'radio':
+      return new RadioGame(seed, factor);
   }
 }
