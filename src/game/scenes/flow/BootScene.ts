@@ -58,7 +58,8 @@ export class BootScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(window.location.search);
       if (params.has('scene')) {
-        const { launchDevScene } = await import('../../dev/devLaunch');
+        const [{ launchDevScene }, { setDevGame }] = await Promise.all([import('../../dev/devLaunch'), import('../../dev/devContinue')]);
+        setDevGame(this.game);
         if (launchDevScene(this, params)) return;
       }
     }

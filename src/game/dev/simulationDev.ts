@@ -7,6 +7,7 @@ import type { GameState } from '../../core/state/types';
 import type { SystemId, SystemStatus } from '../../core/systems/types';
 import type { PhaseSceneData, VoyageSceneData } from '../scenes/sceneData';
 import type { MapViewData, MapViewOptions } from '../scenes/simulation/simulationData';
+import { continueFlow } from './devContinue';
 import type { DevDataBuilders } from './devLaunch';
 
 const DAY_MS = 86_400_000;
@@ -81,19 +82,18 @@ export const simulationDevData: DevDataBuilders = {
     // `where` elige el cuarto donde arranca el jugador.
     const where = params.get('where');
     const state = where ? { ...phase, crew: phase.crew.map((m) => (m.id === phase.activeCrewId ? { ...m, location: where } : m)) } : phase;
-    if (leg === 'out') return { ...base, ...viewOf(params), leg, state };
     // Nave gastada y tripulación que arrastra Marte (§4.6).
-    return {
-      ...base,
-      ...viewOf(params),
-      leg,
-      state: {
-        ...state,
-        inventory: { ...state.inventory, spares: 2 },
-        crew: state.crew.map((m) => ({ ...m, condition: 0.75, fatigue: 0.2, doseMSv: 120 })),
-        waterShield: 0.7,
-      },
-    };
+    const played: GameState =
+      leg === 'out'
+        ? state
+        : {
+            ...state,
+            inventory: { ...state.inventory, spares: 2 },
+            crew: state.crew.map((m) => ({ ...m, condition: 0.75, fatigue: 0.2, doseMSv: 120 })),
+            waterShield: 0.7,
+          };
+    continueFlow(base.bus, played);
+    return { ...base, ...viewOf(params), leg, state: played };
   },
   Mars: (base, params): PhaseSceneData & MapViewData => {
     const state = phaseState(base.state, 'mars', params);
@@ -103,23 +103,21 @@ export const simulationDevData: DevDataBuilders = {
       const [definitionId, n = '0'] = spec.split(':');
       return { id: `dev-${definitionId}-${n}`, definitionId: definitionId!, phase: 'mars' as const, status: 'active' as const, impactAt: state.simDate };
     });
-    return {
-      ...base,
-      ...viewOf(params),
-      state: {
-        ...state,
-        landingDistanceKm: Number(params.get('km') ?? 2),
-        activeIncidents: [...state.activeIncidents, ...incidents],
-        meters: { ...state.meters, energy: { batteryKwh: GALE_POWER.capacityKwh, capacityKwh: GALE_POWER.capacityKwh } },
-        // Llegan del viaje de ida con algo de dosis; `where` elige dónde arranca el jugador.
-        crew: state.crew.map((m) => ({
-          ...m,
-          condition: 0.9,
-          doseMSv: 220,
-          ...(m.id === state.activeCrewId && params.get('where') ? { location: params.get('where')! } : {}),
-        })),
-      },
+    const played: GameState = {
+      ...state,
+      landingDistanceKm: Number(params.get('km') ?? 2),
+      activeIncidents: [...state.activeIncidents, ...incidents],
+      meters: { ...state.meters, energy: { batteryKwh: GALE_POWER.capacityKwh, capacityKwh: GALE_POWER.capacityKwh } },
+      // Llegan del viaje de ida con algo de dosis; `where` elige dónde arranca el jugador.
+      crew: state.crew.map((m) => ({
+        ...m,
+        condition: 0.9,
+        doseMSv: 220,
+        ...(m.id === state.activeCrewId && params.get('where') ? { location: params.get('where')! } : {}),
+      })),
     };
+    continueFlow(base.bus, played);
+    return { ...base, ...viewOf(params), state: played };
   },
   // Superpuestas: necesitan el bus de la simulación de una escena de mapa (P, C y G desde Voyage o Mars).
   Hud: null,

@@ -170,7 +170,7 @@ export class LoadoutScene extends Phaser.Scene {
               total: this.available.samples.length,
               value: formatNumber(samplesValue(this.cargo, this.available)),
             })
-          : t('menu.loadout.return.noSamples');
+          : t('menu.loadout.return.noSamplesShort');
       case 'foodKg':
         return t('menu.loadout.return.amountKg', { amount: formatNumber(value) });
       case 'waterL':
@@ -193,6 +193,9 @@ export class LoadoutScene extends Phaser.Scene {
 
   private renderReturn(): void {
     this.header('menu.loadout.return.title', 'loadout.return.subtitle', 'loadout.return.controls');
+    // Sin muestras, el aviso va bajo el subtítulo: en la fila no entra.
+    if (!this.available.samples.length)
+      this.view.add(addText(this, CENTER, 128, 15, COLOR.dim).setOrigin(0.5, 0).setText(t('menu.loadout.return.noSamples')));
     CARGO_FIELDS.forEach((field, index) => {
       const y = ROWS.top + index * ROWS.gap;
       const focused = index === this.row;

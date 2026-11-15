@@ -64,6 +64,7 @@
   "loadout.return.overLimit": "¡Demasiado peso! Dejá algo en Marte para poder despegar.",
   "loadout.return.reminder": "Acordate: el agua también es blindaje. En la vuelta también hay tormentas solares.",
   "loadout.return.noSamples": "No hay muestras para llevar: la vuelta es más liviana, pero sin ciencia.",
+  "loadout.return.noSamplesShort": "Ninguna",
   "loadout.return.confirm": "Cargar y despegar",
   "loadout.return.controls": "↑ ↓ elegir · ← → quitar o agregar · Enter despegar · también con el mouse",
   "pause.resume": "Continuar",

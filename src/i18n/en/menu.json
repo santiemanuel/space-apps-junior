@@ -64,6 +64,7 @@
   "loadout.return.overLimit": "Too heavy! Leave something on Mars so you can launch.",
   "loadout.return.reminder": "Remember: water is also shielding. There are solar storms on the way back too.",
   "loadout.return.noSamples": "There are no samples to take: the trip is lighter, but without science.",
+  "loadout.return.noSamplesShort": "None",
   "loadout.return.confirm": "Load and launch",
   "loadout.return.controls": "↑ ↓ choose · ← → remove or add · Enter launch · mouse works too",
   "pause.resume": "Continue",

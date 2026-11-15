@@ -77,8 +77,14 @@ export class FlowDirector {
     const step = this.flow?.complete(result);
     if (!step) return;
     if (step.kind !== 'report') this.save();
-    if (this.overlay) this.pendingStep = step;
-    else this.startStep(step);
+    // La fase avisa a mitad de su cuadro: si se la detiene ahí, el resto del cuadro usa objetos ya destruidos y el
+    // juego se congela. La escena siguiente arranca cuando termina ese cuadro.
+    const flow = this.flow;
+    queueMicrotask(() => {
+      if (this.flow !== flow) return;
+      if (this.overlay) this.pendingStep = step;
+      else this.startStep(step);
+    });
   }
 
   private startStep(step: FlowStep): void {
