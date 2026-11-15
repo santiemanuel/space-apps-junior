@@ -312,9 +312,11 @@ export abstract class SimulationMapScene<S extends HabitatSession, D extends Pha
         this.sim.emit('sim:minigame', { zone, id: forced, setup: { seed: this.session.state.seed, delaySeconds: this.session.delaySeconds }, reward: t('hud.minigame.reward.morale'), badge: null });
       });
     }
-    // Cada aviso suena; el juego no se frena con ninguna pantalla (la respuesta se elige sobre el mapa).
-    const offAlert = this.sceneData.bus.on('alert:level', ({ level }) => {
-      if (level !== 'calm') audio.sfx(level === 'impact' ? 'siren' : 'alarm');
+    // Cada aviso suena; el juego no se frena con ninguna pantalla (la respuesta se elige sobre el mapa). Con una
+    // tormenta solar en curso ya suena su alarma en loop (la pone el tablero).
+    const offAlert = this.sceneData.bus.on('alert:level', ({ level, reasonKey }) => {
+      const storm = reasonKey.startsWith('incidents.radiationStorm') || !!this.session.stormInfo();
+      if (level !== 'calm' && !storm) audio.sfx(level === 'impact' ? 'siren' : 'alarm');
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, offAlert);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

@@ -11,7 +11,7 @@ import type { GameState } from '../../../core/state/types';
 import { getLocale, LOCALES, setLocale, t } from '../../../i18n';
 import { formatDate } from '../../../i18n/format';
 import { isLocale } from '../../../i18n/locales';
-import { CREW_SHEET, crewTextureKey } from '../../assets';
+import { CREW_SHEET, crewTextureKey, TitleTextures } from '../../assets';
 import { crewAnimKey } from '../../entities/crewAnimations';
 import { ensureCrewAnimations } from '../../entities/CrewSprite';
 import { GAME_WIDTH } from '../../display';
@@ -33,15 +33,17 @@ export interface TitleSceneData {
 }
 
 const FONT = 'monospace';
-const COLOR = { text: '#e2e8f0', focus: '#fbd38d', muted: '#a0aec0', dim: '#718096', title: '#90cdf4', locked: '#f6ad55' } as const;
+const COLOR = { text: '#e2e8f0', focus: '#fbd38d', muted: '#a0aec0', dim: '#718096', locked: '#f6ad55' } as const;
 const CENTER = GAME_WIDTH / 2;
+/** Logotipo (512 × 512, con el nombre del juego) a la mitad: cada píxel de arte queda en 2 × 2 de pantalla. */
+const LOGO = { top: -22, scale: 0.5 } as const;
 /** Tripulación flotando en ingravidez a los costados del menú (pies del sprite en cada punto). */
 const CREW = { scale: 1.5, spots: [{ x: 115, y: 345 }, { x: 235, y: 255 }, { x: 1205, y: 345 }, { x: 1110, y: 520 }] } as const;
 /**
  * Panel de opciones: angosto y compacto. Arriba las acciones (continuar, nueva misión) como botones; abajo los
  * ajustes en filas de etiqueta y valor; al pie, la explicación de la opción elegida.
  */
-const PANEL = { width: 500, top: 172, pad: 20, primaryHeight: 44, primaryGap: 8, rowHeight: 34, groupGap: 14, footer: 66 } as const;
+const PANEL = { width: 500, top: 238, pad: 20, primaryHeight: 44, primaryGap: 8, rowHeight: 34, groupGap: 14, footer: 66 } as const;
 const PANEL_LEFT = CENTER - PANEL.width / 2;
 const INNER = { left: PANEL_LEFT + PANEL.pad, width: PANEL.width - PANEL.pad * 2 } as const;
 const PRIMARY: readonly TitleRowId[] = ['continue', 'newGame'];
@@ -69,7 +71,6 @@ export class TitleScene extends Phaser.Scene {
   private focusBar!: Phaser.GameObjects.Container;
   private focusedRow = -1;
   private texts!: {
-    title: Phaser.GameObjects.Text;
     subtitle: Phaser.GameObjects.Text;
     level: Phaser.GameObjects.Text;
     description: Phaser.GameObjects.Text;
@@ -97,8 +98,8 @@ export class TitleScene extends Phaser.Scene {
     this.sky = new TitleSky(this);
     const text = (x: number, y: number, size: number, color: string) => this.add.text(x, y, '', { fontFamily: FONT, fontSize: `${size}px`, color });
 
-    const title = text(CENTER, 78, 48, COLOR.title).setOrigin(0.5);
-    const subtitle = text(CENTER, 124, 16, COLOR.muted).setOrigin(0.5);
+    const logo = this.add.image(CENTER, LOGO.top, TitleTextures.logo).setOrigin(0.5, 0).setScale(LOGO.scale);
+    const subtitle = text(CENTER, 214, 16, COLOR.muted).setOrigin(0.5);
     const panel = this.add.container(0, 0);
     const bottom = this.buildRows(panel);
     const description = text(INNER.left, bottom + 12, 13, COLOR.muted).setWordWrapWidth(INNER.width).setLineSpacing(3);
@@ -107,7 +108,6 @@ export class TitleScene extends Phaser.Scene {
     panel.addAt(this.panelBackground(bottom + PANEL.footer + 4), 0);
 
     this.texts = {
-      title,
       subtitle,
       level: text(GAME_WIDTH - 24, 20, 13, COLOR.dim).setOrigin(1, 0),
       description,
@@ -118,10 +118,10 @@ export class TitleScene extends Phaser.Scene {
 
     onKeys(this, (code) => this.onKey(code));
     this.render();
-    // Entrada: el título baja, el panel sube y el título flota despacio.
-    fadeIn(this, [title, subtitle], { duration: 500, rise: -14 });
+    // Entrada: el logotipo baja, el panel sube y el logotipo flota despacio.
+    fadeIn(this, [logo, subtitle], { duration: 500, rise: -14 });
     fadeIn(this, panel, { duration: 480, rise: 18, delay: 160 });
-    this.time.delayedCall(700, () => this.tweens.add({ targets: title, y: title.y - 4, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.InOut' }));
+    this.time.delayedCall(700, () => this.tweens.add({ targets: logo, y: logo.y - 4, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.InOut' }));
   }
 
   update(_time: number, deltaMs: number): void {
@@ -228,7 +228,6 @@ export class TitleScene extends Phaser.Scene {
 
   private render(): void {
     const { texts, menu } = this;
-    texts.title.setText(t('common.appTitle'));
     texts.subtitle.setText(t('menu.title.subtitle'));
     texts.level.setText(t('menu.title.level', { level: this.unlockLevel, missions: this.completedMissions }));
     texts.controls.setText(t('menu.title.controls'));

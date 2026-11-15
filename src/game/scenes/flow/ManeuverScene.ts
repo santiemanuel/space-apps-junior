@@ -7,7 +7,7 @@ import type { EventBus } from '../../../core/events/EventBus';
 import type { GameEvents } from '../../../core/events/GameEvents';
 import { BoardGame, CountdownGame, createFlightGame, FuelGame, PressureGame, RadioGame, SteerGame, type Arrow, type FlightGame, type FlightInput } from '../../../core/maneuvers/flightGames';
 import { ManeuverRun, precisionLevel } from '../../../core/maneuvers/ManeuverRun';
-import type { ChecklistDecision, ChecklistItem, StageKind } from '../../../core/maneuvers/types';
+import type { ChecklistDecision, StageKind } from '../../../core/maneuvers/types';
 import type { SystemStatus } from '../../../core/systems/types';
 import { galeWeatherOn } from '../../../data/series';
 import { VAN_ALLEN } from '../../../data/vanAllen';
@@ -16,6 +16,8 @@ import { SceneKeys } from '../../sceneKeys';
 import { addButton, addText, COLOR, fadeIn, LIGHT_COLOR, LIGHT_CSS, listenUntilShutdown, onKeys, pulse, type Button } from '../../ui/ui';
 import type { ManeuverSceneData } from '../sceneData';
 import { ART_VIEW, FlightArt } from './flightArt';
+import { ChecklistPanel, checklistSfx, type ChecklistMemory } from './checklistPanel';
+import { preloadHudIcons } from '../../hudIcons';
 import { audio } from '../../audio/audio';
 
 /** Teclas de cada minijuego de vuelo ('space' se traduce). */
@@ -42,8 +44,6 @@ const HINT_PRESS_MS = 700;
 /** Cuánto queda encendida la luz de radio que apretó el jugador. */
 const RADIO_FLASH_MS = 260;
 const BAR = { x: PX - 180, y: OVERLAY.y + 120, width: 360, height: 26 } as const;
-/** Panel del checklist, a la derecha (el cohete queda a la vista). */
-const CHECK = { x: 838, y: 90, width: 420 } as const;
 const FUEL = { x: 1050, y: 30, width: 200, height: 12 } as const;
 /** Pausa antes de que empiece cada minijuego y tiempo para leer su resultado (ms). */
 const READY_MS = 700;
@@ -99,7 +99,8 @@ export class ManeuverScene extends Phaser.Scene {
   private radioFlash: { arrow: Arrow; good: boolean; until: number } | null = null;
   private gameStage = -1;
   private keys!: Record<KeyName, Phaser.Input.Keyboard.Key>;
-  private checklist = { row: 0, option: 0, rows: [] as { buttons: Button[]; status: Phaser.GameObjects.Text }[], start: null as Button | null };
+  private checklist: ChecklistPanel | null = null;
+  private checklistMemory: ChecklistMemory = { justDecided: null, focusY: null, celebrated: false };
   private result: Button | null = null;
   private readyAt = 0;
   private completed = false;
@@ -131,6 +132,12 @@ export class ManeuverScene extends Phaser.Scene {
     this.result = null;
     this.intro = false;
     this.lastCount = null;
+    this.checklist = null;
+    this.checklistMemory = { justDecided: null, focusY: null, celebrated: false };
+  }
+
+  preload(): void {
+    preloadHudIcons(this);
   }
 
   create(): void {
@@ -260,12 +267,9 @@ export class ManeuverScene extends Phaser.Scene {
     );
     this.widgets = null;
     this.result = null;
-    this.checklist.rows = [];
-    this.checklist.start = null;
-    const glass = this.add.graphics().fillStyle(0x0b1220, 0.78);
-    if (this.run.step === 'checklist') glass.fillRoundedRect(CHECK.x, CHECK.y, CHECK.width, 110 + this.run.items.length * 48 + 74, 14);
-    else glass.fillRoundedRect(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 14);
-    this.view.add(glass);
+    this.checklist = null;
+    // El checklist dibuja su propia consola; las etapas y el resultado van sobre un vidrio oscuro.
+    if (this.run.step !== 'checklist') this.view.add(this.add.graphics().fillStyle(0x0b1220, 0.78).fillRoundedRect(OVERLAY.x, OVERLAY.y, OVERLAY.width, OVERLAY.height, 14));
     if (this.run.step === 'checklist') this.showChecklist();
     else if (this.run.step === 'done') this.showResult();
     else this.showStage();
@@ -277,86 +281,20 @@ export class ManeuverScene extends Phaser.Scene {
 
   // --- Checklist Go / No-Go ---
 
-  private options(item: ChecklistItem): ChecklistDecision[] {
-    if (item.decision) return [];
-    return item.status === 'green' ? ['go'] : ['repair', 'risk'];
-  }
-
   private showChecklist(): void {
-    const { run, view } = this;
-    const left = CHECK.x + 18;
-    const right = CHECK.x + CHECK.width - 18;
-    view.add([
-      addText(this, left, CHECK.y + 22, 18, COLOR.text).setOrigin(0, 0.5).setText(t('maneuvers.checklist.title')),
-      addText(this, right, CHECK.y + 22, 12, COLOR.muted).setOrigin(1, 0.5).setText(t('maneuvers.checklist.spares', { count: run.spares })),
-      addText(this, left, CHECK.y + 40, 12, COLOR.muted, { wordWrap: { width: CHECK.width - 36 } }).setText(t('maneuvers.checklist.hint')),
-    ]);
-    const top = CHECK.y + 110;
-    run.items.forEach((item, index) => {
-      const y = top + index * 48;
-      view.add(this.add.circle(left + 8, y - 8, 7, LIGHT_COLOR[item.status]));
-      view.add(addText(this, left + 22, y - 8, 14).setOrigin(0, 0.5).setText(t(`common.system.${item.systemId}`)));
-      // El resultado de cada decisión va en el renglón de abajo (donde estaban los botones): al lado del nombre se encimaba.
-      const status = addText(this, right, y + 12, 12, COLOR.muted).setOrigin(1, 0.5);
-      view.add(status);
-      const buttons = this.options(item).map((decision, option, all) => {
-        const x = right - (all.length - 1 - option) * 170 - 76;
-        const button = addButton(this, x, y + 12, () => this.decide(index, decision), { size: 12, onHover: () => this.focusChecklist(index, option) }).setLabel(
-          this.decisionLabel(item, decision),
-        );
-        if (decision === 'repair' && !run.canRepair(item.systemId)) button.setEnabled(false).setLabel(t('maneuvers.checklist.noSpares'));
-        view.add(button.text);
-        return button;
-      });
-      if (item.decision) status.setText(t(`maneuvers.checklist.done.${item.decision}`)).setColor(item.decision === 'risk' ? COLOR.warn : COLOR.ok);
-      this.checklist.rows.push({ buttons, status });
+    this.checklist = new ChecklistPanel(this, this.view, this.run, this.checklistMemory, {
+      decide: (index, decision) => this.decide(index, decision),
+      start: () => this.startStages(),
     });
-    const startY = top + run.items.length * 48 + 14;
-    const start = addButton(this, CHECK.x + CHECK.width / 2, startY, () => this.startStages(), { size: 15, onHover: () => this.focusChecklist(run.items.length, 0) })
-      .setLabel(t(run.checklistReady ? 'maneuvers.checklist.start' : 'maneuvers.checklist.pending'))
-      .setEnabled(run.checklistReady);
-    this.checklist.start = start;
-    view.add([start.text, addText(this, CHECK.x + CHECK.width / 2, startY + 22, 11, COLOR.dim, { align: 'center', wordWrap: { width: CHECK.width - 30 } }).setOrigin(0.5, 0).setText(t('maneuvers.checklist.controls'))]);
-    const firstPending = run.items.findIndex((item) => !item.decision);
-    this.focusChecklist(firstPending === -1 ? run.items.length : firstPending, 0);
-  }
-
-  private decisionLabel(item: ChecklistItem, decision: ChecklistDecision): string {
-    if (decision !== 'repair') return t(`maneuvers.checklist.${decision}`);
-    const cost = this.run.repairCost(item.systemId);
-    return cost === 1 ? t('maneuvers.checklist.repair.one') : t('maneuvers.checklist.repair.many', { cost });
-  }
-
-  private focusChecklist(row: number, option: number): void {
-    const { rows, start } = this.checklist;
-    this.checklist.row = row;
-    this.checklist.option = option;
-    rows.forEach((r, i) => r.buttons.forEach((b, j) => b.setFocused(i === row && j === option)));
-    start?.setFocused(row === rows.length);
+    this.checklistMemory.justDecided = null;
   }
 
   private decide(index: number, decision: ChecklistDecision): void {
     const item = this.run.items[index];
     if (!item || !this.run.decide(item.systemId, decision)) return;
-    if (decision === 'repair') audio.sfx('checklistRepair');
+    audio.sfx(checklistSfx(decision));
+    this.checklistMemory.justDecided = index;
     this.rebuild();
-  }
-
-  private moveChecklist(delta: number): void {
-    const { rows } = this.checklist;
-    let row = this.checklist.row;
-    for (let i = 0; i <= rows.length; i++) {
-      row = (row + delta + rows.length + 1) % (rows.length + 1);
-      if (row === rows.length || rows[row]!.buttons.length > 0) break;
-    }
-    this.focusChecklist(row, 0);
-  }
-
-  private activateChecklist(): void {
-    const { row, option, rows } = this.checklist;
-    if (row === rows.length) return this.startStages();
-    const button = rows[row]?.buttons[option];
-    if (button?.enabled) button.text.emit('pointerdown');
   }
 
   private startStages(): void {
@@ -715,11 +653,12 @@ export class ManeuverScene extends Phaser.Scene {
     if (step === 'stage' && code === 'Space' && this.kind === 'timing') return this.press();
     if (step === 'done' && (code === 'Enter' || code === 'Space' || code === 'NumpadEnter')) return this.finish();
     if (step !== 'checklist') return;
-    if (code === 'ArrowUp' || code === 'KeyW') this.moveChecklist(-1);
-    else if (code === 'ArrowDown' || code === 'KeyS') this.moveChecklist(1);
-    else if (code === 'ArrowLeft' || code === 'KeyA' || code === 'ArrowRight' || code === 'KeyD') {
-      const count = this.checklist.rows[this.checklist.row]?.buttons.length ?? 0;
-      if (count > 1) this.focusChecklist(this.checklist.row, (this.checklist.option + 1) % count);
-    } else if (code === 'Enter' || code === 'NumpadEnter' || code === 'Space') this.activateChecklist();
+    const panel = this.checklist;
+    if (!panel) return;
+    if (code === 'ArrowUp' || code === 'KeyW') panel.move(-1);
+    else if (code === 'ArrowDown' || code === 'KeyS') panel.move(1);
+    else if (code === 'ArrowLeft' || code === 'KeyA') panel.cycleOption(-1);
+    else if (code === 'ArrowRight' || code === 'KeyD') panel.cycleOption(1);
+    else if (code === 'Enter' || code === 'NumpadEnter' || code === 'Space') panel.activate();
   }
 }

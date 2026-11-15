@@ -1622,8 +1622,8 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
     if (this.travel[m.id]?.to === job.key || this.onRepairSite(m.id, job)) return true;
     const arrive = job.zone ?? zoneAt(ship, job.point!) ?? m.location;
     const end = job.zone ? this.spotFor(m.id, job.zone) : job.point!;
-    if (!manual) {
-      // En avance rápido no se camina: aparece en el lugar de trabajo.
+    if (!manual && !this.leavingShelter(m.id)) {
+      // En avance rápido no se camina: aparece en el lugar de trabajo (salvo al salir del refugio, que se ve).
       delete this.travel[m.id];
       this.positions[m.id] = end;
       this.setLocation(m.id, arrive);
@@ -1702,10 +1702,12 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       if (current?.to === target || (!current && zoneAt(ship, this.positions[m.id]) === target)) continue;
       if (this.unreachable.get(m.id) === target) continue;
       const urgent = this.sheltering.has(m.id) && target === this.content.shelterZone;
-      if (!manual && !urgent) {
-        // En avance rápido nadie camina, pero quien reposa aparece en la enfermería y quien quedó en el refugio
-        // después de la tormenta vuelve a lo suyo (si no, seguía ahí hasta la próxima jornada).
-        if (m.resting || zoneAt(ship, this.positions[m.id]) === this.content.shelterZone) {
+      // En avance rápido la rutina cambia en pocos pasos: quien ya va saliendo del refugio termina su camino.
+      if (!manual && !urgent && current) continue;
+      if (!manual && !urgent && !this.leavingShelter(m.id)) {
+        // En avance rápido nadie camina, pero quien reposa aparece en la enfermería. Quien quedó en el refugio
+        // después de la tormenta vuelve a lo suyo caminando (si no, seguía ahí hasta la próxima jornada).
+        if (m.resting) {
           delete this.travel[m.id];
           this.positions[m.id] = this.spotFor(m.id, target);
           this.setLocation(m.id, target);
@@ -1726,6 +1728,11 @@ export abstract class HabitatSession<C extends HabitatContent = HabitatContent> 
       const path = [...found.slice(0, -1), this.spotFor(m.id, target)];
       this.travel[m.id] = { to: target, route: path, length: pathLength(path), walked: 0, waitS: urgent ? reactionSeconds(eff) : 0 };
     }
+  }
+
+  /** Sigue en el refugio pero ya sin orden de quedarse (terminó la tormenta): sale caminando, también en avance rápido. */
+  private leavingShelter(id: CrewId): boolean {
+    return !this.sheltering.has(id) && zoneAt(this.content.layout, this.positions[id]) === this.content.shelterZone;
   }
 
   private spotFor(id: CrewId, zone: string, crew: readonly CrewMemberState[] = this._state.crew): Point {

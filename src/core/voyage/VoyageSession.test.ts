@@ -619,9 +619,41 @@ describe('después de la tormenta', () => {
     // La tormenta termina a las 40 h (ya en avance rápido).
     runUntil(session, () => hoursSince(session) >= 41, input, 0.05);
     expect(session.level).toBe('calm');
-    const autos = session.state.crew.filter((m) => m.id !== session.state.activeCrewId);
-    expect(autos.filter((m) => m.location === 'shelter')).toEqual([]);
-    for (const m of autos) expect(zoneAt(SHIP_LAYOUT, session.positionOf(m.id))).not.toBe('shelter');
+    const autos = () => session.state.crew.filter((m) => m.id !== session.state.activeCrewId);
+    runUntil(session, () => autos().every((m) => zoneAt(SHIP_LAYOUT, session.positionOf(m.id)) !== 'shelter'), input, 0.05, 2000);
+    expect(autos().filter((m) => m.location === 'shelter')).toEqual([]);
+    for (const m of autos()) expect(zoneAt(SHIP_LAYOUT, session.positionOf(m.id))).not.toBe('shelter');
+  });
+
+  it('los automáticos salen del refugio caminando, sin aparecer de golpe en otro cuarto (también en avance rápido)', () => {
+    const { session } = voyage({ length: 'long' }, { timeline: storm });
+    runUntil(session, () => session.level === 'alert');
+    session.respond(session.pendingDecisions()[0]!.incident.id, 'goToShelter');
+    const input: VoyageInput = { activeZone: 'shelter', interacting: false };
+    runUntil(session, () => session.state.crew.every((m) => m.location === 'shelter'), input, 0.1);
+    // La tormenta termina a las 40 h: se mira desde un rato antes.
+    runUntil(session, () => hoursSince(session) >= 39, input, 0.05);
+    expect(session.state.crew.every((m) => m.location === 'shelter')).toBe(true);
+    const autos = session.state.crew.filter((m) => m.id !== session.state.activeCrewId).map((m) => m.id);
+    const dt = 0.05;
+    // Un paso de `dt` avanza a lo sumo la velocidad de la tripulación (con un margen por el redondeo del camino).
+    const maxStep = VOYAGE_CONTENT.crewSpeedTilesPerS * dt * 1.5;
+    let jump = 0;
+    let walked = false;
+    for (let i = 0; i < 4000 && (hoursSince(session) < 40.5 || autos.some((id) => zoneAt(SHIP_LAYOUT, session.positionOf(id)) === 'shelter')); i++) {
+      const before = autos.map((id) => ({ ...session.positionOf(id) }));
+      session.update(dt, input);
+      autos.forEach((id, k) => {
+        const p = session.positionOf(id);
+        const d = Math.hypot(p.x - before[k]!.x, p.y - before[k]!.y);
+        jump = Math.max(jump, d);
+        if (d > 0) walked = true;
+      });
+    }
+    expect(session.level).toBe('calm');
+    expect(walked).toBe(true);
+    expect(jump).toBeLessThanOrEqual(maxStep);
+    for (const id of autos) expect(zoneAt(SHIP_LAYOUT, session.positionOf(id))).not.toBe('shelter');
   });
 });
 

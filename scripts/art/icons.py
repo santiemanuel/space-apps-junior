@@ -40,5 +40,5 @@ out = Path(group['atlas'])
 out.parent.mkdir(parents=True, exist_ok=True)
 sheet.save(out.with_suffix('.png'))
 meta = {'image': out.with_suffix('.png').name, 'size': {'w': sheet.width, 'h': sheet.height}, 'scale': '1'}
-out.with_suffix('.json').write_text(json.dumps({'frames': frames, 'meta': meta}, indent=1) + '\n', encoding='utf-8')
+out.with_suffix('.json').write_text(json.dumps({'frames': frames, 'meta': meta}, indent=1) + '\n', encoding='utf-8', newline='\n')
 print(f'{out}.png: {len(items)} íconos en celdas de {cell}×{cell}')

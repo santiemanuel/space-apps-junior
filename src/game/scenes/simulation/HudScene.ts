@@ -33,6 +33,8 @@ export const VIEW_WIDTH = 21 * TILE;
 export const TOAST_Y = 14;
 const DAY_MS = 86_400_000;
 /** Superpuestas que tapan la vista del mapa: con una abierta no se abre el estado ni el mapa del cráter. */
+/** Canal y volumen del loop de la alarma de la tormenta solar. */
+const STORM_ALARM = { channel: 'stormAlarm', volume: 0.6 } as const;
 const OVERLAYS = [SceneKeys.DataPanel, SceneKeys.MissionControl] as const;
 /** Cuadros del indicador de avance rápido (⏩ que corre): no se parece en nada a dormir. */
 const FAST_FRAMES = ['▶▷▷', '▶▶▷', '▶▶▶', '▷▶▶', '▷▷▶', '▷▷▷'] as const;
@@ -257,7 +259,6 @@ export class HudScene extends Phaser.Scene {
     // Tormenta solar en camino (o que llega sin aviso): el cartel grande, como la entrada de un jefe.
     const stormBanner = (key: 'hud.storm.incoming' | 'hud.storm.arrived') => {
       if (this.minigame.visible) return;
-      audio.sfx('siren', 0.9, 0.9);
       this.banner.show(t(key), () => this.stormCountdown());
     };
     const { bus } = this.data_;
@@ -265,7 +266,10 @@ export class HudScene extends Phaser.Scene {
       bus.on('incident:warned', (i) => i.definitionId === 'radiationStorm' && stormBanner('hud.storm.incoming')),
       bus.on('incident:started', (i) => i.definitionId === 'radiationStorm' && !this.banner.visible && stormBanner('hud.storm.arrived')),
     ];
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => [offMinigame, offConsole, ...offStorm].forEach((off) => off()));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      [offMinigame, offConsole, ...offStorm].forEach((off) => off());
+      audio.loop(STORM_ALARM.channel, null);
+    });
     keyboard.addKey('I').on('down', () => this.toggleStatus());
     keyboard.addKey('ENTER').on('down', () => this.show(null));
     if (mars) {
@@ -415,6 +419,8 @@ export class HudScene extends Phaser.Scene {
     }
     this.console_.update(s);
     this.banner.update(time);
+    // Alarma de la tormenta solar en loop: desde el aviso hasta que termina.
+    audio.loop(STORM_ALARM.channel, s.storm ? 'stormAlarm' : null, STORM_ALARM.volume);
     // Dormir de verdad: pantalla a oscuras con la hora que avanza. Si lo despierta un aviso, fundido rápido.
     const alarm = s.level !== 'calm' || s.decisions.length > 0 || s.emergencies.length > 0;
     if (this.wasAsleep && !s.asleep && !alarm) audio.sfx('habitatMorning', 1, 0.6);

@@ -40,6 +40,7 @@ y la nave de la misión yendo de la Tierra a Marte.
 | Nave de la misión | `public/assets/ui/title/ship.png` | 68 × 11 | 2 de 34 × 11 | ×2 | Nave de propulsión nuclear térmica (game-design §2.1) mirando a la derecha: tobera con llama, armazón, radiadores y módulo habitable. La llama titila entre los dos cuadros | Dibujada por el script |
 | CubeSat OPSIS | `public/assets/ui/title/opsis.png` | 26 × 9 | 2 de 13 × 9 | ×2 | CubeSat 3U con dos paneles solares y antena; el LED pasa de verde a rojo. Cruza el cielo una sola vez por carga de la página, justo por encima de la atmósfera, y muestra su nombre, "OPSIS", al pasar el mouse; mientras está bajo el mouse va más lento. Referencia al proyecto OPSIS de Facundo | Dibujado por el script |
 | Estrellas | `public/assets/ui/title/stars.png` | 28 × 7 | 4 de 7 × 7 | ×2 | Cuatro tamaños de estrella, de un punto a un destello en cruz | Dibujadas por el script |
+| Logotipo | `public/assets/ui/title/logo.png` | 512 × 512 (arte de 128 × 128 ampliado ×4) | — | ×0,5 (cada píxel de arte en 2 × 2 de pantalla) | «HELLO MARS» en una cinta sobre el Marte del menú, con un anillo de botones de elegir (✔, ⚠, ✖), una palanca y un astronauta asomado: las decisiones de la misión. Reemplaza al título en texto del menú | Generado con codex: `python scripts/art/logo-planet.py` (Marte de referencia, `art/raw/logo/planet-ref.png`) → `scripts/art/gen.sh logo-b art/raw/logo/planet-ref.png` (prompt `art/prompts/logo-b.txt`) → `pre.py` → `snap_pixels` (`color_count: 24`, grilla automática) → `art/snapped/logo-b.png` (centrado en 128 × 128) → ampliado ×4 sin suavizar |
 
 **No son archivos:** los planetas que se ven girando se pintan en tiempo real en dos texturas de canvas,
 `title-earth-canvas` (228 × 228) y `title-mars-canvas` (48 × 48), a partir de los mapas de arriba (20 cuadros por
@@ -178,6 +179,32 @@ lleva en la mano se dibujan con código.
 - **Transparencia:** cielo con canal alfa; mar hasta los bordes inferiores, isla lejana a la izquierda y nubes pequeñas sobre el horizonte.
 - **Cómo se rehace:** generar una sola imagen con la herramienta integrada `image_gen`, fondo transparente y el prompt de `art/prompts/vuelo-mar-lejos.txt`; copiar el PNG sin modificar.
 - **Origen:** generado con `image_gen` el 15/11/2026. Original: `C:/Users/Santiago/.codex/generated_images/01a1e112-bdeb-7350-95c1-02e4016a189d/exec-58fc72cc-8613-4c1d-9c03-7279150f6c15.png`.
+
+## Banderas de idioma (original generado)
+
+- **Nombre y ubicación:** `art/raw/ui-banderas.png`, hoja de cuatro íconos en grilla 2 × 2: Argentina (español) a la izquierda y Estados Unidos (inglés) a la derecha, repetidas en la fila inferior.
+- **Tamaño y cuadros:** 1254 × 1254 px, cuatro íconos; estética solicitada de lienzo de 64 × 64 ampliado. Original sin redimensionar ni recodificar.
+- **Transparencia:** PNG con canal alfa, sin fondo ni soportes.
+- **Cómo se rehace:** generar una sola imagen con la herramienta integrada `image_gen`, fondo transparente y el prompt de `art/prompts/ui-banderas.txt`; copiar el PNG sin modificar.
+- **Origen:** generado con `image_gen` (codex) el 15/11/2026; la primera versión (España e Inglaterra) se reemplazó por esta.
+- **En el juego:** `public/assets/ui/flags/es.png` (Argentina, 32 × 27 px de arte) y `en.png` (Estados Unidos, 34 × 27), un cuadro cada una, sacadas de la fila de arriba de la hoja. Se muestran ×2 en la fila del idioma de las opciones (`src/game/scenes/flow/settingsPanel.ts`, menú principal y pausa); claves con `flagTextureKey` (`src/game/assets.ts`).
+- **Cómo se pasan al juego:** `scripts/art/gen.sh ui-banderas` → `python scripts/art/pre.py art/raw/ui-banderas.png` → `snap_pixels` (`color_count: 16`, tamaño de píxel automático: 14; con 19,6 las franjas de Estados Unidos salen desparejas) → `art/snapped/ui-banderas.png` (92 × 94) → `python scripts/art/flags.py`.
+
+## Íconos de los sistemas del checklist
+
+- **Nombre y ubicación:** `art/raw/hud-iconos-sistemas.png` → `art/snapped/hud-iconos-sistemas.png` (69 × 67), hoja 2 × 2: motor (`engines`), escudo térmico (`heatShield`), paracaídas (`parachutes`) y panel solar (`solarPanels`).
+- **Tamaño y cuadros:** original de 1254 × 1254 px; en el juego, cuatro cuadros más del atlas `public/assets/hud/icons` (celdas de 24 × 24 px de arte). En la consola del checklist se ven ×1,5 (el depurador y la radio usan los íconos de sus cuartos).
+- **Cómo se rehace:** `scripts/art/gen.sh hud-iconos-sistemas docs/ref-nave.png art/snapped/hud-iconos-cuartos1.png` → `python scripts/art/pre.py art/raw/hud-iconos-sistemas.png` → `snap_pixels` con `pixel_size: 19.6` → copiar a `art/snapped/` → `python scripts/art/icons.py` (grupo `hud-icons` de `art/manifest.json`).
+- **Origen:** generado con `image_gen` (codex) el 15/11/2026.
+- **En el juego:** consola del checklist Go / No-Go de las maniobras (`src/game/scenes/flow/checklistPanel.ts`). El marco de la consola, las tarjetas, los botones, los sellos y el botón de empezar se dibujan con código.
+
+## Favicon (original generado)
+
+- **Nombre y ubicación:** `art/raw/favicon.png` (generado) → `art/snapped/favicon.png` (41 × 38, dibujo de 29 × 32 px de arte) → `public/favicon.ico` (16, 32 y 48 px), `public/favicon-32.png` (32 × 32, pixel art 1:1) y `public/apple-touch-icon.png` (180 × 180, ×5 sobre el fondo del juego `#05070d`).
+- **Qué es:** Marte del logo con el casco del astronauta asomado arriba, sin texto ni botones, para la pestaña del navegador. Contorno oscuro para que se vea en barras claras y oscuras.
+- **Dónde se usa:** `index.html` (`<link rel="icon">` y `apple-touch-icon`).
+- **Cómo se rehace:** `scripts/art/gen.sh favicon public/assets/ui/title/logo.png` (prompt `art/prompts/favicon.txt`, el logo como referencia) → `python scripts/art/pre.py art/raw/favicon.png` → `snap_pixels` (`color_count: 12`, tamaño de píxel automático: 31,5) → `art/snapped/favicon.png` → `python scripts/art/favicon.py` (falla si el dibujo no entra en 32 × 32). El de 16 px se achica suave; el de 48 px sale de ampliar ×3 y achicar.
+- **Origen:** generado con `image_gen` (codex) el 15/11/2026.
 
 ## Otros recursos sin archivo (dibujados con código)
 

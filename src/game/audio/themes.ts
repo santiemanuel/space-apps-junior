@@ -134,7 +134,7 @@ export const SFX = {
 /**
  * Sonidos en loop: ambientes (interior de la nave, sala de máquinas, Marte desde el casco) y los que duran mientras
  * pasa algo (cargar combustible, rugido del despegue, agua de la plataforma, plasma, fuga de aire, tormenta, bici,
- * riego, taladro o pala de las muestras).
+ * riego, taladro o pala de las muestras, la alarma de la tormenta solar).
  */
 export const LOOPS = {
   cabin: 'ambiente-cabina',
@@ -155,6 +155,8 @@ export const LOOPS = {
   sealBrush: 'seal-brush-loop',
   geiger: 'geiger-loop',
   rover: 'rover-motor-loop',
+  // Tormenta solar: suena desde el aviso hasta que termina.
+  stormAlarm: 'alarma-tormenta',
 } as const satisfies Record<string, string>;
 
 export type LoopId = keyof typeof LOOPS;

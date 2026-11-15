@@ -47,6 +47,7 @@ export const TitleTextures = {
   ship: 'title-ship',
   stars: 'title-stars',
   opsis: 'title-opsis',
+  logo: 'title-logo',
 } as const;
 
 const titleSheet = (key: string, file: string, frameWidth: number, frameHeight: number): AssetEntry => ({
@@ -61,6 +62,7 @@ export const TITLE_ASSETS: readonly AssetEntry[] = [
   { kind: 'image', key: TitleTextures.earthClouds, url: 'assets/ui/title/earth-clouds.png' },
   { kind: 'image', key: TitleTextures.marsMap, url: 'assets/ui/title/mars-map.png' },
   { kind: 'image', key: TitleTextures.meteorTrail, url: 'assets/ui/title/meteor-trail.png' },
+  { kind: 'image', key: TitleTextures.logo, url: 'assets/ui/title/logo.png' },
   titleSheet(TitleTextures.iss, 'iss.png', 42, 21),
   titleSheet(TitleTextures.meteor, 'meteor.png', 13, 13),
   titleSheet(TitleTextures.asteroid, 'asteroid.png', 20, 20),
@@ -159,8 +161,13 @@ export const CARGO_ASSETS: readonly AssetEntry[] = ['food', 'water', 'shield', '
   (name): AssetEntry => ({ kind: 'image', key: `cargo-${name}`, url: `assets/ui/cargo/${name}.png` }),
 );
 
+/** Banderas del idioma en las opciones (`scripts/art/flags.py`; registro en docs/pixel-art.md), a resolución de arte. */
+export const flagTextureKey = (locale: string): string => `flag-${locale}`;
+
+export const FLAG_ASSETS: readonly AssetEntry[] = ['es', 'en'].map((locale): AssetEntry => ({ kind: 'image', key: flagTextureKey(locale), url: `assets/ui/flags/${locale}.png` }));
+
 /** Todo lo que carga `Boot`. Tiles y audio se agregan aquí cuando existan sus archivos. */
-export const BOOT_ASSETS: readonly AssetEntry[] = [...CREW_ASSETS, ...TITLE_ASSETS, ...FLIGHT_ASSETS, ...CARGO_ASSETS];
+export const BOOT_ASSETS: readonly AssetEntry[] = [...CREW_ASSETS, ...TITLE_ASSETS, ...FLIGHT_ASSETS, ...CARGO_ASSETS, ...FLAG_ASSETS];
 
 type AssetLoader = Pick<Phaser.Loader.LoaderPlugin, 'spritesheet' | 'image' | 'audio'>;
 
