@@ -63,4 +63,6 @@ export interface GameState {
   landingDistanceKm: number | null;
   activeIncidents: IncidentState[];
   history: MissionLogEntry[];
+  /** Ids de logros conseguidos en esta partida (§5); se juntan de cada `PhaseResult`. */
+  achievements?: string[];
 }

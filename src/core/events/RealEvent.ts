@@ -16,6 +16,8 @@ export interface RealEvent {
   unit: string;
   /** Clave de traducción con el valor explicado para niños ("64 veces lo normal"). */
   kidValueKey: string;
+  /** Parámetros de `kidValueKey` (p. ej. `{ times: 64 }`). */
+  kidValueParams?: Record<string, string | number>;
   /** Clave de traducción con la frase de explicación. */
   explanationKey: string;
   /** Enlace a la fuente original (p. ej. el `link` del evento en DONKI). */

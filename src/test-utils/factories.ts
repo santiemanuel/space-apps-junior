@@ -142,3 +142,10 @@ export function makeIncident(over: Partial<IncidentState> = {}): IncidentState {
 export function makePhaseResult(over: Partial<PhaseResult> = {}): PhaseResult {
   return { phase: 'cruiseOut', outcome: 'completed', state: makeGameState(), achievements: [], ...over };
 }
+
+// --- Flujo y maniobras (Facundo). ---
+
+/** Muestra de Marte de prueba: 5 kg, valor 1. */
+export function makeSample(over: Partial<GameState['inventory']['samples'][number]> = {}): GameState['inventory']['samples'][number] {
+  return { id: 'sample-1', siteId: 'gale-1', massKg: 5, value: 1, ...over };
+}

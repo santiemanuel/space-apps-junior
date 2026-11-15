@@ -362,6 +362,9 @@ Rama: `feat/flujo-maniobras`.
 - Selector ES/EN en `Title` y `Pause`.
 - Migrar a claves los textos que hoy están escritos en `HudScene` y en `content/missions.ts`.
 - Formateo de números y fechas por idioma (`Intl`).
+- Hecho: selector ES/EN en `Title` y `Pause` (se recuerda en el navegador), `i18n/format.ts` (fechas, números y horas
+  con `Intl`) e `i18n/locales.ts`. Pendiente: los textos de `HudScene` y `content/missions.ts` (prototipo que se retira en
+  la integración).
 
 ### F2 · Personajes visibles — `src/game/entities/CrewSprite.ts`
 
@@ -369,12 +372,20 @@ Rama: `feat/flujo-maniobras`.
 - Animaciones `idle-{dir}` y `walk-{dir}` para las 4 direcciones.
 - Burbuja de estado (motivo de la lentitud), marcador del tripulante activo, Tab.
 - **Conviene publicar esto primero** como rama o paquete aparte para que Santiago lo vea, aunque se integre al final.
+- Hecho: `entities/CrewSprite.ts` (misma firma) + `entities/crewAnimations.ts`: hojas `crew-<id>` cargadas en `Boot`
+  (`src/game/assets.ts`, archivos en `public/assets/crew/`), `idle-*`/`walk-*` en 4 direcciones, ritmo según la velocidad,
+  burbuja con `slowReasonKey`, flecha y anillo del activo, cuerpo físico en los pies. Tab: `input/crewSwitch.ts`
+  (`bindCrewSwitch`, saltea a los que están en reposo); en la integración reemplaza el Tab provisional de `VoyageScene`.
 
 ### F3 · Flujo de misión — `src/core/flow/MissionFlow.ts`
 
 - Máquina de estados de las 7 fases: `prep → ascent → cruiseOut → landing → mars → marsAscent → cruiseBack → reentry → report`.
 - Aplica el `PhaseResult` al `GameState` y decide la escena siguiente.
 - Pura y testeable: test de un recorrido completo con resultados falsos.
+- Hecho: `core/flow/MissionFlow.ts` (`stepFor`, `complete`, `recordRealEvent`; el despegue de Marte tiene dos pasos y una
+  partida guardada en medio retoma donde quedó) y `game/scenes/flow/FlowDirector.ts`, que lo conecta por el bus: arranca
+  cada escena (`phaseScenes.ts`), emite `phase:started`, autoguarda en cada `phase:completed`, abre `DataCard` con
+  `realEvent:shown` (en cola, pausando lo que corre), `Pause` con Esc y al final actualiza la progresión.
 
 ### F4 · Motor de maniobras — `src/core/maneuvers/`
 
@@ -383,6 +394,8 @@ Rama: `feat/flujo-maniobras`.
 - Barras por etapa: Espacio en la zona correcta; un sistema amarillo achica la zona (§4.0).
 - Un error cuesta combustible, precisión o una corrección extra, y **nunca termina la partida**.
 - Resultado: precisión total, combustible restante, `PhaseResult`.
+- Hecho: `core/maneuvers/` (`ManeuverRun`: checklist con reparar o arriesgarse, zonas por semilla, marca que va y
+  vuelve, errores que cuestan combustible, `toPhaseResult()` con historial).
 
 ### F5 · Escena `Maneuver` + 4 configuraciones — `src/content/maneuvers.ts`
 
@@ -394,6 +407,9 @@ Rama: `feat/flujo-maniobras`.
 | Reentrada (§4.7) | Orientar el escudo, reentrada (calor y apagón de comunicaciones), paracaídas y amerizaje | Final: la tripulación camina o va en camilla según su condición física |
 
 Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta confirmarlas.
+- Hecho: `content/maneuvers.ts` (4 maniobras, `MANEUVER_RULES`, dificultad del aterrizaje por combustible y carga,
+  `VAN_ALLEN_EVENT` provisional hasta usar `VAN_ALLEN` de `src/data/`) y `ManeuverScene`. Dev:
+  `?scene=Maneuver&id=landing&yellow=heatShield&red=parachutes`. El polvo real del día (REMS) se suma en la integración.
 
 ### F6 · `Title` y `Loadout`
 
@@ -402,6 +418,9 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
   efecto explicado y su semáforo.
 - `Loadout` modo `return`: límite de masa, muestras contra comida, agua y repuestos; recordatorio de que el agua
   también es blindaje.
+- Hecho: `TitleScene` (+ `core/flow/titleMenu.ts`, `core/flow/newGame.ts`, `content/missionStart.ts`) y `LoadoutScene`
+  (+ `core/loadout/loadout.ts`, `content/loadouts.ts`). Límite de vuelta provisional: 1650 kg [regla]. Dev:
+  `?scene=Title&level=3&save=1`, `?scene=Loadout&level=4`, `?scene=Loadout&mode=return`.
 
 ### F7 · `DataCard` y `Report`
 
@@ -412,6 +431,10 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
   - Logros: "Refugio a tiempo", "Como Opportunity", "Cero radiografías extra", "Sobreviviste a la X9.0".
   - Decisiones del jugador junto a las gráficas reales; tarjetas vividas; explicación de la ruta nuclear.
   - En misión suspendida: cadena de decisiones, con el lenguaje "la tripulación está a salvo esperando rescate".
+- Hecho: `DataCardScene`, `ReportScene` (3 páginas) + `core/report/report.ts` y `content/achievements.ts`. Los logros
+  que dependen de la simulación ("Refugio a tiempo", "Cero radiografías extra") llegan en `PhaseResult.achievements` y se
+  guardan en `GameState.achievements` (campo opcional nuevo). Las gráficas reales del informe se suman en la integración
+  con `seriesFor()`; hoy hay una línea de tiempo con las decisiones y las tarjetas vividas. Dev: `?scene=Report&outcome=suspended`.
 
 ### F8 · Guardado y progresión — `src/core/save/`, `src/core/progression/`
 
@@ -421,14 +444,18 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 - Progresión: niveles 1–4, récords, logros.
 
 **Acepta:** test de ida y vuelta: guardar → cargar → mismo estado y misma secuencia del `Rng`.
+- Hecho: `core/save/` (`SaveStore`, `MemorySaveStore`, partida/progresión/ajustes con versión) y
+  `game/storage/browserSaveStore.ts`; `core/progression/` (niveles, `UNLOCK_AT`, `recordMissionEnd`). `PauseScene`: continuar,
+  guardar, guardar y salir, idioma. Mientras una fase de simulación corre se guarda el estado del inicio de la fase más
+  las tarjetas vividas: en la integración, `Voyage`/`Mars` tienen que publicar su estado para el guardado manual.
 
 ### Entregables de Facundo
 
 - [ ] `i18n` completo y textos actuales migrados.
-- [ ] `createCrewSprite` con los 4 personajes animados y el cambio por Tab.
-- [ ] `core/flow`, `maneuvers`, `save`, `progression` con tests.
-- [ ] `Title`, `Loadout`, `Maneuver` (4 configuraciones), `DataCard`, `Report`, `Pause`.
-- [ ] Textos en `menu/maneuvers/report/common.json` (es + en).
+- [x] `createCrewSprite` con los 4 personajes animados y el cambio por Tab.
+- [x] `core/flow`, `maneuvers`, `save`, `progression` con tests.
+- [x] `Title`, `Loadout`, `Maneuver` (4 configuraciones), `DataCard`, `Report`, `Pause`.
+- [x] Textos en `menu/maneuvers/report/common.json` (es + en).
 
 ---
 
@@ -444,6 +471,7 @@ Las cifras marcadas [verificar] en el diseño se muestran como estimación hasta
 | `src/game/scenes/simulation/*`, `simulationScenes.ts` | Santiago |
 | `src/game/scenes/flow/*` (incluye `BootScene.ts`), `flowScenes.ts` | Facundo |
 | `src/game/entities/CrewSprite.ts`, `src/game/input/`, `src/game/textures.ts`, `src/game/dev/flowDev.ts` | Facundo |
+| `src/core/loadout/`, `report/`, `src/content/missionStart.ts`, `src/game/assets.ts`, `src/game/ui/`, `src/game/storage/`, `public/assets/crew/` | Facundo |
 | `src/game/dev/simulationDev.ts` | Santiago |
 | `src/game/entities/StationView.ts` | Santiago |
 | `src/i18n/*/voyage\|mars\|hud\|incidents.json` | Santiago |
