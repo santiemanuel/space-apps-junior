@@ -160,5 +160,7 @@
   "credits.typescript.use": "El lenguaje en que está escrito el juego.",
   "credits.vite.use": "Compilación del juego y pruebas automáticas.",
   "credits.tiled.use": "Editor de los mapas de la nave y de la base de Gale.",
-  "credits.ffmpeg.use": "Masterizado de la música: volumen parejo, limitador y puntos de loop."
+  "credits.ffmpeg.use": "Masterizado de la música: volumen parejo, limitador y puntos de loop.",
+  "title.link.codeHello": "Hecho por code-hello",
+  "title.link.github": "El código en GitHub"
 }

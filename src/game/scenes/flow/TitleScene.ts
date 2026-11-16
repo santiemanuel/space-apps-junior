@@ -14,7 +14,7 @@ import { isLocale } from '../../../i18n/locales';
 import { CREW_SHEET, crewTextureKey, TitleTextures } from '../../assets';
 import { crewAnimKey } from '../../entities/crewAnimations';
 import { ensureCrewAnimations } from '../../entities/CrewSprite';
-import { GAME_WIDTH } from '../../display';
+import { GAME_HEIGHT, GAME_WIDTH } from '../../display';
 import { SceneKeys } from '../../sceneKeys';
 import { fadeIn, onKeys, pulse } from '../../ui/ui';
 import { openCredits } from './creditsPanel';
@@ -48,6 +48,15 @@ const PANEL = { width: 500, top: 238, pad: 20, primaryHeight: 44, primaryGap: 8,
 const PANEL_LEFT = CENTER - PANEL.width / 2;
 const INNER = { left: PANEL_LEFT + PANEL.pad, width: PANEL.width - PANEL.pad * 2 } as const;
 const PRIMARY: readonly TitleRowId[] = ['continue', 'newGame'];
+/**
+ * Enlaces de la esquina de abajo a la derecha, de derecha a izquierda: el estudio (code-hello) y el repositorio.
+ * Logos en pixel art (`scripts/art/brand-icons.py`), a resolución de arte.
+ */
+const LINKS = [
+  { key: TitleTextures.codeHello, url: 'https://www.code-hello.com', label: 'menu.title.link.codeHello' },
+  { key: TitleTextures.github, url: 'https://github.com/santiemanuel/space-apps-junior', label: 'menu.title.link.github' },
+] as const;
+const CORNER = { right: 22, bottom: 18, gap: 16, scale: 1, alpha: 0.85 } as const;
 
 interface RowView {
   id: TitleRowId;
@@ -117,11 +126,13 @@ export class TitleScene extends Phaser.Scene {
       roles: this.drawCrew(),
     };
 
+    const links = this.drawLinks();
     onKeys(this, (code) => this.onKey(code));
     this.render();
     // Entrada: el logotipo baja, el panel sube y el logotipo flota despacio.
     fadeIn(this, [logo, subtitle], { duration: 500, rise: -14 });
     fadeIn(this, panel, { duration: 480, rise: 18, delay: 160 });
+    fadeIn(this, links, { duration: 480, rise: 10, delay: 600 });
     this.time.delayedCall(700, () => this.tweens.add({ targets: logo, y: logo.y - 4, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.InOut' }));
   }
 
@@ -309,6 +320,44 @@ export class TitleScene extends Phaser.Scene {
     if (row === 'newGame' && this.menu.confirmingNewGame) return t('menu.title.newGame.confirmDescription');
     if (row === 'mode') return t(`menu.title.mode.${this.menu.setup.mode}.description`);
     return t(`menu.title.${row}.description`);
+  }
+
+  /**
+   * Logos de code-hello y de GitHub abajo a la derecha: al pasar el mouse se aclaran, suben un poco y muestran a dónde
+   * llevan; un clic abre el enlace en otra pestaña.
+   */
+  private drawLinks(): Phaser.GameObjects.Container {
+    const corner = this.add.container(0, 0);
+    let right = GAME_WIDTH - CORNER.right;
+    const bottom = GAME_HEIGHT - CORNER.bottom;
+    for (const link of LINKS) {
+      if (!this.textures.exists(link.key)) continue;
+      const logo = this.add.image(right, bottom, link.key).setOrigin(1, 1).setScale(CORNER.scale).setAlpha(CORNER.alpha);
+      const label = this.add
+        .text(right - logo.displayWidth / 2, bottom - logo.displayHeight - 8, t(link.label), { fontFamily: FONT, fontSize: '12px', color: COLOR.focus })
+        .setOrigin(0.5, 1)
+        .setAlpha(0);
+      logo.setInteractive({ useHandCursor: true });
+      logo.on('pointerover', () => {
+        audio.sfx('hover');
+        label.setText(t(link.label));
+        this.tweens.killTweensOf([logo, label]);
+        this.tweens.add({ targets: logo, alpha: 1, y: bottom - 3, duration: 120, ease: 'Cubic.Out' });
+        this.tweens.add({ targets: label, alpha: 1, duration: 120 });
+      });
+      logo.on('pointerout', () => {
+        this.tweens.killTweensOf([logo, label]);
+        this.tweens.add({ targets: logo, alpha: CORNER.alpha, y: bottom, duration: 160, ease: 'Cubic.Out' });
+        this.tweens.add({ targets: label, alpha: 0, duration: 160 });
+      });
+      logo.on('pointerdown', () => {
+        audio.sfx('select');
+        window.open(link.url, '_blank', 'noopener');
+      });
+      corner.add([logo, label]);
+      right -= logo.displayWidth + CORNER.gap;
+    }
+    return corner;
   }
 
   /**

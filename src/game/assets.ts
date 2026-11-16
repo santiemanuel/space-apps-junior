@@ -48,6 +48,8 @@ export const TitleTextures = {
   stars: 'title-stars',
   opsis: 'title-opsis',
   logo: 'title-logo',
+  codeHello: 'title-code-hello',
+  github: 'title-github',
 } as const;
 
 const titleSheet = (key: string, file: string, frameWidth: number, frameHeight: number): AssetEntry => ({
@@ -63,6 +65,8 @@ export const TITLE_ASSETS: readonly AssetEntry[] = [
   { kind: 'image', key: TitleTextures.marsMap, url: 'assets/ui/title/mars-map.png' },
   { kind: 'image', key: TitleTextures.meteorTrail, url: 'assets/ui/title/meteor-trail.png' },
   { kind: 'image', key: TitleTextures.logo, url: 'assets/ui/title/logo.png' },
+  { kind: 'image', key: TitleTextures.codeHello, url: 'assets/ui/title/code-hello.png' },
+  { kind: 'image', key: TitleTextures.github, url: 'assets/ui/title/github.png' },
   titleSheet(TitleTextures.iss, 'iss.png', 42, 21),
   titleSheet(TitleTextures.meteor, 'meteor.png', 13, 13),
   titleSheet(TitleTextures.asteroid, 'asteroid.png', 20, 20),

@@ -160,5 +160,7 @@
   "credits.typescript.use": "The language the game is written in.",
   "credits.vite.use": "Game builds and automated tests.",
   "credits.tiled.use": "Editor for the ship and Gale base maps.",
-  "credits.ffmpeg.use": "Music mastering: even loudness, limiter and loop points."
+  "credits.ffmpeg.use": "Music mastering: even loudness, limiter and loop points.",
+  "title.link.codeHello": "Made by code-hello",
+  "title.link.github": "Code on GitHub"
 }
