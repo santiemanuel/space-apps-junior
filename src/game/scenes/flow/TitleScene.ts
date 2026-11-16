@@ -337,10 +337,12 @@ export class TitleScene extends Phaser.Scene {
         .text(right - logo.displayWidth / 2, bottom - logo.displayHeight - 8, t(link.label), { fontFamily: FONT, fontSize: '12px', color: COLOR.focus })
         .setOrigin(0.5, 1)
         .setAlpha(0);
+      label.x = Math.min(label.x, GAME_WIDTH - CORNER.right - label.width / 2);
       logo.setInteractive({ useHandCursor: true });
       logo.on('pointerover', () => {
         audio.sfx('hover');
         label.setText(t(link.label));
+        label.x = Math.min(right - logo.displayWidth / 2, GAME_WIDTH - CORNER.right - label.width / 2);
         this.tweens.killTweensOf([logo, label]);
         this.tweens.add({ targets: logo, alpha: 1, y: bottom - 3, duration: 120, ease: 'Cubic.Out' });
         this.tweens.add({ targets: label, alpha: 1, duration: 120 });
