@@ -50,7 +50,7 @@ const INNER = { left: PANEL_LEFT + PANEL.pad, width: PANEL.width - PANEL.pad * 2
 const PRIMARY: readonly TitleRowId[] = ['continue', 'newGame'];
 /**
  * Enlaces de la esquina de abajo a la derecha, de derecha a izquierda: el estudio (code-hello) y el repositorio.
- * Logos en pixel art (`scripts/art/brand-icons.py`), a resolución de arte.
+ * code-hello en pixel art y el mark de GitHub original, al mismo alto (`scripts/art/brand-icons.py`).
  */
 const LINKS = [
   { key: TitleTextures.codeHello, url: 'https://www.code-hello.com', label: 'menu.title.link.codeHello' },

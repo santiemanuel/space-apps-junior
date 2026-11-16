@@ -52,7 +52,8 @@ Technical details (how the data is downloaded and processed, derived game rules)
 | [Photojournal](https://science.nasa.gov/photojournal/): PIA15292, PIA16056, PIA16156, PIA16705, PIA17080, PIA17587, PIA17595, PIA19930, PIA20283, PIA20755, PIA20841, PIA26241, PIA26245, PIA26307, PIA26309, PIA26410 | NASA/JPL-Caltech/MSSS (Mastcam, MAHLI) · NASA/JPL-Caltech/University of Arizona (HiRISE) | `docs/referencias/gale/` | References for drawing each area outside Gale; not shown in the game. |
 
 The code-hello logo belongs to code-hello; the GitHub mark is a trademark of GitHub, Inc. Both appear in the main menu
-(redrawn in pixel art) only as links to the studio's website and to this repository.
+(the code-hello logo redrawn in pixel art, the GitHub mark unmodified) only as links to the studio's website and to
+this repository.
 
 Hello Mars is not an official NASA product and is not endorsed by NASA. NASA data and images are used according to
 its [media usage guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/).
